@@ -1,0 +1,65 @@
+body {
+    margin: 0;
+    font-size: 14px;
+    font-family: 'Calibri';
+}
+
+.journal-sidebar-hamburger {
+    cursor: pointer;
+    font-size: 1.2em;
+    padding-top: 0.5em;
+    padding-right: 1em;
+    padding-bottom: 0.6em;
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 100vw;
+    border-bottom: 1px solid lightgrey;
+    text-align: right;
+}
+
+.journal-sidebar {
+    display: none;
+    height: calc(100vh - 5.83em);
+    width: 20em;
+    overflow-y: auto;
+    position: fixed;
+    top: 0;
+    right: 0;
+    margin-top: 3em;
+    padding-top: 1.4em;
+    padding-bottom: 1.4em;
+    background-color: wheat;
+}
+
+.journal-sidebar-hamburger, .journal-sidebar {
+    user-select: none;
+}
+
+.journal-sidebar-item {
+    padding: 0.3em 0.9em;
+}
+
+.journal-sidebar-item:hover {
+    background-color: #ffffff7d;
+    cursor: pointer;
+}
+
+.journal-sidebar-item-selected, .journal-sidebar-item-selected:hover {
+    background-color: white;
+}
+
+
+.journal-sidebar[style*="block"] + .journal-page {
+    margin-right: 22em;
+}
+
+.journal-page {
+    margin-left: 2em;
+    margin-right: 2em;
+    margin-top: 4em;
+}
+
+.journal-page-entries {
+    margin-top: 1em;
+}
