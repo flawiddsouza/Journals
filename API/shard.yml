@@ -1,0 +1,19 @@
+name: API
+version: 0.1.0
+
+authors:
+  - Flawid D'Souza <me@flawiddsouza.com>
+
+targets:
+  API:
+    main: src/main.cr
+
+crystal: 0.30.0
+
+license: MIT
+
+dependencies:
+  kemal:
+    github: kemalcr/kemal
+  sqlite3:
+    github: crystal-lang/crystal-sqlite3
