@@ -16,19 +16,15 @@ body {
     width: 100vw;
     border-bottom: 1px solid lightgrey;
     text-align: right;
+    background-color: white;
 }
 
 .journal-sidebar {
     display: none;
-    height: calc(100vh - 5.83em);
     width: 20em;
-    overflow-y: auto;
     position: fixed;
     top: 0;
     right: 0;
-    margin-top: 3em;
-    padding-top: 1.4em;
-    padding-bottom: 1.4em;
     background-color: wheat;
 }
 
@@ -49,17 +45,22 @@ body {
     background-color: white;
 }
 
-
-.journal-sidebar[style*="block"] + .journal-page {
-    margin-right: 22em;
-}
-
 .journal-page {
     margin-left: 2em;
-    margin-right: 2em;
-    margin-top: 4em;
 }
 
 .journal-page-entries {
     margin-top: 1em;
+}
+
+.journal-sidebar, .journal-page {
+    overflow-y: auto;
+    height: calc(100vh - 5.83em);
+    margin-top: 3em;
+    padding-top: 1.4em;
+    padding-bottom: 1.4em;
+}
+
+.journal-sidebar[style*="block"] + .journal-page {
+    margin-right: 20em;
 }
