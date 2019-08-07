@@ -182,6 +182,7 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
 <style>
 table {
     border-collapse: collapse;
+    font-size: 16px;
 }
 
 table th, table td {

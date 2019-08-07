@@ -1,7 +1,5 @@
 <script>
-import Table from './components/Table.svelte'
+import Frame from './components/Frame.svelte'
 </script>
 
-<div>
-    <Table noteId="1"></Table>
-</div>
+<Frame></Frame>
