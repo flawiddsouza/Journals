@@ -1,18 +1,6 @@
 <script>
 let pages = []
 
-let pageTypes = ['Table', 'FlatPage']
-
-for(var i=0; i<=50; i++) {
-    pages.push({
-        id: i,
-        name: 'Page ' + i,
-        type: pageTypes[Math.floor(Math.random() * pageTypes.length)]
-    })
-}
-
-let activePage = {}
-
 let leftSidebarElement = null
 let rightSidebarElement = null
 
@@ -30,6 +18,92 @@ function toggleSidebars() {
     toggleSidebar(rightSidebarElement)
 }
 
+let notebooks = [
+    {
+        id: 1,
+        name: 'Notebook 1',
+        expanded: true,
+        sections: [
+            {
+                id: 1,
+                name: 'Notebook 1 Section 1'
+            },
+            {
+                id: 2,
+                name: 'Notebook 1 Section 2'
+            },
+            {
+                id: 3,
+                name: 'Notebook 1 Section 3'
+            },
+            {
+                id: 4,
+                name: 'Notebook 1 Section 4'
+            },
+            {
+                id: 5,
+                name: 'Notebook 1 Section 5'
+            }
+        ]
+    },
+    {
+        id: 2,
+        name: 'Notebook 2',
+        expanded: true,
+        sections: []
+    }
+]
+
+function addNotebook() {
+    let notebookName = prompt('Enter new notebook name')
+    if(notebookName) {
+        notebooks.push({
+            id: Math.random(0, 999999),
+            name: notebookName,
+            expanded: true,
+            sections: []
+        })
+        notebooks = notebooks
+    }
+}
+
+function addSectionToNotebook(notebook) {
+    let sectionName = prompt('Enter new section name')
+    if(sectionName) {
+        let newSection = {
+            id: Math.random(0, 999999),
+            name: sectionName
+        }
+        notebook.sections.push(newSection)
+        activeSection = newSection
+        notebooks = notebooks
+    }
+}
+
+let activePage = {}
+let activeSection = {}
+
+$: fetchPages(activeSection)
+
+function fetchPages(activeSection) {
+    if(!activeSection.id) {
+        return
+    }
+
+    pages = []
+    activePage = {}
+
+    let pageTypes = ['Table', 'FlatPage']
+
+    for(var i=0; i<=Math.floor(Math.random() * Math.floor(40)); i++) {
+        pages.push({
+            id: i,
+            name: 'Page ' + Math.floor(Math.random() * Math.floor(100)),
+            type: pageTypes[Math.floor(Math.random() * pageTypes.length)]
+        })
+    }
+}
+
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
 </script>
@@ -37,9 +111,20 @@ import FlatPage from './FlatPage.svelte'
 <div>
     <nav class="journal-sidebar-hamburger" on:click={toggleSidebars}>&#9776; Menu</nav>
     <nav class="journal-left-sidebar" bind:this={leftSidebarElement} style="display: block">
-        {#each pages as journal}
-            <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === journal.id } on:click={ () => activePage = journal }>{ journal.name }</div>
+        {#each notebooks as notebook}
+            <div class="journal-sidebar-item-notebook">
+                <div class="journal-sidebar-item journal-sidebar-item-notebook-name" class:journal-sidebar-item-notebook-expanded={!notebook.expanded} on:click={() => notebook.expanded = !notebook.expanded}>{ notebook.name }</div>
+                {#if notebook.expanded}
+                    <div>
+                        {#each notebook.sections as section}
+                            <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activeSection.id === section.id } on:click={ () => activeSection = section }>{ section.name }</div>
+                        {/each}
+                        <div class="journal-sidebar-item" on:click={() => addSectionToNotebook(notebook)}>Add Section +</div>
+                    </div>
+                {/if}
+            </div>
         {/each}
+        <div class="journal-sidebar-item" on:click={addNotebook}>Add Notebook +</div>
     </nav>
     <main class="journal-page">
         {#if activePage.id !== undefined && activePage.id !== null}
@@ -101,6 +186,7 @@ import FlatPage from './FlatPage.svelte'
 
 .journal-sidebar-item {
     padding: 0.3em 0.9em;
+    user-select: none;
 }
 
 .journal-sidebar-item:hover {
@@ -110,6 +196,18 @@ import FlatPage from './FlatPage.svelte'
 
 .journal-sidebar-item-selected, .journal-sidebar-item-selected:hover {
     background-color: white;
+}
+
+.journal-sidebar-item-notebook:first-of-type {
+    border-top: 1px solid #d08700;
+}
+
+.journal-sidebar-item-notebook {
+    border-bottom: 1px solid #d08700;
+}
+
+.journal-sidebar-item-notebook-name:not(.journal-sidebar-item-notebook-expanded) {
+    border-bottom: 1px solid #d08700;
 }
 
 .journal-page {
