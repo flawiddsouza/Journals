@@ -18,47 +18,28 @@ function toggleSidebars() {
     toggleSidebar(rightSidebarElement)
 }
 
-let notebooks = [
-    {
-        id: 1,
-        name: 'Notebook 1',
-        expanded: true,
-        sections: [
-            {
-                id: 1,
-                name: 'Notebook 1 Section 1'
-            },
-            {
-                id: 2,
-                name: 'Notebook 1 Section 2'
-            },
-            {
-                id: 3,
-                name: 'Notebook 1 Section 3'
-            },
-            {
-                id: 4,
-                name: 'Notebook 1 Section 4'
-            },
-            {
-                id: 5,
-                name: 'Notebook 1 Section 5'
-            }
-        ]
-    },
-    {
-        id: 2,
-        name: 'Notebook 2',
-        expanded: true,
-        sections: []
-    }
-]
+let notebooks = []
 
-function addNotebook() {
+import fetchPlus from '../helpers/fetchPlus.js'
+
+fetchPlus.get('http://0.0.0.0:3000/notebooks').then(response => {
+    notebooks = response
+})
+
+async function addNotebook() {
     let notebookName = prompt('Enter new notebook name')
     if(notebookName) {
+        const rawResponse = await fetch('http://0.0.0.0:3000/notebooks', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ notebookName })
+        })
+        const response = await rawResponse.json()
         notebooks.push({
-            id: Math.random(0, 999999),
+            id: response.insertedRowId,
             name: notebookName,
             expanded: true,
             sections: []
