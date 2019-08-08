@@ -7,7 +7,7 @@ const fetchPlus = function(method, url, data, headers = {}) {
     }).then(res => res.ok ? res.json() : Promise.reject(res))
 }
 
-fetchPlus.credentials = 'include'
+// fetchPlus.credentials = 'include'
 fetchPlus.headers = {
     'Accept': 'application/json',
     'Content-Type': 'application/json'

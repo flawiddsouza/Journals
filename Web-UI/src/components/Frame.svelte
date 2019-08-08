@@ -22,14 +22,14 @@ let notebooks = []
 
 import fetchPlus from '../helpers/fetchPlus.js'
 
-fetchPlus.get('http://0.0.0.0:3000/notebooks').then(response => {
+fetchPlus.get('http://localhost:3000/notebooks').then(response => {
     notebooks = response
 })
 
 async function addNotebook() {
     let notebookName = prompt('Enter new notebook name')
     if(notebookName) {
-        const rawResponse = await fetch('http://0.0.0.0:3000/notebooks', {
+        const rawResponse = await fetch('http://localhost:3000/notebooks', {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
@@ -38,26 +38,40 @@ async function addNotebook() {
             body: JSON.stringify({ notebookName })
         })
         const response = await rawResponse.json()
+
         notebooks.push({
             id: response.insertedRowId,
             name: notebookName,
             expanded: true,
             sections: []
         })
+
         notebooks = notebooks
     }
 }
 
-function addSectionToNotebook(notebook) {
+async function addSectionToNotebook(notebook) {
     let sectionName = prompt('Enter new section name')
     if(sectionName) {
+        const rawResponse = await fetch('http://localhost:3000/sections', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ notebookId: notebook.id, sectionName })
+        })
+        const response = await rawResponse.json()
+
         let newSection = {
-            id: Math.random(0, 999999),
+            id: response.insertedRowId,
             name: sectionName
         }
+
         notebook.sections.push(newSection)
-        activeSection = newSection
         notebooks = notebooks
+
+        activeSection = newSection
     }
 }
 
@@ -66,7 +80,7 @@ let activeSection = {}
 
 $: fetchPages(activeSection)
 
-function fetchPages(activeSection) {
+async function fetchPages(activeSection) {
     if(!activeSection.id) {
         return
     }
@@ -74,15 +88,37 @@ function fetchPages(activeSection) {
     pages = []
     activePage = {}
 
-    let pageTypes = ['Table', 'FlatPage']
+    fetchPlus.get(`http://localhost:3000/pages/${activeSection.id}`).then(response => {
+        pages = response
+    })
+}
 
-    for(var i=0; i<=Math.floor(Math.random() * Math.floor(40)); i++) {
-        pages.push({
-            id: i,
-            name: 'Page ' + Math.floor(Math.random() * Math.floor(100)),
-            type: pageTypes[Math.floor(Math.random() * pageTypes.length)]
+async function addPageToActiveSection() {
+    let pageTypes = ['Table', 'FlatPage']
+    let pageName = 'Page ' + Math.floor(Math.random() * Math.floor(100))
+    let pageType = pageTypes[Math.floor(Math.random() * pageTypes.length)]
+
+    const rawResponse = await fetch('http://localhost:3000/pages', {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            sectionId: activeSection.id,
+            pageName,
+            pageType
         })
-    }
+    })
+    const response = await rawResponse.json()
+
+    pages.push({
+        id: response.insertedRowId,
+        name: pageName,
+        type: pageType
+    })
+
+    pages = pages
 }
 
 import Table from './Table.svelte'
@@ -121,9 +157,12 @@ import FlatPage from './FlatPage.svelte'
         {/if}
     </main>
     <nav class="journal-right-sidebar" bind:this={rightSidebarElement} style="display: block">
-        {#each pages as journal}
-            <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === journal.id } on:click={ () => activePage = journal }>{ journal.name }</div>
-        {/each}
+        {#if activeSection.id !== undefined && activeSection.id !== null}
+            {#each pages as page}
+                <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === page.id } on:click={ () => activePage = page }>{ page.name }</div>
+            {/each}
+            <div class="journal-sidebar-item" on:click={addPageToActiveSection}>Add Page +</div>
+        {/if}
     </nav>
 </div>
 
