@@ -149,6 +149,7 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
         if(link) {
             let anchorTag = document.createElement('a')
             anchorTag.href = link
+            anchorTag.target = '_blank'
             anchorTag.contentEditable = false
             surroundSelection(anchorTag)
             e.target.dispatchEvent(new Event('input')) // trigger input event, so that the change is persisted to the array
