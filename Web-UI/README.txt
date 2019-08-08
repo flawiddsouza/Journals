@@ -1,4 +1,2 @@
 To start development:
-```
-npm run dev
-```
+    npm run dev
