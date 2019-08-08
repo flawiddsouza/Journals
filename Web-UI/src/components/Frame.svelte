@@ -13,9 +13,10 @@ for(var i=0; i<=50; i++) {
 
 let activePage = {}
 
-let sidebarElement = null
+let leftSidebarElement = null
+let rightSidebarElement = null
 
-function toggleSidebar() {
+function toggleSidebar(sidebarElement) {
     let sidebarStyle = getComputedStyle(sidebarElement)
     if(sidebarStyle.display === 'block') {
         sidebarElement.style.display = 'none'
@@ -24,13 +25,18 @@ function toggleSidebar() {
     }
 }
 
+function toggleSidebars() {
+    toggleSidebar(leftSidebarElement)
+    toggleSidebar(rightSidebarElement)
+}
+
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
 </script>
 
 <div>
-    <nav class="journal-sidebar-hamburger" on:click={toggleSidebar}>&#9776; Menu</nav>
-    <nav class="journal-sidebar" bind:this={sidebarElement} style="display: block">
+    <nav class="journal-sidebar-hamburger" on:click={toggleSidebars}>&#9776; Menu</nav>
+    <nav class="journal-left-sidebar" bind:this={leftSidebarElement} style="display: block">
         {#each pages as journal}
             <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === journal.id } on:click={ () => activePage = journal }>{ journal.name }</div>
         {/each}
@@ -48,6 +54,11 @@ import FlatPage from './FlatPage.svelte'
             </div>
         {/if}
     </main>
+    <nav class="journal-right-sidebar" bind:this={rightSidebarElement} style="display: block">
+        {#each pages as journal}
+            <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === journal.id } on:click={ () => activePage = journal }>{ journal.name }</div>
+        {/each}
+    </nav>
 </div>
 
 <style>
@@ -66,7 +77,16 @@ import FlatPage from './FlatPage.svelte'
     background-color: white;
 }
 
-.journal-sidebar {
+.journal-left-sidebar {
+    display: none;
+    width: 15em;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background-color: wheat;
+}
+
+.journal-right-sidebar {
     display: none;
     width: 20em;
     position: fixed;
@@ -101,7 +121,7 @@ import FlatPage from './FlatPage.svelte'
     margin-right: 1em;
 }
 
-.journal-sidebar, .journal-page {
+.journal-left-sidebar, .journal-right-sidebar, .journal-page {
     overflow-y: auto;
     height: calc(100vh - 3em);
     margin-top: 3em;
@@ -109,7 +129,8 @@ import FlatPage from './FlatPage.svelte'
     padding-bottom: 1.4em;
 }
 
-.journal-sidebar[style*="block"] + .journal-page {
+.journal-left-sidebar[style*="block"] + .journal-page {
+    margin-left: 17em;
     margin-right: 20em;
 }
 
