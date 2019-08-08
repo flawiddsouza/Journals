@@ -1,13 +1,13 @@
 <script>
-let journals = []
+let pages = []
 
-let journalTypes = ['Table', 'FlatPage']
+let pageTypes = ['Table', 'FlatPage']
 
 for(var i=0; i<=50; i++) {
-    journals.push({
+    pages.push({
         id: i,
-        name: 'Journal ' + i,
-        type: journalTypes[Math.floor(Math.random() * journalTypes.length)]
+        name: 'Page ' + i,
+        type: pageTypes[Math.floor(Math.random() * pageTypes.length)]
     })
 }
 
@@ -31,7 +31,7 @@ import FlatPage from './FlatPage.svelte'
 <div>
     <nav class="journal-sidebar-hamburger" on:click={toggleSidebar}>&#9776; Menu</nav>
     <nav class="journal-sidebar" bind:this={sidebarElement} style="display: block">
-        {#each journals as journal}
+        {#each pages as journal}
             <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === journal.id } on:click={ () => activePage = journal }>{ journal.name }</div>
         {/each}
     </nav>
@@ -98,6 +98,7 @@ import FlatPage from './FlatPage.svelte'
 
 .journal-page-entries {
     margin-top: 1em;
+    margin-right: 1em;
 }
 
 .journal-sidebar, .journal-page {
