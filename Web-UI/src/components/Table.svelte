@@ -105,11 +105,7 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
 
     // insert date into the current row
     if(e.altKey && e.shiftKey && e.key.toLowerCase() === 'd') {
-        items[itemIndex][itemColumn] += format(new Date(), 'DD-MMM-YY')
-
-        // move cursor to end of input
-        document.execCommand('selectAll', false, null)
-        document.getSelection().collapseToEnd()
+        document.execCommand('insertHTML', false, format(new Date(), 'DD-MMM-YY'))
     }
 
     // move to upper cell
