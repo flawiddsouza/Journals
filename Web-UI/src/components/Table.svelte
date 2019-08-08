@@ -59,6 +59,16 @@ function evalulateJS(jsString) {
 
 import { format } from 'date-fns'
 
+function surroundSelection(element) {
+    let sel = window.getSelection()
+    if(sel.toString() && sel.rangeCount) {
+        var range = sel.getRangeAt(0).cloneRange()
+        range.surroundContents(element)
+        sel.removeAllRanges()
+        sel.addRange(range)
+    }
+}
+
 function handleKeysInTD(e, itemIndex, itemColumn) {
     // insert row below
     if(e.ctrlKey && e.key === 'Enter')  {
@@ -137,7 +147,11 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
         e.preventDefault()
         let link = prompt('Enter link')
         if(link) {
-            document.execCommand('CreateLink', false, link)
+            let anchorTag = document.createElement('a')
+            anchorTag.href = link
+            anchorTag.contentEditable = false
+            surroundSelection(anchorTag)
+            e.target.dispatchEvent(new Event('input')) // trigger input event, so that the change is persisted to the array
         }
     }
 }
@@ -184,6 +198,14 @@ table {
 table th, table td {
     border: 1px solid grey;
     min-width: 3em;
+    padding: 2px 5px;
+}
+
+table > tbody td {
+    padding: 0;
+}
+
+table > tbody td > div {
     padding: 2px 5px;
 }
 
