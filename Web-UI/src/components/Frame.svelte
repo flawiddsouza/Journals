@@ -1,14 +1,17 @@
 <script>
 let journals = []
 
+let journalTypes = ['Table', 'FlatPage']
+
 for(var i=0; i<=50; i++) {
     journals.push({
         id: i,
-        name: 'Journal ' + i
+        name: 'Journal ' + i,
+        type: journalTypes[Math.floor(Math.random() * journalTypes.length)]
     })
 }
 
-let activeJournal = {}
+let activePage = {}
 
 let sidebarElement = null
 
@@ -22,30 +25,28 @@ function toggleSidebar() {
 }
 
 import Table from './Table.svelte'
+import FlatPage from './FlatPage.svelte'
 </script>
 
 <div>
     <nav class="journal-sidebar-hamburger" on:click={toggleSidebar}>&#9776; Menu</nav>
     <nav class="journal-sidebar" bind:this={sidebarElement} style="display: block">
         {#each journals as journal}
-            <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activeJournal.id === journal.id } on:click={ () => activeJournal = journal }>{ journal.name }</div>
+            <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === journal.id } on:click={ () => activePage = journal }>{ journal.name }</div>
         {/each}
     </nav>
     <main class="journal-page">
-        <h1 class="journal-page-title">Heading</h1>
-        <div class="journal-page-entries">
-            <!-- {#each [...Array(100).keys()] as item}
-                <p>
-                Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod
-                tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,
-                quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
-                consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse
-                cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non
-                proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-                </p>
-            {/each} -->
-            <Table noteId="1"></Table>
-        </div>
+        {#if activePage.id !== undefined && activePage.id !== null}
+            <h1 class="journal-page-title">{activePage.name}</h1>
+            <div class="journal-page-entries">
+                    {#if activePage.type === 'Table'}
+                        <Table bind:pageId={activePage.id}></Table>
+                    {/if}
+                    {#if activePage.type === 'FlatPage'}
+                        <FlatPage bind:pageId={activePage.id}></FlatPage>
+                    {/if}
+            </div>
+        {/if}
     </main>
 </div>
 
@@ -109,5 +110,9 @@ import Table from './Table.svelte'
 
 .journal-sidebar[style*="block"] + .journal-page {
     margin-right: 20em;
+}
+
+h1.journal-page-title {
+    margin-top: 0;
 }
 </style>

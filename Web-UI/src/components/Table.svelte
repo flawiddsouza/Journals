@@ -1,52 +1,61 @@
 <script>
-export let noteId
+export let pageId
 
-let columns = [
-	{
-		'name': 'date',
-		'label': 'Date'
-	},
-	{
-		'name': 'item',
-		'label': 'Item'
-	},
-	{
-		'name': 'size',
-		'label': ''
-	}
-]
+let columns = []
+let items = []
+let totals = {}
 
-let items = [
-    {
-        'id': 1,
-        'date': '10-Jul-19',
-        'item': 'Test',
-        'size': '10 GB'
-    },
-    {
-        'id': 2,
-        'date': '11-Jul-19',
-        'item': 'Test 2',
-        'size': '5.5 GB'
-    },
-    {
-        'id': 3,
-        'date': '12-Jul-19',
-        'item': 'Test 3',
-        'size': '7.7 GB'
-    },
-    {
-        'id': 4,
-        'date': '14-Jul-19',
-        'item': 'Test 4',
-        'size': '9 GB'
+$: fetchPage(pageId)
+
+function fetchPage(pageId) {
+    // console.log(pageId)
+    columns = [
+        {
+            'name': 'date',
+            'label': 'Date'
+        },
+        {
+            'name': 'item',
+            'label': 'Item'
+        },
+        {
+            'name': 'size',
+            'label': ''
+        }
+    ]
+
+    items = [
+        {
+            'id': 1,
+            'date': '10-Jul-19',
+            'item': 'Test',
+            'size': '10 GB'
+        },
+        {
+            'id': 2,
+            'date': '11-Jul-19',
+            'item': 'Test 2',
+            'size': '5.5 GB'
+        },
+        {
+            'id': 3,
+            'date': '12-Jul-19',
+            'item': 'Test 3',
+            'size': '7.7 GB'
+        },
+        {
+            'id': 4,
+            'date': '14-Jul-19',
+            'item': 'Test 4',
+            'size': '9 GB'
+        }
+    ]
+
+    totals = {
+        'size': `
+            return items.reduce((accumulator, item) => accumulator + Number(item.size.replace(' GB', '')), 0) + ' GB'
+        `
     }
-]
-
-let totals = {
-    'size': `
-        return items.reduce((accumulator, item) => accumulator + Number(item.size.replace(' GB', '')), 0) + ' GB'
-    `
 }
 
 $: if(items) {
@@ -57,19 +66,11 @@ function evalulateJS(jsString) {
     return new Function('items', jsString).call(this, items)
 }
 
-import { format } from 'date-fns'
-
-function surroundSelection(element) {
-    let sel = window.getSelection()
-    if(sel.toString() && sel.rangeCount) {
-        var range = sel.getRangeAt(0).cloneRange()
-        range.surroundContents(element)
-        sel.removeAllRanges()
-        sel.addRange(range)
-    }
-}
+import defaultKeydownHandlerForContentEditableArea from '../helpers/defaultKeydownHandlerForContentEditableArea.js'
 
 function handleKeysInTD(e, itemIndex, itemColumn) {
+    defaultKeydownHandlerForContentEditableArea(e)
+
     // insert row below
     if(e.ctrlKey && e.key === 'Enter')  {
         let insertObj = {}
@@ -113,11 +114,6 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
         }
     }
 
-    // insert date into the current row
-    if(e.altKey && e.shiftKey && e.key.toLowerCase() === 'd') {
-        document.execCommand('insertHTML', false, format(new Date(), 'DD-MMM-YY'))
-    }
-
     // move to upper cell
     if(e.key === 'ArrowUp') {
         e.preventDefault()
@@ -139,20 +135,6 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
         if(typeof bottomRow !== 'undefined') {
             let bottomCell = bottomRow.querySelector('td:nth-of-type(' + (currentColumn + 1) + ') > div')
             bottomCell.focus()
-        }
-    }
-
-    // create hyperlink from selection
-    if(e.ctrlKey && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        let link = prompt('Enter link')
-        if(link) {
-            let anchorTag = document.createElement('a')
-            anchorTag.href = link
-            anchorTag.target = '_blank'
-            anchorTag.contentEditable = false
-            surroundSelection(anchorTag)
-            e.target.dispatchEvent(new Event('input')) // trigger input event, so that the change is persisted to the array
         }
     }
 }
