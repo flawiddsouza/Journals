@@ -93,10 +93,17 @@ async function fetchPages(activeSection) {
     })
 }
 
+let showAddPageModal = false
+let addPage = {
+    name: '',
+    type: 'FlatPage'
+}
+
 async function addPageToActiveSection() {
-    let pageTypes = ['Table', 'FlatPage']
-    let pageName = 'Page ' + Math.floor(Math.random() * Math.floor(100))
-    let pageType = pageTypes[Math.floor(Math.random() * pageTypes.length)]
+    showAddPageModal = false
+
+    let pageName = addPage.name
+    let pageType = addPage.type
 
     const rawResponse = await fetch('http://localhost:3000/pages', {
         method: 'POST',
@@ -119,10 +126,16 @@ async function addPageToActiveSection() {
     })
 
     pages = pages
+
+    addPage = {
+        name: '',
+        type: 'FlatPage'
+    }
 }
 
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
+import Modal from './Modal.svelte'
 </script>
 
 <div>
@@ -161,9 +174,26 @@ import FlatPage from './FlatPage.svelte'
             {#each pages as page}
                 <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === page.id } on:click={ () => activePage = page }>{ page.name }</div>
             {/each}
-            <div class="journal-sidebar-item" on:click={addPageToActiveSection}>Add Page +</div>
+            <div class="journal-sidebar-item" on:click={() => showAddPageModal = true}>Add Page +</div>
         {/if}
     </nav>
+    {#if showAddPageModal}
+        <Modal on:close-modal={() => showAddPageModal = false}>
+            <form on:submit|preventDefault={addPageToActiveSection}>
+                <h2>Add Page</h2>
+                <label>Name<br>
+                    <input type="text" bind:value={addPage.name} required class="w-100p">
+                </label>
+                <label class="d-b mt-0_5em">Type<br>
+                    <select bind:value={addPage.type} required class="w-100p">
+                        <option value="FlatPage">Flat Page</option>
+                        <option value="Table">Table</option>
+                    </select>
+                </label>
+                <button class="w-100p mt-1em">Add</button>
+            </form>
+        </Modal>
+    {/if}
 </div>
 
 <style>
@@ -254,5 +284,26 @@ import FlatPage from './FlatPage.svelte'
 
 h1.journal-page-title {
     margin-top: 0;
+}
+
+.w-100p {
+    width: 100%;
+}
+
+.mt-0_5em {
+    margin-top: 0.5em;
+}
+
+.mt-1em {
+    margin-top: 1em;
+}
+
+.d-b {
+    display: block;
+}
+
+form > h2 {
+    margin: 0;
+    margin-bottom: 0.5em;
 }
 </style>
