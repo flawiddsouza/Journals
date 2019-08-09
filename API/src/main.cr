@@ -146,4 +146,12 @@ delete "/sections/:section_id" do |env|
   {success: true}.to_json
 end
 
+delete "/notebooks/:notebook_id" do |env|
+  notebook_id = env.params.url["notebook_id"]
+  db.exec "DELETE FROM notebooks WHERE id = ?", notebook_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
 Kemal.run

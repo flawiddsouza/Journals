@@ -165,7 +165,8 @@ function deletePage() {
 let sectionItemContextMenu = {
     left: 0,
     top: 0,
-    section: null
+    section: null,
+    notebook: null
 }
 
 function handleSectionItemContextMenu(e, section, notebook) {
@@ -179,7 +180,6 @@ function deleteSection() {
     if(confirm('Are you sure you want to delete this section?')) {
         fetchPlus.delete(`http://localhost:3000/sections/${sectionItemContextMenu.section.id}`)
         sectionItemContextMenu.notebook.sections = sectionItemContextMenu.notebook.sections.filter(section => section.id !== sectionItemContextMenu.section.id)
-        noteboooks = noteboooks
     }
     if(activeSection.id === sectionItemContextMenu.section.id) {
         activeSection = {}
@@ -188,11 +188,32 @@ function deleteSection() {
     sectionItemContextMenu.notebook = null
 }
 
+let notebookItemContextMenu = {
+    left: 0,
+    top: 0,
+    notebook: null
+}
+
+function handleNotebookItemContextMenu(e, notebook) {
+    notebookItemContextMenu.left = e.pageX
+    notebookItemContextMenu.top = e.pageY
+    notebookItemContextMenu.notebook = notebook
+}
+
+function deleteNotebook() {
+    if(confirm('Are you sure you want to delete this notebook?')) {
+        fetchPlus.delete(`http://localhost:3000/notebooks/${notebookItemContextMenu.notebook.id}`)
+        notebooks = notebooks.filter(notebook => notebook.id !== notebookItemContextMenu.notebook.id)
+    }
+    notebookItemContextMenu.notebook = null
+}
+
 window.addEventListener('click', e => {
     if(!e.target.closest('.context-menu')) {
         pageItemContextMenu.page = null
         sectionItemContextMenu.section = null
         sectionItemContextMenu.notebook = null
+        notebookItemContextMenu.notebook = null
     }
 })
 
@@ -210,7 +231,7 @@ import Modal from './Modal.svelte'
     <nav class="journal-left-sidebar" bind:this={leftSidebarElement} style="display: block">
         {#each notebooks as notebook}
             <div class="journal-sidebar-item-notebook">
-                <div class="journal-sidebar-item journal-sidebar-item-notebook-name" class:journal-sidebar-item-notebook-expanded={!notebook.expanded} on:click={() => notebook.expanded = !notebook.expanded}>{ notebook.name }</div>
+                <div class="journal-sidebar-item journal-sidebar-item-notebook-name" class:journal-sidebar-item-notebook-expanded={!notebook.expanded} on:click={() => notebook.expanded = !notebook.expanded} on:contextmenu|preventDefault={(e) => handleNotebookItemContextMenu(e, notebook)}>{ notebook.name }</div>
                 {#if notebook.expanded}
                     <div>
                         {#each notebook.sections as section}
@@ -269,6 +290,11 @@ import Modal from './Modal.svelte'
     {#if sectionItemContextMenu.section}
         <div class="context-menu" style="left: {sectionItemContextMenu.left}px; top: {sectionItemContextMenu.top}px">
             <div on:click={deleteSection}>Delete section</div>
+        </div>
+    {/if}
+    {#if notebookItemContextMenu.notebook}
+        <div class="context-menu" style="left: {notebookItemContextMenu.left}px; top: {notebookItemContextMenu.top}px">
+            <div on:click={deleteNotebook}>Delete notebook</div>
         </div>
     {/if}
 </div>
