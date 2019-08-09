@@ -154,4 +154,23 @@ delete "/notebooks/:notebook_id" do |env|
   {success: true}.to_json
 end
 
+put "/pages/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+  page_content = env.params.json["pageContent"].as(String)
+
+  db.exec "UPDATE pages SET content=? WHERE id = ?", page_content, page_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+get "/pages/content/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  page = db.query_one("SELECT content from pages WHERE id = ?", page_id, as: {content: Nil | String})
+
+  env.response.content_type = "application/json"
+  page.to_json
+end
+
 Kemal.run
