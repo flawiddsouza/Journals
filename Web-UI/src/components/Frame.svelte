@@ -139,29 +139,60 @@ async function addPageToActiveSection() {
     }
 }
 
-let contextMenu = {
+let pageItemContextMenu = {
     left: 0,
     top: 0,
     page: null
 }
 
 function handlePageItemContextMenu(e, page) {
-    contextMenu.left = e.pageX
-    contextMenu.top = e.pageY
-    contextMenu.page = page
+    pageItemContextMenu.left = e.pageX
+    pageItemContextMenu.top = e.pageY
+    pageItemContextMenu.page = page
 }
 
 function deletePage() {
     if(confirm('Are you sure you want to delete this page?')) {
-        fetchPlus.delete(`http://localhost:3000/pages/${contextMenu.page.id}`)
-        pages = pages.filter(page => page.id !== contextMenu.page.id)
+        fetchPlus.delete(`http://localhost:3000/pages/${pageItemContextMenu.page.id}`)
+        pages = pages.filter(page => page.id !== pageItemContextMenu.page.id)
     }
-    contextMenu.page = null
+    if(activePage.id === pageItemContextMenu.page.id) {
+        activePage = {}
+    }
+    pageItemContextMenu.page = null
+}
+
+let sectionItemContextMenu = {
+    left: 0,
+    top: 0,
+    section: null
+}
+
+function handleSectionItemContextMenu(e, section, notebook) {
+    sectionItemContextMenu.left = e.pageX
+    sectionItemContextMenu.top = e.pageY
+    sectionItemContextMenu.section = section
+    sectionItemContextMenu.notebook = notebook
+}
+
+function deleteSection() {
+    if(confirm('Are you sure you want to delete this section?')) {
+        fetchPlus.delete(`http://localhost:3000/sections/${sectionItemContextMenu.section.id}`)
+        sectionItemContextMenu.notebook.sections = sectionItemContextMenu.notebook.sections.filter(section => section.id !== sectionItemContextMenu.section.id)
+        noteboooks = noteboooks
+    }
+    if(activeSection.id === sectionItemContextMenu.section.id) {
+        activeSection = {}
+    }
+    sectionItemContextMenu.section = null
+    sectionItemContextMenu.notebook = null
 }
 
 window.addEventListener('click', e => {
     if(!e.target.closest('.context-menu')) {
-        contextMenu.page = null
+        pageItemContextMenu.page = null
+        sectionItemContextMenu.section = null
+        sectionItemContextMenu.notebook = null
     }
 })
 
@@ -183,7 +214,7 @@ import Modal from './Modal.svelte'
                 {#if notebook.expanded}
                     <div>
                         {#each notebook.sections as section}
-                            <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activeSection.id === section.id } on:click={ () => activeSection = section }>{ section.name }</div>
+                            <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activeSection.id === section.id } on:click={ () => activeSection = section } on:contextmenu|preventDefault={(e) => handleSectionItemContextMenu(e, section, notebook)}>{ section.name }</div>
                         {/each}
                         <div class="journal-sidebar-item" on:click={() => addSectionToNotebook(notebook)}>Add Section +</div>
                     </div>
@@ -230,9 +261,14 @@ import Modal from './Modal.svelte'
             </form>
         </Modal>
     {/if}
-    {#if contextMenu.page}
-        <div class="context-menu" style="left: {contextMenu.left}px; top: {contextMenu.top}px">
+    {#if pageItemContextMenu.page}
+        <div class="context-menu" style="left: {pageItemContextMenu.left}px; top: {pageItemContextMenu.top}px">
             <div on:click={deletePage}>Delete page</div>
+        </div>
+    {/if}
+    {#if sectionItemContextMenu.section}
+        <div class="context-menu" style="left: {sectionItemContextMenu.left}px; top: {sectionItemContextMenu.top}px">
+            <div on:click={deleteSection}>Delete section</div>
         </div>
     {/if}
 </div>

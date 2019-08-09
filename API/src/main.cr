@@ -135,7 +135,15 @@ delete "/pages/:page_id" do |env|
   db.exec "DELETE FROM pages WHERE id = ?", page_id
 
   env.response.content_type = "application/json"
-  { success: true }.to_json
+  {success: true}.to_json
+end
+
+delete "/sections/:section_id" do |env|
+  section_id = env.params.url["section_id"]
+  db.exec "DELETE FROM sections WHERE id = ?", section_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
 end
 
 Kemal.run
