@@ -127,6 +127,12 @@ async function addPageToActiveSection() {
 
     pages = pages
 
+    activePage = {
+        id: response.insertedRowId,
+        name: pageName,
+        type: pageType
+    }
+
     addPage = {
         name: '',
         type: 'FlatPage'
@@ -158,6 +164,10 @@ window.addEventListener('click', e => {
         contextMenu.page = null
     }
 })
+
+function focus(element) {
+    element.focus()
+}
 
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
@@ -208,7 +218,7 @@ import Modal from './Modal.svelte'
             <form on:submit|preventDefault={addPageToActiveSection}>
                 <h2>Add Page</h2>
                 <label>Name<br>
-                    <input type="text" bind:value={addPage.name} required class="w-100p">
+                    <input type="text" bind:value={addPage.name} required class="w-100p" use:focus>
                 </label>
                 <label class="d-b mt-0_5em">Type<br>
                     <select bind:value={addPage.type} required class="w-100p">
