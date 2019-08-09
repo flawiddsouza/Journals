@@ -8,7 +8,7 @@ before_all do |env|
 end
 
 options "/*" do |env|
-  env.response.headers["Allow"] = "HEAD,GET,PUT,POST,DELETE,OPTIONS"
+  env.response.headers["Access-Control-Allow-Methods"] = "HEAD,GET,PUT,POST,DELETE,OPTIONS"
   env.response.headers["Access-Control-Allow-Headers"] = "X-Requested-With, X-HTTP-Method-Override, Content-Type, Cache-Control, Accept"
 
   halt env, 200
@@ -128,6 +128,14 @@ get "/pages/:section_id" do |env|
 
   env.response.content_type = "application/json"
   pages.to_json
+end
+
+delete "/pages/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+  db.exec "DELETE FROM pages WHERE id = ?", page_id
+
+  env.response.content_type = "application/json"
+  { success: true }.to_json
 end
 
 Kemal.run

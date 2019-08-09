@@ -133,6 +133,32 @@ async function addPageToActiveSection() {
     }
 }
 
+let contextMenu = {
+    left: 0,
+    top: 0,
+    page: null
+}
+
+function handlePageItemContextMenu(e, page) {
+    contextMenu.left = e.pageX
+    contextMenu.top = e.pageY
+    contextMenu.page = page
+}
+
+function deletePage() {
+    if(confirm('Are you sure you want to delete this page?')) {
+        fetchPlus.delete(`http://localhost:3000/pages/${contextMenu.page.id}`)
+        pages = pages.filter(page => page.id !== contextMenu.page.id)
+    }
+    contextMenu.page = null
+}
+
+window.addEventListener('click', e => {
+    if(!e.target.closest('.context-menu')) {
+        contextMenu.page = null
+    }
+})
+
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
 import Modal from './Modal.svelte'
@@ -172,7 +198,7 @@ import Modal from './Modal.svelte'
     <nav class="journal-right-sidebar" bind:this={rightSidebarElement} style="display: block">
         {#if activeSection.id !== undefined && activeSection.id !== null}
             {#each pages as page}
-                <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === page.id } on:click={ () => activePage = page }>{ page.name }</div>
+                <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === page.id } on:click={ () => activePage = page } on:contextmenu|preventDefault={(e) => handlePageItemContextMenu(e, page)}>{ page.name }</div>
             {/each}
             <div class="journal-sidebar-item" on:click={() => showAddPageModal = true}>Add Page +</div>
         {/if}
@@ -193,6 +219,11 @@ import Modal from './Modal.svelte'
                 <button class="w-100p mt-1em">Add</button>
             </form>
         </Modal>
+    {/if}
+    {#if contextMenu.page}
+        <div class="context-menu" style="left: {contextMenu.left}px; top: {contextMenu.top}px">
+            <div on:click={deletePage}>Delete page</div>
+        </div>
     {/if}
 </div>
 
@@ -305,5 +336,13 @@ h1.journal-page-title {
 form > h2 {
     margin: 0;
     margin-bottom: 0.5em;
+}
+
+.context-menu {
+    position: fixed;
+    background-color: white;
+    padding: 4px 8px;
+    cursor: pointer;
+    box-shadow: 1px 1px 4px -1px black;
 }
 </style>
