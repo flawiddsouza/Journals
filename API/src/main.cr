@@ -183,4 +183,24 @@ put "/pages/name/:page_id" do |env|
   {success: true}.to_json
 end
 
+put "/sections/name/:section_id" do |env|
+  section_id = env.params.url["section_id"]
+  section_name = env.params.json["sectionName"].as(String)
+
+  db.exec "UPDATE sections SET name=? WHERE id = ?", section_name, section_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+put "/notebooks/name/:notebook_id" do |env|
+  notebook_id = env.params.url["notebook_id"]
+  notebook_name = env.params.json["notebookName"].as(String)
+
+  db.exec "UPDATE notebooks SET name=? WHERE id = ?", notebook_name, notebook_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
 Kemal.run

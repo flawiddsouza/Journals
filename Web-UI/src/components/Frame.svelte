@@ -176,6 +176,19 @@ function handleSectionItemContextMenu(e, section, notebook) {
     sectionItemContextMenu.notebook = notebook
 }
 
+function renameSection() {
+    let newSectionName = prompt('Enter new section name', sectionItemContextMenu.section.name)
+    if(newSectionName) {
+        fetchPlus.put(`http://localhost:3000/sections/name/${sectionItemContextMenu.section.id}`, {
+            sectionName: newSectionName
+        })
+        sectionItemContextMenu.section.name = newSectionName
+        notebooks = notebooks
+    }
+    sectionItemContextMenu.section = null
+    sectionItemContextMenu.notebook = null
+}
+
 function deleteSection() {
     if(confirm('Are you sure you want to delete this section?')) {
         fetchPlus.delete(`http://localhost:3000/sections/${sectionItemContextMenu.section.id}`)
@@ -198,6 +211,18 @@ function handleNotebookItemContextMenu(e, notebook) {
     notebookItemContextMenu.left = e.pageX
     notebookItemContextMenu.top = e.pageY
     notebookItemContextMenu.notebook = notebook
+}
+
+function renameNotebook() {
+    let newNotebookName = prompt('Enter new notebook name', notebookItemContextMenu.notebook.name)
+    if(newNotebookName) {
+        fetchPlus.put(`http://localhost:3000/notebooks/name/${notebookItemContextMenu.notebook.id}`, {
+            notebookName: newNotebookName
+        })
+        notebookItemContextMenu.notebook.name = newNotebookName
+        notebooks = notebooks
+    }
+    notebookItemContextMenu.notebook = null
 }
 
 function deleteNotebook() {
@@ -306,11 +331,13 @@ import Modal from './Modal.svelte'
     {/if}
     {#if sectionItemContextMenu.section}
         <div class="context-menu" style="left: {sectionItemContextMenu.left}px; top: {sectionItemContextMenu.top}px">
+            <div on:click={renameSection}>Rename section</div>
             <div on:click={deleteSection}>Delete section</div>
         </div>
     {/if}
     {#if notebookItemContextMenu.notebook}
         <div class="context-menu" style="left: {notebookItemContextMenu.left}px; top: {notebookItemContextMenu.top}px">
+            <div on:click={renameNotebook}>Rename notebook</div>
             <div on:click={deleteNotebook}>Delete notebook</div>
         </div>
     {/if}
