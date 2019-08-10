@@ -5,7 +5,7 @@ authors:
   - Flawid D'Souza <me@flawiddsouza.com>
 
 targets:
-  API:
+  journals:
     main: src/main.cr
 
 crystal: 0.30.0

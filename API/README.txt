@@ -19,4 +19,7 @@ Troubleshooting
         sudo apt-get install libgmp-dev
 
 To build for production:
-    crystal build --release src/main.cr
+    shards build --release
+    Then you can find the binary at bin/journals
+    which can be run like so
+        KEMAL_ENV=production ./bin/journals
