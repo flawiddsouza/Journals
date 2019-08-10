@@ -1,6 +1,5 @@
 import { token } from '../stores.js'
-
-let baseURL = 'http://localhost:3000'
+import { baseURL } from '../../config.js'
 
 const fetchPlus = function(method, url, data, headers = {}) {
     return fetch(baseURL + url, {

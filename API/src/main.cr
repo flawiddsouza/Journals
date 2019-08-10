@@ -13,4 +13,5 @@ add_handler AuthHandler.new
 # routes
 require "./routes"
 
+Kemal.config.port = 9900
 Kemal.run
