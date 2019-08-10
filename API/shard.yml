@@ -19,3 +19,5 @@ dependencies:
     github: crystal-lang/crystal-sqlite3
   jwt:
     github: crystal-community/jwt
+  dotenv:
+    github: gdotdesign/cr-dotenv

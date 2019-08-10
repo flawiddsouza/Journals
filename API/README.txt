@@ -1,6 +1,12 @@
+Init:
+    shards install
+    cp .env.example .env
+    open .env and set JWT_SECRET to a unique value
+        You can find random 63-character code at https://www.grc.com/passwords.htm, see: 63 random alpha-numeric characters (a-z, A-Z, 0-9)
+
 To run:
     crystal run src/main.cr
-    Go to http://0.0.0.0:3000 to test the API
+    Go to http://0.0.0.0:9900 to test the API
 
 Troubleshooting
     Problem:
@@ -11,3 +17,6 @@ Troubleshooting
         /usr/bin/ld: cannot find -lgmp (this usually means you need to install the development package for libgmp)
     Solution:
         sudo apt-get install libgmp-dev
+
+To build for production:
+    crystal build --release src/main.cr

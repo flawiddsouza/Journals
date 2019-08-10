@@ -1,3 +1,7 @@
+require "dotenv"
+
+Dotenv.load
+
 db = DB.open "sqlite3://./store.db"
 db.exec("PRAGMA journal_mode = WAL")
 db.exec("PRAGMA foreign_keys = ON")
@@ -57,7 +61,7 @@ post "/login" do |env|
     if stored_password.verify(password)
       exp = Time.now.to_unix + (60 * 30)
       payload = {username: user["username"], exp: exp}
-      jwt = JWT.encode(payload, "12345", JWT::Algorithm::HS256)
+      jwt = JWT.encode(payload, ENV["JWT_SECRET"], JWT::Algorithm::HS256)
       {token: jwt, expiresIn: "30 minutes"}.to_json
     else
       {error: "Authentication Failed"}.to_json
@@ -101,7 +105,7 @@ class AuthHandler < Kemal::Handler
     env.response.headers["Access-Control-Allow-Origin"] = "*"
 
     begin
-      token_decoded = JWT.decode(token, "12345", JWT::Algorithm::HS256)
+      token_decoded = JWT.decode(token, ENV["JWT_SECRET"], JWT::Algorithm::HS256)
     rescue JWT::ExpiredSignatureError
       env.response.content_type = "application/json"
       env.response.status_code = 401
