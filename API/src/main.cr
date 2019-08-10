@@ -173,4 +173,14 @@ get "/pages/content/:page_id" do |env|
   page.to_json
 end
 
+put "/pages/name/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+  page_name = env.params.json["pageName"].as(String)
+
+  db.exec "UPDATE pages SET name=? WHERE id = ?", page_name, page_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
 Kemal.run

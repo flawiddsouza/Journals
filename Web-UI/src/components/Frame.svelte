@@ -221,6 +221,23 @@ function focus(element) {
     element.focus()
 }
 
+function makeContentEditableSingleLine(e) {
+    if(e.key.toLowerCase() === 'enter')  {
+        e.preventDefault()
+    }
+}
+
+import debounce from '../helpers/debounce.js'
+
+const updatePageName = debounce(function(e) {
+    fetchPlus.put(`http://localhost:3000/pages/name/${activePage.id}`, {
+        pageName: e.target.innerHTML
+    })
+    let page = pages.find(page => page.id === activePage.id)
+    page.name = e.target.innerHTML
+    pages = pages
+}, 500)
+
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
 import Modal from './Modal.svelte'
@@ -246,7 +263,7 @@ import Modal from './Modal.svelte'
     </nav>
     <main class="journal-page">
         {#if activePage.id !== undefined && activePage.id !== null}
-            <h1 class="journal-page-title">{activePage.name}</h1>
+            <h1 class="journal-page-title" contenteditable on:keydown={makeContentEditableSingleLine} spellcheck="false" on:input={updatePageName}>{activePage.name}</h1>
             <div class="journal-page-entries">
                     {#if activePage.type === 'Table'}
                         <Table bind:pageId={activePage.id}></Table>
@@ -387,6 +404,7 @@ import Modal from './Modal.svelte'
 
 h1.journal-page-title {
     margin-top: 0;
+    outline: 0;
 }
 
 .w-100p {
