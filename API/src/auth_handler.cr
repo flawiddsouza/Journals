@@ -95,6 +95,10 @@ class AuthHandler < Kemal::Handler
 
     token = token.as(String)
 
+    # required or the rescue errors are sent without CORS
+    # for some reason before_all is not called here :/
+    env.response.headers["Access-Control-Allow-Origin"] = "*"
+
     begin
       token_decoded = JWT.decode(token, "12345", JWT::Algorithm::HS256)
     rescue JWT::ExpiredSignatureError
