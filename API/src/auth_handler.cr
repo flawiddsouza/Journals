@@ -107,6 +107,11 @@ class AuthHandler < Kemal::Handler
       env.response.status_code = 401
       env.response << {"error": "Authentication Failed: Invalid Token"}.to_json
       return env
+    rescue JWT::DecodeError
+      env.response.content_type = "application/json"
+      env.response.status_code = 401
+      env.response << {"error": "Authentication Failed: Invalid Token"}.to_json
+      return env
     else
       DB.open "sqlite3://./store.db" do |db|
         env.auth_id = db.scalar("SELECT id FROM users WHERE username = ?", token_decoded[0]["username"].as_s)
