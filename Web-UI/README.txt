@@ -1,4 +1,5 @@
 Init:
+    npm install
     cp config.js.example config.js
 
 To start development:
