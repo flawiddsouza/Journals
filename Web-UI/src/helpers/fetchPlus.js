@@ -1,5 +1,9 @@
+import { token } from '../stores.js'
+
+let baseURL = 'http://localhost:3000'
+
 const fetchPlus = function(method, url, data, headers = {}) {
-    return fetch(url, {
+    return fetch(baseURL + url, {
         method: method.toUpperCase(),
         body: JSON.stringify(data),
         credentials: fetchPlus.credentials,
@@ -7,10 +11,17 @@ const fetchPlus = function(method, url, data, headers = {}) {
     }).then(res => res.ok ? res.json() : Promise.reject(res))
 }
 
+fetchPlus.token = null
+
+token.subscribe(value => {
+    fetchPlus.token = value
+})
+
 // fetchPlus.credentials = 'include'
 fetchPlus.headers = {
     'Accept': 'application/json',
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Token': fetchPlus.token
 }
 
 const httpMethods = ['get', 'post', 'put', 'delete']

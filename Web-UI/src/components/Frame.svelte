@@ -22,22 +22,14 @@ let notebooks = []
 
 import fetchPlus from '../helpers/fetchPlus.js'
 
-fetchPlus.get('http://localhost:3000/notebooks').then(response => {
+fetchPlus.get('/notebooks').then(response => {
     notebooks = response
 })
 
 async function addNotebook() {
     let notebookName = prompt('Enter new notebook name')
     if(notebookName) {
-        const rawResponse = await fetch('http://localhost:3000/notebooks', {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ notebookName })
-        })
-        const response = await rawResponse.json()
+        const response = await fetchPlus.post('/notebooks', { notebookName })
 
         notebooks.push({
             id: response.insertedRowId,
@@ -53,15 +45,7 @@ async function addNotebook() {
 async function addSectionToNotebook(notebook) {
     let sectionName = prompt('Enter new section name')
     if(sectionName) {
-        const rawResponse = await fetch('http://localhost:3000/sections', {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ notebookId: notebook.id, sectionName })
-        })
-        const response = await rawResponse.json()
+        const response = await fetchPlus.post('/sections', { notebookId: notebook.id, sectionName })
 
         let newSection = {
             id: response.insertedRowId,
@@ -88,9 +72,7 @@ async function fetchPages(activeSection) {
     pages = []
     activePage = {}
 
-    fetchPlus.get(`http://localhost:3000/pages/${activeSection.id}`).then(response => {
-        pages = response
-    })
+    pages = await fetchPlus.get(`/pages/${activeSection.id}`)
 }
 
 let showAddPageModal = false
@@ -105,19 +87,11 @@ async function addPageToActiveSection() {
     let pageName = addPage.name
     let pageType = addPage.type
 
-    const rawResponse = await fetch('http://localhost:3000/pages', {
-        method: 'POST',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            sectionId: activeSection.id,
-            pageName,
-            pageType
-        })
+    const response = await fetchPlus.post('/pages', {
+        sectionId: activeSection.id,
+        pageName,
+        pageType
     })
-    const response = await rawResponse.json()
 
     pages.push({
         id: response.insertedRowId,
@@ -153,7 +127,7 @@ function handlePageItemContextMenu(e, page) {
 
 function deletePage() {
     if(confirm('Are you sure you want to delete this page?')) {
-        fetchPlus.delete(`http://localhost:3000/pages/${pageItemContextMenu.page.id}`)
+        fetchPlus.delete(`/pages/${pageItemContextMenu.page.id}`)
         pages = pages.filter(page => page.id !== pageItemContextMenu.page.id)
     }
     if(activePage.id === pageItemContextMenu.page.id) {
@@ -179,7 +153,7 @@ function handleSectionItemContextMenu(e, section, notebook) {
 function renameSection() {
     let newSectionName = prompt('Enter new section name', sectionItemContextMenu.section.name)
     if(newSectionName) {
-        fetchPlus.put(`http://localhost:3000/sections/name/${sectionItemContextMenu.section.id}`, {
+        fetchPlus.put(`/sections/name/${sectionItemContextMenu.section.id}`, {
             sectionName: newSectionName
         })
         sectionItemContextMenu.section.name = newSectionName
@@ -191,7 +165,7 @@ function renameSection() {
 
 function deleteSection() {
     if(confirm('Are you sure you want to delete this section?')) {
-        fetchPlus.delete(`http://localhost:3000/sections/${sectionItemContextMenu.section.id}`)
+        fetchPlus.delete(`/sections/${sectionItemContextMenu.section.id}`)
         sectionItemContextMenu.notebook.sections = sectionItemContextMenu.notebook.sections.filter(section => section.id !== sectionItemContextMenu.section.id)
     }
     if(activeSection.id === sectionItemContextMenu.section.id) {
@@ -216,7 +190,7 @@ function handleNotebookItemContextMenu(e, notebook) {
 function renameNotebook() {
     let newNotebookName = prompt('Enter new notebook name', notebookItemContextMenu.notebook.name)
     if(newNotebookName) {
-        fetchPlus.put(`http://localhost:3000/notebooks/name/${notebookItemContextMenu.notebook.id}`, {
+        fetchPlus.put(`/notebooks/name/${notebookItemContextMenu.notebook.id}`, {
             notebookName: newNotebookName
         })
         notebookItemContextMenu.notebook.name = newNotebookName
@@ -227,7 +201,7 @@ function renameNotebook() {
 
 function deleteNotebook() {
     if(confirm('Are you sure you want to delete this notebook?')) {
-        fetchPlus.delete(`http://localhost:3000/notebooks/${notebookItemContextMenu.notebook.id}`)
+        fetchPlus.delete(`/notebooks/${notebookItemContextMenu.notebook.id}`)
         notebooks = notebooks.filter(notebook => notebook.id !== notebookItemContextMenu.notebook.id)
     }
     notebookItemContextMenu.notebook = null
@@ -255,7 +229,7 @@ function makeContentEditableSingleLine(e) {
 import debounce from '../helpers/debounce.js'
 
 const updatePageName = debounce(function(e) {
-    fetchPlus.put(`http://localhost:3000/pages/name/${activePage.id}`, {
+    fetchPlus.put(`/pages/name/${activePage.id}`, {
         pageName: e.target.innerHTML
     })
     let page = pages.find(page => page.id === activePage.id)
@@ -263,13 +237,25 @@ const updatePageName = debounce(function(e) {
     pages = pages
 }, 500)
 
+function logout() {
+    if(confirm('Are you sure you want to logout?')) {
+        localStorage.removeItem('username')
+        localStorage.removeItem('password')
+        localStorage.removeItem('token')
+        location.reload()
+    }
+}
+
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
 import Modal from './Modal.svelte'
 </script>
 
 <div>
-    <nav class="journal-sidebar-hamburger" on:click={toggleSidebars}>&#9776; Menu</nav>
+    <nav class="journal-sidebar-hamburger" on:click={toggleSidebars}>
+        <a href="#logout" on:click|preventDefault|stopPropagation={logout} class="mr-1em">Logout</a>
+        &#9776; Menu
+    </nav>
     <nav class="journal-left-sidebar" bind:this={leftSidebarElement} style="display: block">
         {#each notebooks as notebook}
             <div class="journal-sidebar-item-notebook">
@@ -461,5 +447,9 @@ form > h2 {
     padding: 4px 8px;
     cursor: pointer;
     box-shadow: 1px 1px 4px -1px black;
+}
+
+.mr-1em {
+    margin-right: 1em;
 }
 </style>

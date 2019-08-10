@@ -9,7 +9,7 @@ import fetchPlus from '../helpers/fetchPlus.js'
 let pageContainer
 
 function fetchPage(pageId) {
-    fetchPlus.get(`http://localhost:3000/pages/content/${pageId}`).then(response => {
+    fetchPlus.get(`/pages/content/${pageId}`).then(response => {
         pageContent = response.content
         setTimeout(() => {
             pageContainer.focus()
@@ -22,7 +22,7 @@ function fetchPage(pageId) {
 import debounce from '../helpers/debounce.js'
 
 const savePageContent = debounce(function() {
-    fetchPlus.put(`http://localhost:3000/pages/${pageId}`, {
+    fetchPlus.put(`/pages/${pageId}`, {
         pageContent
     })
 }, 500)

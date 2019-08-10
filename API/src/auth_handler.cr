@@ -75,11 +75,16 @@ end
 class AuthHandler < Kemal::Handler
   exclude ["/login", "/register"], "POST"
   exclude ["/", "/install"], "GET"
+  exclude ["/*"], "OPTIONS" # required for cors to work
 
   def call(env)
     return call_next(env) if exclude_match?(env)
 
     token = env.params.json["token"]?
+
+    if !token
+      token = env.request.headers["Token"]?
+    end
 
     if !token
       env.response.content_type = "application/json"
