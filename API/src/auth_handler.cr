@@ -1,3 +1,71 @@
+db = DB.open "sqlite3://./store.db"
+db.exec("PRAGMA foreign_keys = ON")
+
+post "/register" do |env|
+  username = env.params.json["username"]?
+  password = env.params.json["password"]?
+
+  env.response.content_type = "application/json"
+
+  if !username || !password
+    env.response << {error: "username or password not provided"}.to_json
+    next
+  end
+
+  username = username.as(String)
+  password = password.as(String)
+
+  user = db.query_one?("SELECT username FROM users WHERE username = ?", username, as: {
+    username: String,
+  })
+
+  if user
+    env.response << {"error": "User already exists"}.to_json
+    next
+  end
+
+  hashed_password = Crypto::Bcrypt::Password.create(password).to_s
+  result = db.exec "INSERT INTO users(username, password) VALUES(?, ?)", username, hashed_password
+
+  {success: true}.to_json
+end
+
+post "/login" do |env|
+  username = env.params.json["username"]?
+  password = env.params.json["password"]?
+
+  env.response.content_type = "application/json"
+
+  if !username || !password
+    env.response << {error: "username or password not provided"}.to_json
+    next
+  end
+
+  username = username.as(String)
+  password = password.as(String)
+
+  user = db.query_one?("SELECT username, password FROM users WHERE username = ?", username, as: {
+    username: String,
+    password: String,
+  })
+
+  env.response.content_type = "application/json"
+
+  if user
+    stored_password = Crypto::Bcrypt::Password.new(user["password"])
+    if stored_password.verify(password)
+      exp = Time.now.to_unix + (60 * 30)
+      payload = {username: user["username"], exp: exp}
+      jwt = JWT.encode(payload, "12345", JWT::Algorithm::HS256)
+      {token: jwt, expiresIn: "30 minutes"}.to_json
+    else
+      {error: "Authentication Failed"}.to_json
+    end
+  else
+    {error: "User not found"}.to_json
+  end
+end
+
 class HTTP::Server
   class Context
     property! auth_id : Float64 | Int64 | Slice(UInt8) | String | Nil
@@ -5,8 +73,8 @@ class HTTP::Server
 end
 
 class AuthHandler < Kemal::Handler
-  exclude ["/", "/install"]
   exclude ["/login", "/register"], "POST"
+  exclude ["/", "/install"], "GET"
 
   def call(env)
     return call_next(env) if exclude_match?(env)
