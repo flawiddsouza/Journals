@@ -79,7 +79,16 @@ class AuthHandler < Kemal::Handler
   def call(env)
     return call_next(env) if exclude_match?(env)
 
-    token = env.params.json["token"]?.as(String)
+    token = env.params.json["token"]?
+
+    if !token
+      env.response.content_type = "application/json"
+      env.response.status_code = 401
+      env.response << {"error": "Authentication Failed: No Token Provided"}.to_json
+      return env
+    end
+
+    token = token.as(String)
 
     begin
       token_decoded = JWT.decode(token, "12345", JWT::Algorithm::HS256)
