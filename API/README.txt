@@ -7,3 +7,7 @@ Troubleshooting
         /usr/bin/ld: cannot find -lsqlite3 (this usually means you need to install the development package for libsqlite3)
     Solution:
         sudo apt-get install libsqlite3-dev
+    Problem:
+        /usr/bin/ld: cannot find -lgmp (this usually means you need to install the development package for libgmp)
+    Solution:
+        sudo apt-get install libgmp-dev
