@@ -6,13 +6,16 @@ let pageContent = ''
 $: fetchPage(pageId)
 
 import fetchPlus from '../helpers/fetchPlus.js'
+let pageContainer
 
 function fetchPage(pageId) {
     fetchPlus.get(`http://localhost:3000/pages/content/${pageId}`).then(response => {
         pageContent = response.content
-        if(!pageContent) {
-            pageContent = '<p>Enter text here...</p>'
-        }
+        setTimeout(() => {
+            pageContainer.focus()
+            document.execCommand('selectAll', false, null)
+            document.getSelection().collapseToEnd()
+        }, 0)
     })
 }
 
@@ -31,7 +34,7 @@ function handleKeysInPageContainer(e) {
 }
 </script>
 
-<div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={savePageContent}></div>
+<div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={savePageContent} bind:this={pageContainer}></div>
 
 <style>
 .page-container {
