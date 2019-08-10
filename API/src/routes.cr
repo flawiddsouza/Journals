@@ -3,6 +3,7 @@ get "/" do
 end
 
 db = DB.open "sqlite3://./store.db"
+db.exec("PRAGMA journal_mode = WAL")
 db.exec("PRAGMA foreign_keys = ON")
 
 get "/install" do
