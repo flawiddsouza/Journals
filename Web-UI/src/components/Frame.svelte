@@ -49,7 +49,8 @@ async function addSectionToNotebook(notebook) {
 
         let newSection = {
             id: response.insertedRowId,
-            name: sectionName
+            name: sectionName,
+            notebook_id: notebook.id
         }
 
         notebook.sections.push(newSection)
@@ -210,6 +211,10 @@ function deleteNotebook() {
     if(confirm('Are you sure you want to delete this notebook?')) {
         fetchPlus.delete(`/notebooks/${notebookItemContextMenu.notebook.id}`)
         notebooks = notebooks.filter(notebook => notebook.id !== notebookItemContextMenu.notebook.id)
+    }
+    // set activeSection to {} if it belongs to the deleted notebook
+    if(activeSection.notebook_id === notebookItemContextMenu.notebook.id) {
+        activeSection = {}
     }
     notebookItemContextMenu.notebook = null
 }

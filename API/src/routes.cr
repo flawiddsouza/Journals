@@ -67,16 +67,17 @@ get "/notebooks" do |env|
     expanded: Bool,
   })
 
-  hashed_notebooks = [] of Hash(String, Int64 | String | Bool | Array(NamedTuple(id: Int64, name: String)))
+  hashed_notebooks = [] of Hash(String, Int64 | String | Bool | Array(NamedTuple(id: Int64, name: String, notebook_id: Int64)))
 
   notebooks.each do |notebook|
     hashed_notebooks << {
       "id"       => notebook["id"],
       "name"     => notebook["name"],
       "expanded" => notebook["expanded"],
-      "sections" => db.query_all("SELECT id, name from sections where notebook_id = ?", notebook["id"], as: {
+      "sections" => db.query_all("SELECT id, name, notebook_id from sections where notebook_id = ?", notebook["id"], as: {
         id:   Int64,
         name: String,
+        notebook_id: Int64
       }),
     }
   end
