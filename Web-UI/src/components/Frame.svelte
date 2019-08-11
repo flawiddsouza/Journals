@@ -98,7 +98,8 @@ async function addPageToActiveSection() {
         id: response.insertedRowId,
         name: pageName,
         type: pageType,
-        section_id: activeSection.id
+        section_id: activeSection.id,
+        notebook_id: activeSection.notebook_id
     })
 
     pages = pages
@@ -107,7 +108,8 @@ async function addPageToActiveSection() {
         id: response.insertedRowId,
         name: pageName,
         type: pageType,
-        section_id: activeSection.id
+        section_id: activeSection.id,
+        notebook_id: activeSection.notebook_id
     }
 
     addPage = {
@@ -214,6 +216,10 @@ function deleteNotebook() {
     // set activeSection to {} if it belongs to the deleted notebook
     if(activeSection.notebook_id === notebookItemContextMenu.notebook.id) {
         activeSection = {}
+    }
+    // set activePage to {} if it belongs to the deleted notebook
+    if(activePage.notebook_id === notebookItemContextMenu.notebook.id) {
+        activePage = {}
     }
     notebookItemContextMenu.notebook = null
 }

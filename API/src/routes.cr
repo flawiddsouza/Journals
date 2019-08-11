@@ -116,11 +116,12 @@ end
 get "/pages/:section_id" do |env|
   section_id = env.params.url["section_id"]
 
-  pages = db.query_all("SELECT id, name, type, section_id from pages WHERE section_id = ? AND user_id = ?", section_id, env.auth_id, as: {
+  pages = db.query_all("SELECT pages.id, pages.name, pages.type, pages.section_id, sections.notebook_id from pages JOIN sections ON sections.id = pages.section_id WHERE pages.section_id = ? AND pages.user_id = ?", section_id, env.auth_id, as: {
     id:   Int64,
     name: String,
     type: String,
-    section_id: Int64
+    section_id: Int64,
+    notebook_id: Int64
   })
 
   env.response.content_type = "application/json"
