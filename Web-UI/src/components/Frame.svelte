@@ -325,7 +325,16 @@ import Modal from './Modal.svelte'
     <nav class="journal-left-sidebar" bind:this={leftSidebarElement} style="display: block">
         {#each notebooks as notebook}
             <div class="journal-sidebar-item-notebook">
-                <div class="journal-sidebar-item journal-sidebar-item-notebook-name" class:journal-sidebar-item-notebook-expanded={!notebook.expanded} on:click={e => toggleNotebookExpanded(notebook)} on:contextmenu|preventDefault={(e) => handleNotebookItemContextMenu(e, notebook)}>{ notebook.name }</div>
+                <div class="journal-sidebar-item journal-sidebar-item-notebook-name" class:journal-sidebar-item-notebook-expanded={!notebook.expanded} on:click={e => toggleNotebookExpanded(notebook)} on:contextmenu|preventDefault={(e) => handleNotebookItemContextMenu(e, notebook)}>
+                    { notebook.name }
+                    <div class="f-r">
+                        {#if notebook.expanded}
+                            -
+                        {:else}
+                            +
+                        {/if}
+                    </div>
+                </div>
                 {#if notebook.expanded}
                     <div>
                         {#each notebook.sections as section}
@@ -550,5 +559,9 @@ form > h2 {
 
 .red {
     color: red;
+}
+
+.f-r {
+    float: right;
 }
 </style>
