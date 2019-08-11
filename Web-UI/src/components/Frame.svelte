@@ -177,7 +177,6 @@ function deleteSection() {
     // set activePage to {} if it belongs to the deleted section
     if(activePage.section_id === sectionItemContextMenu.section.id) {
         activePage = {}
-        console.log(activePage)
     }
     sectionItemContextMenu.section = null
     sectionItemContextMenu.notebook = null
