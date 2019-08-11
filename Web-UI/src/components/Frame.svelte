@@ -474,6 +474,16 @@ import Modal from './Modal.svelte'
     border-bottom: 1px solid #d08700;
 }
 
+.journal-sidebar-item-notebook-name {
+    background-color: #ffc14d4f;
+    padding-top: 0.4em;
+    padding-bottom: 0.4em;
+}
+
+.journal-sidebar-item-notebook-name:hover {
+    background-color: #ffc14d;
+}
+
 .journal-sidebar-item-notebook-name:not(.journal-sidebar-item-notebook-expanded) {
     border-bottom: 1px solid #d08700;
 }
