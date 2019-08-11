@@ -23,3 +23,7 @@ To build for production:
     Then you can find the binary at bin/journals
     which can be run like so
         KEMAL_ENV=production ./bin/journals
+
+To autostart and keep running in the background, you can use pm2:
+    pm2 start ./bin/journals --name "Journals"
+    pm2 save
