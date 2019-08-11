@@ -60,10 +60,16 @@ async function addSectionToNotebook(notebook) {
     }
 }
 
-let activePage = {}
-let activeSection = {}
+let savedActiveSection = localStorage.getItem('activeSection')
+let activeSection = savedActiveSection ? JSON.parse(savedActiveSection) : {}
 
 $: fetchPages(activeSection)
+
+$: if(activeSection) {
+    localStorage.setItem('activeSection', JSON.stringify(activeSection))
+}
+
+let activePage = {}
 
 async function fetchPages(activeSection) {
     if(!activeSection.id) {
