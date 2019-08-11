@@ -69,7 +69,12 @@ $: if(activeSection) {
     localStorage.setItem('activeSection', JSON.stringify(activeSection))
 }
 
-let activePage = {}
+let savedActivePage = localStorage.getItem('activePage')
+let activePage = savedActivePage ? JSON.parse(savedActivePage) : {}
+
+$: if(activePage) {
+    localStorage.setItem('activePage', JSON.stringify(activePage))
+}
 
 async function fetchPages(activeSection) {
     if(!activeSection.id) {
@@ -77,7 +82,10 @@ async function fetchPages(activeSection) {
     }
 
     pages = []
-    activePage = {}
+
+    if(activePage.section_id !== activeSection.id) {
+        activePage = {}
+    }
 
     pages = await fetchPlus.get(`/pages/${activeSection.id}`)
 }
