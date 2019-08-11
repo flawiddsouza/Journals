@@ -285,6 +285,32 @@ function toggleNotebookExpanded(notebook) {
     })
 }
 
+let showChangePasswordModal = false
+
+let changePasswordObj = {
+    currentPassword: '',
+    newPassword: '',
+    error: ''
+}
+
+function changePassword() {
+    fetchPlus.post('/change-password', {
+        currentPassword: changePasswordObj.currentPassword,
+        newPassword: changePasswordObj.newPassword
+    }).then(response => {
+        if(response.hasOwnProperty('error')) {
+            changePasswordObj.error = response.error
+        } else {
+            localStorage.setItem('password', changePasswordObj.newPassword)
+            showChangePasswordModal = false
+            changePasswordObj.error = ''
+            alert('Password changed successfully!')
+        }
+        changePasswordObj.currentPassword = ''
+        changePasswordObj.newPassword = ''
+    })
+}
+
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
 import Modal from './Modal.svelte'
@@ -292,6 +318,7 @@ import Modal from './Modal.svelte'
 
 <div>
     <nav class="journal-sidebar-hamburger" on:click={toggleSidebars}>
+        <a href="#change-password" on:click|preventDefault|stopPropagation={() => showChangePasswordModal = true} class="mr-1em">Change Password</a>
         <a href="#logout" on:click|preventDefault|stopPropagation={logout} class="mr-1em">Logout</a>
         &#9776; Menu
     </nav>
@@ -347,6 +374,25 @@ import Modal from './Modal.svelte'
                 </label>
                 <button class="w-100p mt-1em">Add</button>
             </form>
+        </Modal>
+    {/if}
+    {#if showChangePasswordModal}
+        <Modal on:close-modal={() => showChangePasswordModal = false}>
+            <form on:submit|preventDefault={changePassword}>
+                <h2>Change Password</h2>
+                <label>Current Password<br>
+                    <input type="password" bind:value={changePasswordObj.currentPassword} required class="w-100p" use:focus>
+                </label>
+                <label class="d-b mt-0_5em">New Password<br>
+                    <input type="password" bind:value={changePasswordObj.newPassword} required class="w-100p">
+                </label>
+                <button class="w-100p mt-1em">Update Password</button>
+            </form>
+            <div class="mt-1em red">
+                {#if changePasswordObj.error}
+                    Error: {changePasswordObj.error}
+                {/if}
+            </div>
         </Modal>
     {/if}
     {#if pageItemContextMenu.page}
@@ -490,5 +536,9 @@ form > h2 {
 
 .mr-1em {
     margin-right: 1em;
+}
+
+.red {
+    color: red;
 }
 </style>

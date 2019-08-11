@@ -210,3 +210,23 @@ put "/notebooks/expanded/:notebook_id" do |env|
   env.response.content_type = "application/json"
   {success: true}.to_json
 end
+
+post "/change-password" do |env|
+  received_current_password = env.params.json["currentPassword"].as(String)
+  new_password = env.params.json["newPassword"].as(String)
+
+  hashed_current_password = db.scalar("SELECT password FROM users WHERE id = ?", env.auth_id).as(String)
+
+  stored_password = Crypto::Bcrypt::Password.new(hashed_current_password)
+
+  env.response.content_type = "application/json"
+
+  if stored_password.verify(received_current_password)
+    hashed_password = Crypto::Bcrypt::Password.create(new_password).to_s
+    db.exec "UPDATE users SET password=? WHERE id = ?", hashed_password, env.auth_id
+
+    {success: true}.to_json
+  else
+    {error: "Invalid Current Password"}.to_json
+  end
+end
