@@ -200,3 +200,13 @@ put "/notebooks/name/:notebook_id" do |env|
   env.response.content_type = "application/json"
   {success: true}.to_json
 end
+
+put "/notebooks/expanded/:notebook_id" do |env|
+  notebook_id = env.params.url["notebook_id"]
+  notebook_expanded = env.params.json["notebookExpanded"].as(Int64)
+
+  db.exec "UPDATE notebooks SET expanded=? WHERE id = ? AND user_id = ?", notebook_expanded, notebook_id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end

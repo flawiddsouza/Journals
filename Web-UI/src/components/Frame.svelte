@@ -263,6 +263,14 @@ function logout() {
     }
 }
 
+function toggleNotebookExpanded(notebook) {
+    notebook.expanded = !notebook.expanded
+    notebooks = notebooks
+    fetchPlus.put(`/notebooks/expanded/${notebook.id}`, {
+        notebookExpanded: notebook.expanded ? 1 : 0
+    })
+}
+
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
 import Modal from './Modal.svelte'
@@ -276,7 +284,7 @@ import Modal from './Modal.svelte'
     <nav class="journal-left-sidebar" bind:this={leftSidebarElement} style="display: block">
         {#each notebooks as notebook}
             <div class="journal-sidebar-item-notebook">
-                <div class="journal-sidebar-item journal-sidebar-item-notebook-name" class:journal-sidebar-item-notebook-expanded={!notebook.expanded} on:click={() => notebook.expanded = !notebook.expanded} on:contextmenu|preventDefault={(e) => handleNotebookItemContextMenu(e, notebook)}>{ notebook.name }</div>
+                <div class="journal-sidebar-item journal-sidebar-item-notebook-name" class:journal-sidebar-item-notebook-expanded={!notebook.expanded} on:click={e => toggleNotebookExpanded(notebook)} on:contextmenu|preventDefault={(e) => handleNotebookItemContextMenu(e, notebook)}>{ notebook.name }</div>
                 {#if notebook.expanded}
                     <div>
                         {#each notebook.sections as section}
