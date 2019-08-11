@@ -96,7 +96,8 @@ async function addPageToActiveSection() {
     pages.push({
         id: response.insertedRowId,
         name: pageName,
-        type: pageType
+        type: pageType,
+        section_id: activeSection.id
     })
 
     pages = pages
@@ -104,7 +105,8 @@ async function addPageToActiveSection() {
     activePage = {
         id: response.insertedRowId,
         name: pageName,
-        type: pageType
+        type: pageType,
+        section_id: activeSection.id
     }
 
     addPage = {
@@ -170,6 +172,11 @@ function deleteSection() {
     }
     if(activeSection.id === sectionItemContextMenu.section.id) {
         activeSection = {}
+    }
+    // set activePage to {} if it belongs to the deleted section
+    if(activePage.section_id === sectionItemContextMenu.section.id) {
+        activePage = {}
+        console.log(activePage)
     }
     sectionItemContextMenu.section = null
     sectionItemContextMenu.notebook = null

@@ -115,10 +115,11 @@ end
 get "/pages/:section_id" do |env|
   section_id = env.params.url["section_id"]
 
-  pages = db.query_all("SELECT id, name, type from pages WHERE section_id = ? AND user_id = ?", section_id, env.auth_id, as: {
+  pages = db.query_all("SELECT id, name, type, section_id from pages WHERE section_id = ? AND user_id = ?", section_id, env.auth_id, as: {
     id:   Int64,
     name: String,
     type: String,
+    section_id: Int64
   })
 
   env.response.content_type = "application/json"
