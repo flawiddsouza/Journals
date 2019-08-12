@@ -55,7 +55,11 @@ $: if(items) {
 }
 
 function evalulateJS(jsString) {
-    return new Function('items', jsString).call(this, items)
+    try {
+        return new Function('items', jsString).call(this, items)
+    } catch(e) {
+        return 'error evaluating given expression'
+    }
 }
 
 import defaultKeydownHandlerForContentEditableArea from '../helpers/defaultKeydownHandlerForContentEditableArea.js'
