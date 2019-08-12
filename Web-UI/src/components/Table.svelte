@@ -453,6 +453,7 @@ table th, table td {
 
 table > tbody td {
     padding: 0;
+    vertical-align: top;
 }
 
 table > tbody td > div {
