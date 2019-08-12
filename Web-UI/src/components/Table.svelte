@@ -14,6 +14,7 @@ function fetchPage(pageId) {
     configuration = false
     showAddColumn = false
     cancelEditColumn()
+    undoStackForRemoveRow = [] // reset undo stack
     // end of reset variables on page change
     fetchPlus.get(`/pages/content/${pageId}`).then(response => {
         let parsedResponse = response.content ? JSON.parse(response.content) : {
