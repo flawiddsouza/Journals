@@ -251,12 +251,19 @@ function deleteColumn(columnName) {
 function focus(element) {
     element.focus()
 }
+
+// strip formatting on paste and make it plain text
+function handlePaste(e) {
+    e.preventDefault()
+    var text = (e.originalEvent || e).clipboardData.getData('text/plain')
+    document.execCommand('insertText', false, text.trim())
+}
 </script>
 
 <div class="pos-r">
     {#if !configuration}
         <div class="config" on:click={() => configuration = true}>Configure Table</div>
-        <table>
+        <table on:paste={handlePaste}>
             <thead>
                 <tr>
                     {#each columns as column}
