@@ -19,13 +19,13 @@ export default function(e) {
     // insert time into the current cell
     if(e.key === 'F11') {
         e.preventDefault()
-        document.execCommand('insertHTML', false, format(new Date(), '(HH:MM A) '))
+        document.execCommand('insertHTML', false, format(new Date(), '(hh:mm A) '))
     }
 
     // insert date time into the current cell
     if(e.key === 'F12') {
         e.preventDefault()
-        document.execCommand('insertHTML', false, format(new Date(), 'DD-MMM-YY HH:MM A: '))
+        document.execCommand('insertHTML', false, format(new Date(), 'DD-MMM-YY hh:mm A: '))
     }
 
     // create hyperlink from selection
