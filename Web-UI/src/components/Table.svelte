@@ -62,6 +62,8 @@ function evalulateJS(jsString) {
     }
 }
 
+let undoStackForRemoveRow = []
+
 import defaultKeydownHandlerForContentEditableArea from '../helpers/defaultKeydownHandlerForContentEditableArea.js'
 
 function handleKeysInTD(e, itemIndex, itemColumn) {
@@ -91,11 +93,17 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
     // remove current row
     if(e.ctrlKey && e.key.toLowerCase() === 'x') {
         if(items.length === 1) {
+            undoStackForRemoveRow.push({ index: 0, item: JSON.parse(JSON.stringify(items[0])) }) // save undo
+
             columns.forEach(column => {
                 items[0][column.name] = ''
             })
+
             return
         }
+
+        undoStackForRemoveRow.push({ index: itemIndex, item: items[itemIndex] }) // save undo
+
         items.splice(itemIndex, 1)
         items = items
 
@@ -131,6 +139,33 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
         if(typeof bottomRow !== 'undefined') {
             let bottomCell = bottomRow.querySelector('td:nth-of-type(' + (currentColumn + 1) + ') > div')
             bottomCell.focus()
+        }
+    }
+}
+
+function handleUndoStacks(e) {
+    if(e.ctrlKey && e.key.toLowerCase() === 'z') {
+        if(undoStackForRemoveRow.length > 0) {
+            e.preventDefault()
+            let undo = undoStackForRemoveRow.pop()
+            if(items.length === 1) {
+                let emptyKeysCount = 0
+                let keys = Object.keys(items[0])
+                let keysCount = keys.length
+                keys.forEach(itemKey => {
+                    if(items[0][itemKey] === '') {
+                        emptyKeysCount++
+                    }
+                })
+                if(emptyKeysCount === keysCount) {
+                    items.splice(undo.index, 1, undo.item)
+                } else {
+                    items.splice(undo.index, 0, undo.item)
+                }
+            } else if(items.length > 1) {
+                items.splice(undo.index, 0, undo.item)
+            }
+            items = items
         }
     }
 }
@@ -263,7 +298,7 @@ function handlePaste(e) {
 <div class="pos-r">
     {#if !configuration}
         <div class="config" on:click={() => configuration = true}>Configure Table</div>
-        <table on:paste={handlePaste}>
+        <table on:paste={handlePaste} on:keydown={e => handleUndoStacks(e)}>
             <thead>
                 <tr>
                     {#each columns as column}
