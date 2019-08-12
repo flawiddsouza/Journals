@@ -7,59 +7,51 @@ let totals = {}
 
 $: fetchPage(pageId)
 
+import fetchPlus from '../helpers/fetchPlus.js'
+
 function fetchPage(pageId) {
-    // console.log(pageId)
-    columns = [
-        {
-            'name': 'date',
-            'label': 'Date'
-        },
-        {
-            'name': 'item',
-            'label': 'Item'
-        },
-        {
-            'name': 'size',
-            'label': ''
+    // reset variables on page change
+    configuration = false
+    showAddColumn = false
+    cancelEditColumn()
+    // end of reset variables on page change
+    fetchPlus.get(`/pages/content/${pageId}`).then(response => {
+        let parsedResponse = response.content ? JSON.parse(response.content) : {
+            columns: [],
+            items: [],
+            totals: {}
         }
-    ]
+        columns = parsedResponse.columns
+        items = parsedResponse.items
+        totals = parsedResponse.totals
 
-    items = [
-        {
-            'id': 1,
-            'date': '10-Jul-19',
-            'item': 'Test',
-            'size': '10 GB'
-        },
-        {
-            'id': 2,
-            'date': '11-Jul-19',
-            'item': 'Test 2',
-            'size': '5.5 GB'
-        },
-        {
-            'id': 3,
-            'date': '12-Jul-19',
-            'item': 'Test 3',
-            'size': '7.7 GB'
-        },
-        {
-            'id': 4,
-            'date': '14-Jul-19',
-            'item': 'Test 4',
-            'size': '9 GB'
+        if(columns.length === 0) {
+            configuration = true
+            showAddColumn = true
         }
-    ]
-
-    totals = {
-        'size': `
-            return items.reduce((accumulator, item) => accumulator + Number(item.size.replace(' GB', '')), 0) + ' GB'
-        `
-    }
+    })
 }
+
+import debounce from '../helpers/debounce.js'
+
+const savePageContent = debounce(function() {
+    fetchPlus.put(`/pages/${pageId}`, {
+        pageContent: JSON.stringify({
+            columns,
+            items,
+            totals
+        })
+    })
+}, 500)
 
 $: if(items) {
     totals = totals
+    Object.keys(totals).forEach(columnName => {
+        if(totals[columnName] === '') {
+            delete totals[columnName]
+        }
+    })
+    savePageContent()
 }
 
 function evalulateJS(jsString) {
@@ -138,41 +130,269 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
         }
     }
 }
+
+let configuration = false
+let showAddColumn = false
+let column = {
+    name: '',
+    label: ''
+}
+
+$: if(showAddColumn) {
+    column = {
+        name: '',
+        label: ''
+    }
+    cancelEditColumn()
+}
+
+function addColumn() {
+    let existingColumnNames = columns.map(column => column.name)
+    if(existingColumnNames.includes(column.name)) {
+        alert('You can\'t use an existing column name')
+        return
+    }
+    columns.push(column)
+    columns = columns
+    if(items.length === 0) {
+        items.push({
+            [column.name]: ''
+        })
+    } else {
+        items.forEach(item => {
+            item[column.name] = ''
+        })
+    }
+    items = items // save
+    column = {
+        name: '',
+        label: ''
+    }
+    showAddColumn = false
+}
+
+function swapElement(array, fromIndex, toIndex) {
+    var tmp = array[fromIndex]
+    array[fromIndex] = array[toIndex]
+    array[toIndex] = tmp
+}
+
+function moveUp(index) {
+    if(index > 0) {
+        swapElement(columns, index, index - 1)
+        columns = columns
+        items = items // save
+    }
+}
+
+function moveDown(index) {
+    if(index < columns.length - 1) {
+        swapElement(columns, index, index + 1)
+        columns = columns
+        items = items // save
+    }
+}
+
+let columnToEditCopy = null
+let columnToEditReference = null
+
+function startEditColumn(column) {
+    showAddColumn = false // disable add
+    columnToEditCopy = JSON.parse(JSON.stringify(column))
+    columnToEditReference = column
+}
+
+function cancelEditColumn() {
+    columnToEditCopy = null
+    columnToEditReference = null
+}
+
+function updateColumn() {
+    if(columnToEditCopy.name === '') {
+        alert('Column name can\'t be be empty')
+        return
+    }
+    let existingColumnNames = columns.map(column => column.name).filter(columnName => columnName != columnToEditReference.name)
+    if(existingColumnNames.includes(columnToEditCopy.name)) {
+        alert('You can\'t use an existing column name')
+        return
+    }
+    if(columnToEditReference.name !== columnToEditCopy.name) { // column name changed, rename column name in items
+        items.forEach(item => {
+            item[columnToEditCopy.name] = item[columnToEditReference.name]
+            delete item[columnToEditReference.name]
+        })
+    }
+    columnToEditReference.name = columnToEditCopy.name
+    columnToEditReference.label = columnToEditCopy.label
+    items = items // save
+    columnToEditCopy = null
+    columnToEditReference = null
+}
+
+function deleteColumn(columnName) {
+    if(confirm('Deleting a column, will also delete all the items under it. Are you sure you want to delete this column?')) {
+        columns = columns.filter(column => column.name !== columnName)
+        items.forEach(item => {
+            Object.keys(item).forEach(itemColumName => {
+                if(!(columns.map(column => column.name).includes(itemColumName))) {
+                    delete item[itemColumName]
+                }
+            })
+        })
+        items = items // save
+    }
+}
+
+function focus(element) {
+    element.focus()
+}
 </script>
 
-<table>
-    <thead>
-        <tr>
-            {#each columns as column}
-                <th>{column.label}</th>
-            {/each}
-        </tr>
-    </thead>
-    <tbody>
-        {#each items as item, itemIndex}
-            <tr>
-                {#each columns as column}
-                    <td>
-                        <div contenteditable bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
-                    </td>
+<div class="pos-r">
+    {#if !configuration}
+        <div class="config" on:click={() => configuration = true}>Configure Table</div>
+        <table>
+            <thead>
+                <tr>
+                    {#each columns as column}
+                        <th>{column.label}<span class="v-h">{column.label === '' ? column.name : ''}</span></th>
+                    {/each}
+                </tr>
+            </thead>
+            <tbody>
+                {#each items as item, itemIndex}
+                    <tr>
+                        {#each columns as column}
+                            <td>
+                                <div contenteditable bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
+                            </td>
+                        {/each}
+                    </tr>
                 {/each}
-            </tr>
-        {/each}
-    </tbody>
-    {#if Object.keys(totals).length > 0}
-        <tr>
+            </tbody>
+            {#if Object.keys(totals).length > 0}
+                <tr>
+                    {#each columns as column}
+                        {#if totals.hasOwnProperty(column.name)}
+                            <th>{ evalulateJS(totals[column.name]) }</th>
+                        {:else}
+                            <th></th>
+                        {/if}
+                    {/each}
+                </tr>
+            {/if}
+        </table>
+    {:else}
+        <div class="config" on:click={() => configuration = false}>Exit Configuration</div>
+
+        <div class="config-heading">Columns</div>
+        <form on:submit|preventDefault={addColumn}>
+            <table class="config-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Label</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {#each columns as column, index}
+                        {#if columnToEditReference && columnToEditReference.name === column.name}
+                            <tr>
+                                <td><input type="text" bind:value={columnToEditCopy.name} use:focus></td>
+                                <td><input type="text" bind:value={columnToEditCopy.label}></td>
+                                <td>
+                                    <button type="button" on:click={updateColumn}>Update</button>
+                                </td>
+                                <td>
+                                    <button type="button" on:click={cancelEditColumn}>Cancel</button>
+                                </td>
+                            </tr>
+                        {:else}
+                            <tr>
+                                <td>{column.name}</td>
+                                <td>{column.label}</td>
+                                <td><button type="button" on:click={() => moveUp(index)}>Move Up</button></td>
+                                <td><button type="button" on:click={() => moveDown(index)}>Move Down</button></td>
+                                <td><button type="button" on:click={() => startEditColumn(column)}>Edit</button></td>
+                                <td><button type="button" on:click={() => deleteColumn(column.name)}>Delete</button></td>
+                            </tr>
+                        {/if}
+                    {/each}
+                    {#if showAddColumn}
+                        <tr>
+                            <td><input type="text" bind:value={column.name} required use:focus></td>
+                            <td><input type="text" bind:value={column.label}></td>
+                            <td>
+                                <button>Add</button>
+                            </td>
+                            <td>
+                                <button class="ml-0_5em" type="button" on:click={() => showAddColumn = false}>Cancel</button>
+                            </td>
+                        </tr>
+                    {/if}
+                </tbody>
+            </table>
+        </form>
+        {#if !showAddColumn}
+            <button class="mt-1em" on:click={() => showAddColumn = true}>Add Column</button>
+        {/if}
+
+        <div class="config-heading mt-1em">Totals</div>
+        <div class="config-area-font-size">
             {#each columns as column}
-                {#if totals.hasOwnProperty(column.name)}
-                    <th>{ evalulateJS(totals[column.name]) }</th>
-                {:else}
-                    <th></th>
-                {/if}
+                <div>{column.label ? column.label : column.name}</div>
+                <div>
+                    <textarea value={totals[column.name] ? totals[column.name]: ''} on:input={(e) => totals[column.name] = e.target.value} class="w-100p"></textarea>
+                </div>
             {/each}
-        </tr>
+        </div>
     {/if}
-</table>
+</div>
 
 <style>
+.pos-r {
+    position: relative;
+}
+
+.config {
+    position: absolute;
+    right: 24px;
+    top: -47px;
+    cursor: pointer;
+    color: blue;
+}
+
+.config-heading {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 0.5em;
+}
+
+table.config-table > tbody td {
+    padding: 2px 5px;
+}
+
+table.config-table > tbody td > input {
+    font: inherit;
+}
+
+.mt-1em {
+    margin-top: 1em;
+}
+
+.w-100p {
+    width: 100%;
+}
+
+.config-area-font-size {
+    font-size: 16px;
+}
+
+.config-area-font-size textarea {
+    font: inherit;
+}
+
 table {
     border-collapse: collapse;
     font-size: 16px;
@@ -194,5 +414,9 @@ table > tbody td > div {
 
 table td > div[contenteditable] {
     outline: 0;
+}
+
+.v-h {
+    visibility: hidden;
 }
 </style>
