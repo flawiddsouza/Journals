@@ -186,6 +186,7 @@ function deleteSection() {
     if(confirm('Are you sure you want to delete this section?')) {
         fetchPlus.delete(`/sections/${sectionItemContextMenu.section.id}`)
         sectionItemContextMenu.notebook.sections = sectionItemContextMenu.notebook.sections.filter(section => section.id !== sectionItemContextMenu.section.id)
+        notebooks = notebooks
     }
     if(activeSection.id === sectionItemContextMenu.section.id) {
         activeSection = {}
