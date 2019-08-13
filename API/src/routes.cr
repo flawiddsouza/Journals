@@ -57,6 +57,18 @@ get "/install" do
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     );
   "
+  db.exec "
+    CREATE TABLE IF NOT EXISTS page_history (
+        id INTEGER,
+        page_id INTEGER,
+        user_id INTEGER,
+        content TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(id),
+        FOREIGN KEY(page_id) REFERENCES pages(id) ON DELETE CASCADE
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  "
   "Installation Complete!"
 end
 
@@ -155,6 +167,14 @@ end
 put "/pages/:page_id" do |env|
   page_id = env.params.url["page_id"]
   page_content = env.params.json["pageContent"].as(String)
+
+  # save page history
+  existing_content = db.scalar("SELECT content FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(String | Nil)
+
+  if existing_content && existing_content != page_content
+    db.exec "INSERT INTO page_history(page_id, user_id, content) VALUES(?, ?, ?)", page_id, env.auth_id, existing_content
+  end
+  # end of save page history
 
   db.exec "UPDATE pages SET content=? WHERE id = ? AND user_id = ?", page_content, page_id, env.auth_id
 
