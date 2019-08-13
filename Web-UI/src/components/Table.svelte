@@ -4,6 +4,7 @@ export let pageId
 let columns = []
 let items = []
 let totals = {}
+let widths = {}
 
 $: fetchPage(pageId)
 
@@ -20,11 +21,13 @@ function fetchPage(pageId) {
         let parsedResponse = response.content ? JSON.parse(response.content) : {
             columns: [],
             items: [],
-            totals: {}
+            totals: {},
+            widths: {}
         }
         columns = parsedResponse.columns
         items = parsedResponse.items
         totals = parsedResponse.totals
+        widths = parsedResponse.widths ? parsedResponse.widths : {}
 
         if(columns.length === 0) {
             configuration = true
@@ -40,7 +43,8 @@ const savePageContent = debounce(function() {
         pageContent: JSON.stringify({
             columns,
             items,
-            totals
+            totals,
+            widths
         })
     })
 }, 500)
@@ -50,6 +54,12 @@ $: if(items) {
     Object.keys(totals).forEach(columnName => {
         if(totals[columnName] === '') {
             delete totals[columnName]
+        }
+    })
+    widths = widths
+    Object.keys(widths).forEach(columnName => {
+        if(widths[columnName] === '') {
+            delete widths[columnName]
         }
     })
     savePageContent()
@@ -299,7 +309,7 @@ function handlePaste(e) {
 <div class="pos-r">
     {#if !configuration}
         <div class="config" on:click={() => configuration = true}>Configure Table</div>
-        <table on:paste={handlePaste} on:keydown={e => handleUndoStacks(e)}>
+        <table on:paste={handlePaste} on:keydown={e => handleUndoStacks(e)} class="editable-table">
             <thead>
                 <tr>
                     {#each columns as column}
@@ -311,7 +321,7 @@ function handlePaste(e) {
                 {#each items as item, itemIndex}
                     <tr>
                         {#each columns as column}
-                            <td>
+                            <td style="width: {widths[column.name]}">
                                 <div contenteditable bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
                             </td>
                         {/each}
@@ -394,6 +404,16 @@ function handlePaste(e) {
                 </div>
             {/each}
         </div>
+
+        <div class="config-heading mt-1em">Column Widths</div>
+        <div class="config-area-font-size">
+            {#each columns as column}
+                <div>{column.label ? column.label : column.name}</div>
+                <div>
+                    <input type="text" value={widths[column.name] ? widths[column.name]: ''} on:input={(e) => widths[column.name] = e.target.value}>
+                </div>
+            {/each}
+        </div>
     {/if}
 </div>
 
@@ -436,7 +456,7 @@ table.config-table > tbody td > input {
     font-size: 16px;
 }
 
-.config-area-font-size textarea {
+.config-area-font-size textarea, .config-area-font-size input {
     font: inherit;
 }
 
@@ -466,5 +486,9 @@ table td > div[contenteditable] {
 
 .v-h {
     visibility: hidden;
+}
+
+.editable-table {
+    margin-bottom: 2em;
 }
 </style>
