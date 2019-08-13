@@ -10,6 +10,8 @@ $: fetchPage(pageId)
 
 import fetchPlus from '../helpers/fetchPlus.js'
 
+let editableTable = null
+
 function fetchPage(pageId) {
     // reset variables on page change
     configuration = false
@@ -33,6 +35,16 @@ function fetchPage(pageId) {
             configuration = true
             showAddColumn = true
         }
+
+        // set focus to the last cell in the table
+        setTimeout(() => {
+            if(editableTable) {
+                editableTable.querySelector('tbody > tr:last-child > td:last-child > div').focus()
+                // move cursor to the end of editable area
+                document.execCommand('selectAll', false, null);
+                document.getSelection().collapseToEnd();
+            }
+        }, 0)
     })
 }
 
@@ -309,7 +321,7 @@ function handlePaste(e) {
 <div class="pos-r">
     {#if !configuration}
         <div class="config" on:click={() => configuration = true}>Configure Table</div>
-        <table on:paste={handlePaste} on:keydown={e => handleUndoStacks(e)} class="editable-table">
+        <table on:paste={handlePaste} on:keydown={e => handleUndoStacks(e)} class="editable-table" bind:this={editableTable}>
             <thead>
                 <tr>
                     {#each columns as column}
