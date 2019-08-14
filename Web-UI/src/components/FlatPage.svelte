@@ -94,11 +94,20 @@ function handleImagePaste(event) {
     // load image if there is a pasted image
     if(blob !== null) {
         event.preventDefault()
-        let reader = new FileReader()
-        reader.onload = e => {
-            document.execCommand('insertHTML', false, `<img style="max-width: 100%" src="${e.target.result}">`)
-        }
-        reader.readAsDataURL(blob)
+
+        document.execCommand('insertHTML', false, `<img class="upload-image-loader" style="max-width: 100%" src="/images/loader-rainbow-dog.gif">`)
+
+        var data = new FormData()
+        data.append('image', blob)
+
+        fetch(`${baseURL}/upload-image/${pageId}`, {
+            method: 'POST',
+            body: data,
+            headers: { 'Token': localStorage.getItem('token') }
+        }).then(response => response.json()).then(response => {
+            document.querySelector('.upload-image-loader').remove()
+            document.execCommand('insertHTML', false, `<img style="max-width: 100%" src="${baseURL + '/' + response.imageUrl}">`)
+        })
     }
 }
 </script>
