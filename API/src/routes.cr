@@ -154,6 +154,16 @@ end
 
 delete "/pages/:page_id" do |env|
   page_id = env.params.url["page_id"]
+
+  page_uploads = db.query_all("SELECT file_path from page_uploads WHERE page_id = ? AND user_id = ?", page_id, env.auth_id, as: {
+    file_path: String
+  })
+
+  page_uploads.each do |page_upload|
+    file_path = ::File.join [Kemal.config.public_folder, page_upload["file_path"]]
+    File.delete(file_path)
+  end
+
   db.exec "DELETE FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id
 
   env.response.content_type = "application/json"
