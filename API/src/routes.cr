@@ -172,6 +172,24 @@ end
 
 delete "/sections/:section_id" do |env|
   section_id = env.params.url["section_id"]
+
+  # start delete file_uploads for pages
+  pages = db.query_all("SELECT id from pages WHERE section_id = ? AND user_id = ?", section_id, env.auth_id, as: {
+    id: Int64
+  })
+
+  pages.each do |page|
+    page_uploads = db.query_all("SELECT file_path from page_uploads WHERE page_id = ? AND user_id = ?", page["id"], env.auth_id, as: {
+      file_path: String
+    })
+
+    page_uploads.each do |page_upload|
+      file_path = ::File.join [Kemal.config.public_folder, page_upload["file_path"]]
+      File.delete(file_path)
+    end
+  end
+  # end delete file_uploads for pages
+
   db.exec "DELETE FROM sections WHERE id = ? AND user_id = ?", section_id, env.auth_id
 
   env.response.content_type = "application/json"
