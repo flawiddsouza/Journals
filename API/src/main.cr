@@ -2,6 +2,7 @@ require "kemal"
 require "sqlite3"
 require "crypto/bcrypt"
 require "jwt"
+require "file_utils"
 
 # enable cors
 require "./cors"

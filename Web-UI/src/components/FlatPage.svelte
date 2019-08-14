@@ -47,19 +47,34 @@ function focus(element) {
     element.focus()
 }
 
+import { baseURL } from '../../config.js'
+import placeCaretAtEnd from '../helpers/placeCaretAtEnd.js'
+
 function uploadImage() {
+    showInsertImageModal = false
     if(insertType === 'url') {
         pageContainer.focus()
-        document.execCommand('insertHTML', false, `<img style="max-width: 50%" src="${image}">`)
+        document.execCommand('insertHTML', false, `<img style="max-width: 100%" src="${image}">`)
     } else if(insertType === 'file') {
-        let reader = new FileReader()
-        reader.onload = e => {
-            pageContainer.focus()
-            document.execCommand('insertHTML', false, `<img style="max-width: 50%" src="${e.target.result}">`)
-        }
-        reader.readAsDataURL(image[0])
+        pageContainer.focus()
+        let imageElement = document.createElement('img')
+        imageElement.src = '/images/loader-rainbow-dog.gif'
+        imageElement.style.maxWidth = '100%'
+        pageContainer.appendChild(imageElement)
+        placeCaretAtEnd(pageContainer)
+
+        var data = new FormData()
+        data.append('image', image[0])
+
+        fetch(`${baseURL}/upload-image/${pageId}`, {
+            method: 'POST',
+            body: data,
+            headers: { 'Token': localStorage.getItem('token') }
+        }).then(response => response.json()).then(response => {
+            imageElement.src = baseURL + '/' + response.imageUrl
+            pageContainer.dispatchEvent(new Event('input'))
+        })
     }
-    showInsertImageModal = false
 }
 
 $: if(showInsertImageModal) {
@@ -81,7 +96,7 @@ function handleImagePaste(event) {
         event.preventDefault()
         let reader = new FileReader()
         reader.onload = e => {
-            document.execCommand('insertHTML', false, `<img style="max-width: 50%" src="${e.target.result}">`)
+            document.execCommand('insertHTML', false, `<img style="max-width: 100%" src="${e.target.result}">`)
         }
         reader.readAsDataURL(blob)
     }

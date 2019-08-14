@@ -69,6 +69,18 @@ get "/install" do
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     );
   "
+  db.exec "
+    CREATE TABLE IF NOT EXISTS page_uploads (
+        id INTEGER,
+        page_id INTEGER,
+        user_id INTEGER,
+        file_path TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(id),
+        FOREIGN KEY(page_id) REFERENCES pages(id) ON DELETE CASCADE
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  "
   "Installation Complete!"
 end
 
@@ -248,5 +260,33 @@ post "/change-password" do |env|
     {success: true}.to_json
   else
     {error: "Invalid Current Password"}.to_json
+  end
+end
+
+post "/upload-image/:page_id" do|env|
+  page_id = env.params.url["page_id"]
+
+  found_page_for_user = db.scalar("SELECT id FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(Int64 | Nil)
+
+  env.response.content_type = "application/json"
+
+  if found_page_for_user
+    file = env.params.files["image"].tempfile
+
+    FileUtils.mkdir_p(::File.join [Kemal.config.public_folder, "uploads/images/"])
+
+    file_path = ::File.join [Kemal.config.public_folder, "uploads/images/", File.basename(file.path)]
+
+    File.open(file_path, "w") do |f|
+      IO.copy(file, f)
+    end
+
+    file_path_to_save = "uploads/images/" + File.basename(file.path)
+
+    db.exec "INSERT INTO page_uploads(page_id, user_id, file_path) VALUES(?, ?, ?)", page_id, env.auth_id, file_path_to_save
+
+    {imageUrl: file_path_to_save }.to_json
+  else
+    {error: "Auth error"}.to_json
   end
 end
