@@ -198,6 +198,30 @@ end
 
 delete "/notebooks/:notebook_id" do |env|
   notebook_id = env.params.url["notebook_id"]
+
+  # start delete file_uploads for pages
+  sections = db.query_all("SELECT id from sections WHERE notebook_id = ? AND user_id = ?", notebook_id, env.auth_id, as: {
+    id: Int64
+  })
+
+  sections.each do |section|
+    pages = db.query_all("SELECT id from pages WHERE section_id = ? AND user_id = ?", section["id"], env.auth_id, as: {
+      id: Int64
+    })
+
+    pages.each do |page|
+      page_uploads = db.query_all("SELECT file_path from page_uploads WHERE page_id = ? AND user_id = ?", page["id"], env.auth_id, as: {
+        file_path: String
+      })
+
+      page_uploads.each do |page_upload|
+        file_path = ::File.join [Kemal.config.public_folder, page_upload["file_path"]]
+        File.delete(file_path)
+      end
+    end
+  end
+  # end delete file_uploads for pages
+
   db.exec "DELETE FROM notebooks WHERE id = ? AND user_id = ?", notebook_id, env.auth_id
 
   env.response.content_type = "application/json"
