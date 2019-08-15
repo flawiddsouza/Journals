@@ -266,6 +266,7 @@ const updatePageName = debounce(function(e) {
     })
     let page = pages.find(page => page.id === activePage.id)
     page.name = e.target.innerHTML
+    localStorage.setItem('activePage', JSON.stringify(page))
     pages = pages
 }, 500)
 
