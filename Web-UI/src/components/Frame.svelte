@@ -69,10 +69,9 @@ $: if(activeSection) {
     localStorage.setItem('activeSection', JSON.stringify(activeSection))
 }
 
-let savedActivePage = localStorage.getItem('activePage')
-let activePage = savedActivePage ? JSON.parse(savedActivePage) : {}
+let activePage = {}
 
-$: if(activePage) {
+$: if(activePage && activePage.id) {
     localStorage.setItem('activePage', JSON.stringify(activePage))
 }
 
@@ -83,11 +82,20 @@ async function fetchPages(activeSection) {
 
     pages = []
 
-    if(activePage.section_id !== activeSection.id) {
-        activePage = {}
-    }
-
     pages = await fetchPlus.get(`/pages/${activeSection.id}`)
+
+    let savedActivePage = localStorage.getItem('activePage')
+    savedActivePage = savedActivePage ? JSON.parse(savedActivePage) : {}
+
+    if(savedActivePage) {
+        let page = pages.find(page => page.id === savedActivePage.id)
+        if(page === undefined) {
+            localStorage.removeItem('activePage')
+            activePage = {}
+        } else {
+            activePage = savedActivePage
+        }
+    }
 }
 
 let showAddPageModal = false
