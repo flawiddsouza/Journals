@@ -321,16 +321,56 @@ function changePassword() {
     })
 }
 
+let showPageHistoryModal = false
+let showPageUploadsModal = false
+let showPageHistoryItemViewModal = false
+let pageHistory = []
+let pageUploads = []
+let pageHistoryItemViewPageContent = null
+
+$: if(showPageHistoryModal && activePage) {
+    fetchPlus.get(`/page-history/${activePage.id}`).then(response => {
+        pageHistory = response
+    })
+}
+
+$: if(showPageUploadsModal && activePage) {
+    fetchPlus.get(`/page-uploads/${activePage.id}`).then(response => {
+        pageUploads = response
+    })
+}
+
+function viewPageHistoryItem(pageHistoryItemId) {
+    showPageHistoryItemViewModal = true
+    fetchPlus.get(`/page-history/content/${pageHistoryItemId}`).then(response => {
+        pageHistoryItemViewPageContent = response.content
+    })
+}
+
+function restorePageHistoryItem(pageHistoryItemId) {
+    if(confirm('Are you sure you want to restore the page to this state?')) {
+        fetchPlus.post(`/page-history/restore/${pageHistoryItemId}`).then(() => {
+            document.location.reload()
+        })
+    }
+}
+
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
 import Modal from './Modal.svelte'
+import { format } from 'date-fns'
 </script>
 
 <div>
     <nav class="journal-sidebar-hamburger" on:click={toggleSidebars}>
-        <a href="#change-password" on:click|preventDefault|stopPropagation={() => showChangePasswordModal = true} class="mr-1em">Change Password</a>
-        <a href="#logout" on:click|preventDefault|stopPropagation={logout} class="mr-1em">Logout</a>
-        &#9776; Menu
+        <div class="pos-r">
+            <div class="pos-a" style="margin-left: 14em">
+                Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> ]
+            </div>
+            <a href="#change-password" on:click|preventDefault|stopPropagation={() => showChangePasswordModal = true} class="mr-1em">Change Password</a>
+            <a href="#logout" on:click|preventDefault|stopPropagation={logout} class="mr-1em">Logout</a>
+            &#9776; Menu
+        </div>
     </nav>
     <nav class="journal-left-sidebar" bind:this={leftSidebarElement} style="display: block">
         {#each notebooks as notebook}
@@ -381,7 +421,7 @@ import Modal from './Modal.svelte'
     {#if showAddPageModal}
         <Modal on:close-modal={() => showAddPageModal = false}>
             <form on:submit|preventDefault={addPageToActiveSection}>
-                <h2>Add Page</h2>
+                <h2 class="heading">Add Page</h2>
                 <label>Name<br>
                     <input type="text" bind:value={addPage.name} required class="w-100p" use:focus>
                 </label>
@@ -398,7 +438,7 @@ import Modal from './Modal.svelte'
     {#if showChangePasswordModal}
         <Modal on:close-modal={() => showChangePasswordModal = false}>
             <form on:submit|preventDefault={changePassword}>
-                <h2>Change Password</h2>
+                <h2 class="heading">Change Password</h2>
                 <label>Current Password<br>
                     <input type="password" bind:value={changePasswordObj.currentPassword} required class="w-100p" use:focus>
                 </label>
@@ -410,6 +450,55 @@ import Modal from './Modal.svelte'
             <div class="mt-1em red">
                 {#if changePasswordObj.error}
                     Error: {changePasswordObj.error}
+                {/if}
+            </div>
+        </Modal>
+    {/if}
+    {#if showPageHistoryModal}
+        <Modal on:close-modal={() => showPageHistoryModal = false}>
+            <h2 class="heading">Page History</h2>
+            <div class="oy-a" style="max-height: 80vh">
+                <table>
+                    {#each pageHistory as pageHistoryItem}
+                        <tr>
+                            <td>{format(pageHistoryItem.created_at, 'DD-MM-YYYY hh:mm A')}</td>
+                            <td><button on:click={() => viewPageHistoryItem(pageHistoryItem.id)}>View</button></td>
+                            <td><button on:click={() => restorePageHistoryItem(pageHistoryItem.id)}>Restore</button></td>
+                        </tr>
+                    {:else}
+                        <div>No History Found</div>
+                    {/each}
+                </table>
+            </div>
+        </Modal>
+    {/if}
+    {#if showPageUploadsModal}
+        <Modal on:close-modal={() => showPageUploadsModal = false}>
+            <h2 class="heading">Page Uploads</h2>
+            <div class="oy-a" style="max-height: 80vh">
+                <table>
+                    {#each pageUploads as pageUploadsItem}
+                        <tr>
+                            <td>{format(pageUploadsItem.created_at, 'DD-MM-YYYY hh:mm A')}</td>
+                            <!-- show view if image, show download if file -->
+                            <td><button>View</button></td>
+                            <td><button>Delete</button></td>
+                        </tr>
+                    {:else}
+                        <div>No Uploads Found</div>
+                    {/each}
+                </table>
+            </div>
+        </Modal>
+    {/if}
+    {#if showPageHistoryItemViewModal}
+        <Modal on:close-modal={() => showPageHistoryItemViewModal = false}>
+            <div class="oy-a" style="max-height: 80vh">
+                {#if activePage.type === 'Table'}
+                    <Table bind:pageContentOverride={pageHistoryItemViewPageContent}></Table>
+                {/if}
+                {#if activePage.type === 'FlatPage'}
+                    <FlatPage bind:pageContentOverride={pageHistoryItemViewPageContent}></FlatPage>
                 {/if}
             </div>
         </Modal>
@@ -550,7 +639,7 @@ h1.journal-page-title {
     display: block;
 }
 
-form > h2 {
+h2.heading {
     margin: 0;
     margin-bottom: 0.5em;
 }
@@ -573,5 +662,17 @@ form > h2 {
 
 .f-r {
     float: right;
+}
+
+.pos-r {
+    position: relative;
+}
+
+.pos-a {
+    position: absolute;
+}
+
+.oy-a {
+    overflow-y: auto;
 }
 </style>

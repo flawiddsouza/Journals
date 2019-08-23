@@ -1,10 +1,19 @@
 <script>
-export let pageId
+export let pageId = null
+export let pageContentOverride = undefined
 
 let columns = []
 let items = []
 let totals = {}
 let widths = {}
+
+$: if(pageContentOverride) {
+    let parsedPage = JSON.parse(pageContentOverride)
+    columns = parsedPage.columns
+    items = parsedPage.items
+    totals = parsedPage.totals
+    widths = parsedPage.widths
+}
 
 $: fetchPage(pageId)
 
@@ -13,6 +22,9 @@ import fetchPlus from '../helpers/fetchPlus.js'
 let editableTable = null
 
 function fetchPage(pageId) {
+    if(pageId === null) {
+        return
+    }
     // reset variables on page change
     configuration = false
     showAddColumn = false
@@ -51,6 +63,9 @@ function fetchPage(pageId) {
 import debounce from '../helpers/debounce.js'
 
 const savePageContent = debounce(function() {
+    if(pageId === null) {
+        return
+    }
     fetchPlus.put(`/pages/${pageId}`, {
         pageContent: JSON.stringify({
             columns,
@@ -334,7 +349,11 @@ function handlePaste(e) {
                     <tr>
                         {#each columns as column}
                             <td style="width: {widths[column.name]}">
-                                <div contenteditable bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
+                                {#if pageContentOverride === undefined}
+                                    <div contenteditable bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
+                                {:else}
+                                    <div>{@html item[column.name]}</div>
+                                {/if}
                             </td>
                         {/each}
                     </tr>

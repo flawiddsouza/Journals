@@ -1,7 +1,12 @@
 <script>
-export let pageId
+export let pageId = null
+export let pageContentOverride = undefined
 
 let pageContent = ''
+
+$: if(pageContentOverride !== undefined) {
+    pageContent = pageContentOverride
+}
 
 $: fetchPage(pageId)
 
@@ -9,14 +14,16 @@ import fetchPlus from '../helpers/fetchPlus.js'
 let pageContainer
 
 function fetchPage(pageId) {
-    fetchPlus.get(`/pages/content/${pageId}`).then(response => {
-        pageContent = response.content
-        setTimeout(() => {
-            pageContainer.focus()
-            document.execCommand('selectAll', false, null)
-            document.getSelection().collapseToEnd()
-        }, 0)
-    })
+    if(pageId) {
+        fetchPlus.get(`/pages/content/${pageId}`).then(response => {
+            pageContent = response.content
+            setTimeout(() => {
+                pageContainer.focus()
+                document.execCommand('selectAll', false, null)
+                document.getSelection().collapseToEnd()
+            }, 0)
+        })
+    }
 }
 
 import debounce from '../helpers/debounce.js'
@@ -112,7 +119,11 @@ function handleImagePaste(event) {
 }
 </script>
 
-<div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={savePageContent} bind:this={pageContainer} on:paste={handleImagePaste}></div>
+{#if pageContentOverride === undefined}
+    <div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={savePageContent} bind:this={pageContainer} on:paste={handleImagePaste}></div>
+{:else}
+    <div class="page-container">{@html pageContent}</div>
+{/if}
 
 {#if showInsertImageModal}
     <Modal on:close-modal={() => showInsertImageModal = false}>

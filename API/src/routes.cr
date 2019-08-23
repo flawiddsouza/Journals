@@ -342,3 +342,59 @@ post "/upload-image/:page_id" do|env|
     {error: "Auth error"}.to_json
   end
 end
+
+get "/page-history/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  page_history = db.query_all("SELECT id, created_at FROM page_history WHERE page_id = ? AND user_id = ? ORDER BY created_at DESC", page_id, env.auth_id, as: {
+    id:   Int64,
+    created_at: String
+  })
+
+  env.response.content_type = "application/json"
+  page_history.to_json
+end
+
+get "/page-history/content/:id" do |env|
+  page_history_id = env.params.url["id"]
+
+  page_history_content = db.scalar("SELECT content FROM page_history WHERE id = ? AND user_id = ?", page_history_id, env.auth_id).as(String | Nil)
+
+  env.response.content_type = "application/json"
+  {content: page_history_content}.to_json
+end
+
+post "/page-history/restore/:id" do |env|
+  page_history_id = env.params.url["id"]
+
+  page_history = db.query_one("SELECT page_id, content FROM page_history WHERE id = ? AND user_id = ?", page_history_id, env.auth_id, as: {
+    page_id: Int64,
+    content: String | Nil
+  })
+
+  # save page history
+  existing_content = db.scalar("SELECT content FROM pages WHERE id = ? AND user_id = ?", page_history["page_id"], env.auth_id).as(String | Nil)
+
+  if existing_content && existing_content != page_history["content"]
+    db.exec "INSERT INTO page_history(page_id, user_id, content) VALUES(?, ?, ?)", page_history["page_id"], env.auth_id, existing_content
+  end
+  # end of save page history
+
+  db.exec "UPDATE pages SET content=? WHERE id = ? AND user_id = ?", page_history["content"], page_history["page_id"], env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+get "/page-uploads/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  page_uploads = db.query_all("SELECT id, file_path, created_at FROM page_uploads WHERE page_id = ? AND user_id = ?", page_id, env.auth_id, as: {
+    id:   Int64,
+    file_path: String,
+    created_at: String
+  })
+
+  env.response.content_type = "application/json"
+  page_uploads.to_json
+end
