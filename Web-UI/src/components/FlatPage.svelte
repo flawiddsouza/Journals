@@ -13,15 +13,18 @@ $: fetchPage(pageId)
 import fetchPlus from '../helpers/fetchPlus.js'
 let pageContainer
 
+import { tick } from 'svelte'
+
 function fetchPage(pageId) {
     if(pageId) {
         fetchPlus.get(`/pages/content/${pageId}`).then(response => {
             pageContent = response.content
-            setTimeout(() => {
+            tick().then(() => {
                 pageContainer.focus()
                 document.execCommand('selectAll', false, null)
                 document.getSelection().collapseToEnd()
-            }, 0)
+                pageContainer.parentElement.parentElement.scrollTop = pageContainer.parentElement.parentElement.scrollHeight
+            })
         })
     }
 }
