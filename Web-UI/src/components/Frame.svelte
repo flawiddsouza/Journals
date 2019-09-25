@@ -596,10 +596,6 @@ import { format } from 'date-fns'
     border-bottom: 1px solid #d08700;
 }
 
-.journal-page {
-    margin-left: 2em;
-}
-
 .journal-page-entries {
     margin-top: 1em;
     margin-right: 1em;
@@ -611,6 +607,11 @@ import { format } from 'date-fns'
     margin-top: 3em;
     padding-top: 1.4em;
     padding-bottom: 1.4em;
+}
+
+.journal-page {
+    margin-left: 2em;
+    padding-bottom: 5.4em;
 }
 
 .journal-left-sidebar[style*="block"] + .journal-page {
