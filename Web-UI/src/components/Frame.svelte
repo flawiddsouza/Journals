@@ -355,6 +355,65 @@ function restorePageHistoryItem(pageHistoryItemId) {
     }
 }
 
+let activeElement = null
+
+function makeDraggableContainer(element, sidebarItemClass) {
+    function dragover(e) {
+        e.preventDefault()
+        if(e.target.classList.contains(sidebarItemClass)) {
+            if(e.target === activeElement.previousElementSibling) { // if item is before drag element
+                e.target.insertAdjacentElement('beforebegin', activeElement)
+            } else { // if item is after drag element
+                e.target.insertAdjacentElement('afterend', activeElement)
+            }
+        }
+        activeElement.classList.add('ghost')
+    }
+
+    function updateSortOrder() {
+        let pageIdsInOrder = Array.from(activeElement.parentElement.querySelectorAll('[draggable="true"')).map(item => item.dataset.pageId)
+        let pageIdsWithSortOrder = pageIdsInOrder.map((pageId, index) => {
+            return {
+                pageId,
+                sortOrder: index + 1
+            }
+        })
+        fetchPlus.post('/pages/sort-order/update', pageIdsWithSortOrder)
+        activeElement.classList.remove('ghost')
+        activeElement = null
+    }
+
+    function drop(e) {
+        e.preventDefault()
+        updateSortOrder()
+    }
+
+    function dragend(e) {
+        if(activeElement) {
+            updateSortOrder()
+        }
+    }
+
+    element.addEventListener('dragover', dragover)
+    element.addEventListener('drop', drop)
+    element.addEventListener('dragend', dragend)
+}
+
+function makeDraggableItem(element) {
+    element.draggable = true
+
+    function dragstart(e) {
+        activeElement = e.target
+
+        // hide drag image by setting it to transparent image - https://stackoverflow.com/a/49535378/4932305
+        var img = new Image()
+        img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs='
+        event.dataTransfer.setDragImage(img, 0, 0)
+    }
+
+    element.addEventListener('dragstart', e => dragstart(e))
+}
+
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
 import Modal from './Modal.svelte'
@@ -410,10 +469,10 @@ import { format } from 'date-fns'
             </div>
         {/if}
     </main>
-    <nav class="journal-right-sidebar" bind:this={rightSidebarElement} style="display: block">
+    <nav class="journal-right-sidebar" bind:this={rightSidebarElement} style="display: block" use:makeDraggableContainer={'page-sidebar-item'}>
         {#if activeSection.id !== undefined && activeSection.id !== null}
             {#each pages as page}
-                <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === page.id } on:click={ () => activePage = page } on:contextmenu|preventDefault={(e) => handlePageItemContextMenu(e, page)}>{ page.name }</div>
+                <div class="journal-sidebar-item page-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === page.id } on:click={ () => activePage = page } on:contextmenu|preventDefault={(e) => handlePageItemContextMenu(e, page)} data-page-id={page.id} use:makeDraggableItem>{ page.name }</div>
             {/each}
             <div class="journal-sidebar-item" on:click={() => showAddPageModal = true}>Add Page +</div>
         {/if}
@@ -563,6 +622,10 @@ import { format } from 'date-fns'
 .journal-sidebar-item {
     padding: 0.3em 0.9em;
     user-select: none;
+}
+
+:global(.journal-sidebar-item.ghost) {
+    background-color: #f7f7f7 !important;
 }
 
 .journal-sidebar-item:hover {

@@ -81,6 +81,14 @@ get "/install" do
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     );
   "
+
+  user_version = db.scalar("PRAGMA user_version").as(Int64)
+
+  if user_version === 0
+    db.exec "ALTER TABLE pages ADD COLUMN sort_order INTEGER"
+    db.exec "PRAGMA user_version = 1"
+  end
+
   "Installation Complete!"
 end
 
@@ -140,10 +148,11 @@ end
 get "/pages/:section_id" do |env|
   section_id = env.params.url["section_id"]
 
-  pages = db.query_all("SELECT pages.id, pages.name, pages.type, pages.section_id, sections.notebook_id from pages JOIN sections ON sections.id = pages.section_id WHERE pages.section_id = ? AND pages.user_id = ?", section_id, env.auth_id, as: {
+  pages = db.query_all("SELECT pages.id, pages.name, pages.type, pages.sort_order, pages.section_id, sections.notebook_id from pages JOIN sections ON sections.id = pages.section_id WHERE pages.section_id = ? AND pages.user_id = ? ORDER BY pages.sort_order", section_id, env.auth_id, as: {
     id:   Int64,
     name: String,
     type: String,
+    sort_order: Int64 | Nil,
     section_id: Int64,
     notebook_id: Int64
   })
@@ -397,4 +406,22 @@ get "/page-uploads/:page_id" do |env|
 
   env.response.content_type = "application/json"
   page_uploads.to_json
+end
+
+
+require "json"
+
+private class PageIdSortOrder
+  JSON.mapping({pageId: String, sortOrder: Int32})
+end
+
+post "/pages/sort-order/update" do |env|
+  page_sort_orders = Array(PageIdSortOrder).from_json(env.params.json["_json"].to_json)
+
+  page_sort_orders.each do |page_sort_order|
+    db.exec "UPDATE pages SET sort_order=? WHERE id = ? AND user_id = ?", page_sort_order.sortOrder, page_sort_order.pageId, env.auth_id
+  end
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
 end
