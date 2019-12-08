@@ -52,6 +52,7 @@ function fetchPage(pageId) {
         setTimeout(() => {
             if(editableTable) {
                 editableTable.querySelector('tbody > tr:last-child > td:last-child > div').focus()
+                editableTable.querySelector('tbody > tr:last-child > td:last-child > div').scrollIntoView()
                 // move cursor to the end of editable area
                 document.execCommand('selectAll', false, null);
                 document.getSelection().collapseToEnd();
