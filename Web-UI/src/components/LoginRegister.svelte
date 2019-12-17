@@ -8,6 +8,7 @@ function focus(element) {
 let type = 'login'
 let loginUsername = ''
 let loginPassword = ''
+let loginDuration = '30 Minutes'
 let registerUsername = ''
 let registerPassword = ''
 let error = ''
@@ -20,8 +21,10 @@ function login() {
         if(response.hasOwnProperty('error')) {
             error = response.error
         } else {
-            localStorage.setItem('username', loginUsername)
-            localStorage.setItem('password', loginPassword)
+            if(loginDuration === 'Permanent') {
+                localStorage.setItem('username', loginUsername)
+                localStorage.setItem('password', loginPassword)
+            }
             localStorage.setItem('token', response.token)
             location.reload()
         }
@@ -60,6 +63,12 @@ function register() {
                 <label class="mt-0_5em">
                     Password:<br>
                     <input type="password" required bind:value={loginPassword}>
+                </label>
+                <label class="mt-0_5em">Login Duration:<br>
+                    <select bind:value={loginDuration} class="w-100p">
+                        <option>30 Minutes</option>
+                        <option>Permanent</option>
+                    </select>
                 </label>
                 <button class="mt-1em w-100p">Login</button>
             </form>
