@@ -520,7 +520,7 @@ import { format } from 'date-fns'
                 <table>
                     {#each pageHistory as pageHistoryItem}
                         <tr>
-                            <td>{format(pageHistoryItem.created_at, 'DD-MM-YYYY hh:mm A')}</td>
+                            <td>{format(pageHistoryItem.created_at + 'Z', 'DD-MM-YYYY hh:mm A')}</td>
                             <td><button on:click={() => viewPageHistoryItem(pageHistoryItem.id)}>View</button></td>
                             <td><button on:click={() => restorePageHistoryItem(pageHistoryItem.id)}>Restore</button></td>
                         </tr>
@@ -538,7 +538,7 @@ import { format } from 'date-fns'
                 <table>
                     {#each pageUploads as pageUploadsItem}
                         <tr>
-                            <td>{format(pageUploadsItem.created_at, 'DD-MM-YYYY hh:mm A')}</td>
+                            <td>{format(pageUploadsItem.created_at + 'Z', 'DD-MM-YYYY hh:mm A')}</td>
                             <!-- show view if image, show download if file -->
                             <td><button>View</button></td>
                             <td><button>Delete</button></td>
