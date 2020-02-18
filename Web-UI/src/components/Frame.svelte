@@ -458,7 +458,10 @@ import { format } from 'date-fns'
     </nav>
     <main class="journal-page">
         {#if activePage.id !== undefined && activePage.id !== null}
-            <h1 class="journal-page-title" contenteditable on:keydown={makeContentEditableSingleLine} spellcheck="false" on:input={updatePageName}>{activePage.name}</h1>
+            <h1 class="journal-page-title" contenteditable on:keydown={makeContentEditableSingleLine} spellcheck="false" on:input={updatePageName} style="margin-bottom: 0">
+                {activePage.name}
+            </h1>
+            <time style="font-size: 10px; color: darkgrey;">{format(activePage.created_at + 'Z', 'DD-MM-YYYY hh:mm A')}</time>
             <div class="journal-page-entries">
                     {#if activePage.type === 'Table'}
                         <Table bind:pageId={activePage.id}></Table>
@@ -660,7 +663,7 @@ import { format } from 'date-fns'
 }
 
 .journal-page-entries {
-    margin-top: 1em;
+    margin-top: 0.7em;
     margin-right: 1em;
 }
 

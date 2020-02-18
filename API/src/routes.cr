@@ -148,12 +148,13 @@ end
 get "/pages/:section_id" do |env|
   section_id = env.params.url["section_id"]
 
-  pages = db.query_all("SELECT pages.id, pages.name, pages.type, pages.sort_order, pages.section_id, sections.notebook_id from pages JOIN sections ON sections.id = pages.section_id WHERE pages.section_id = ? AND pages.user_id = ? ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order", section_id, env.auth_id, as: {
+  pages = db.query_all("SELECT pages.id, pages.name, pages.type, pages.sort_order, pages.section_id, pages.created_at, sections.notebook_id from pages JOIN sections ON sections.id = pages.section_id WHERE pages.section_id = ? AND pages.user_id = ? ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order", section_id, env.auth_id, as: {
     id:   Int64,
     name: String,
     type: String,
     sort_order: Int64 | Nil,
     section_id: Int64,
+    created_at: String,
     notebook_id: Int64
   })
 
