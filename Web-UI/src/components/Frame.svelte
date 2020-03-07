@@ -270,10 +270,10 @@ import debounce from '../helpers/debounce.js'
 
 const updatePageName = debounce(function(e) {
     fetchPlus.put(`/pages/name/${activePage.id}`, {
-        pageName: e.target.innerHTML
+        pageName: e.target.innerText
     })
     let page = pages.find(page => page.id === activePage.id)
-    page.name = e.target.innerHTML
+    page.name = e.target.innerText
     localStorage.setItem('activePage', JSON.stringify(page))
     pages = pages
 }, 500)
