@@ -22,7 +22,9 @@ function fetchPage(pageId) {
             tick().then(() => {
                 pageContainer.focus()
                 document.execCommand('selectAll', false, null)
-                document.getSelection().collapseToEnd()
+                try {
+                    document.getSelection().collapseToEnd()
+                } catch(e) {}
                 pageContainer.parentElement.parentElement.scrollTop = pageContainer.parentElement.parentElement.scrollHeight
             })
         })
