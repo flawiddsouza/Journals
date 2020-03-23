@@ -130,7 +130,9 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
     }
 
     // remove current row
-    if(e.ctrlKey && e.key.toLowerCase() === 'x') {
+    if(e.ctrlKey && e.key.toLowerCase() === 'delete') {
+        e.preventDefault()
+
         if(items.length === 1) {
             undoStackForRemoveRow.push({ index: 0, item: JSON.parse(JSON.stringify(items[0])) }) // save undo
 
