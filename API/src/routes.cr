@@ -89,6 +89,11 @@ get "/install" do
     db.exec "PRAGMA user_version = 1"
   end
 
+  if user_version === 1
+    db.exec "ALTER TABLE sections ADD COLUMN sort_order INTEGER"
+    db.exec "PRAGMA user_version = 2"
+  end
+
   "Installation Complete!"
 end
 
@@ -99,17 +104,18 @@ get "/notebooks" do |env|
     expanded: Bool,
   })
 
-  hashed_notebooks = [] of Hash(String, Int64 | String | Bool | Array(NamedTuple(id: Int64, name: String, notebook_id: Int64)))
+  hashed_notebooks = [] of Hash(String, Int64 | String | Bool | Array(NamedTuple(id: Int64, name: String, notebook_id: Int64, sort_order: Int64 | Nil)))
 
   notebooks.each do |notebook|
     hashed_notebooks << {
       "id"       => notebook["id"],
       "name"     => notebook["name"],
       "expanded" => notebook["expanded"],
-      "sections" => db.query_all("SELECT id, name, notebook_id from sections where notebook_id = ?", notebook["id"], as: {
+      "sections" => db.query_all("SELECT id, name, notebook_id, sort_order from sections where notebook_id = ? ORDER BY CASE WHEN sort_order THEN 0 ELSE 1 END, sort_order", notebook["id"], as: {
         id:   Int64,
         name: String,
-        notebook_id: Int64
+        notebook_id: Int64,
+        sort_order: Int64 | Nil
       }),
     }
   end
