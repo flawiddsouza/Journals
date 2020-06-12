@@ -419,7 +419,10 @@ end
 require "json"
 
 private class PageIdSortOrder
-  JSON.mapping({pageId: String, sortOrder: Int32})
+  include JSON::Serializable
+
+  property pageId : String
+  property sortOrder : Int32
 end
 
 post "/pages/sort-order/update" do |env|

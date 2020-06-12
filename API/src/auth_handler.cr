@@ -59,7 +59,7 @@ post "/login" do |env|
   if user
     stored_password = Crypto::Bcrypt::Password.new(user["password"])
     if stored_password.verify(password)
-      exp = Time.now.to_unix + (60 * 30)
+      exp = Time.utc.to_unix + (60 * 30)
       payload = {username: user["username"], exp: exp}
       jwt = JWT.encode(payload, ENV["JWT_SECRET"], JWT::Algorithm::HS256)
       {token: jwt, expiresIn: "30 minutes"}.to_json
