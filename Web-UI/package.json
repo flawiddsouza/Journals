@@ -12,7 +12,10 @@
     },
     "dependencies": {
         "date-fns": "^1.30.1",
-        "sirv-cli": "^0.4.4"
+        "less": "^3.11.3",
+        "rollup-plugin-postcss": "^3.1.2",
+        "sirv-cli": "^0.4.4",
+        "x-data-spreadsheet": "^1.1.4"
     },
     "scripts": {
         "build": "rollup -c",

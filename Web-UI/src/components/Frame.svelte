@@ -416,6 +416,7 @@ function makeDraggableItem(element) {
 
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
+import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import Modal from './Modal.svelte'
 import { format } from 'date-fns'
 </script>
@@ -469,6 +470,9 @@ import { format } from 'date-fns'
                     {#if activePage.type === 'FlatPage'}
                         <FlatPage bind:pageId={activePage.id}></FlatPage>
                     {/if}
+                    {#if activePage.type === 'Spreadsheet'}
+                        <Spreadsheet bind:pageId={activePage.id}></Spreadsheet>
+                    {/if}
             </div>
         {/if}
     </main>
@@ -491,6 +495,7 @@ import { format } from 'date-fns'
                     <select bind:value={addPage.type} required class="w-100p">
                         <option value="FlatPage">Flat Page</option>
                         <option value="Table">Table</option>
+                        <option value="Spreadsheet">Spreadsheet</option>
                     </select>
                 </label>
                 <button class="w-100p mt-1em">Add</button>
@@ -561,6 +566,9 @@ import { format } from 'date-fns'
                 {/if}
                 {#if activePage.type === 'FlatPage'}
                     <FlatPage bind:pageContentOverride={pageHistoryItemViewPageContent}></FlatPage>
+                {/if}
+                {#if activePage.type === 'Spreadsheet'}
+                    <Spreadsheet bind:pageContentOverride={pageHistoryItemViewPageContent}></Spreadsheet>
                 {/if}
             </div>
         </Modal>

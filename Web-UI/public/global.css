@@ -10,3 +10,8 @@ body {
     font-size: 14px;
     /* font-family: 'Calibri'; */
 }
+
+/* x-spreadsheet overrides */
+.x-spreadsheet-overlayer, .x-spreadsheet-scrollbar {
+    z-index: 0 !important;
+}
