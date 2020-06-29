@@ -156,9 +156,10 @@ function deletePage() {
     if(confirm('Are you sure you want to delete this page?')) {
         fetchPlus.delete(`/pages/${pageItemContextMenu.page.id}`)
         pages = pages.filter(page => page.id !== pageItemContextMenu.page.id)
-    }
-    if(activePage.id === pageItemContextMenu.page.id) {
-        activePage = {}
+
+        if(activePage.id === pageItemContextMenu.page.id) {
+            activePage = {}
+        }
     }
     pageItemContextMenu.page = null
 }
