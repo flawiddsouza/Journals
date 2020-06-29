@@ -435,3 +435,13 @@ post "/pages/sort-order/update" do |env|
   env.response.content_type = "application/json"
   {success: true}.to_json
 end
+
+put "/move-page/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+  target_section_id = env.params.json["sectionId"].as(Int64)
+
+  db.exec "UPDATE pages SET section_id=? WHERE id = ? AND user_id = ?", target_section_id, page_id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end

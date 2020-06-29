@@ -70,9 +70,16 @@ $: if(activeSection) {
 }
 
 let activePage = {}
+let firstLoad = true
 
 $: if(activePage && activePage.id) {
     localStorage.setItem('activePage', JSON.stringify(activePage))
+    firstLoad = false
+} else {
+    if(!firstLoad) {
+        localStorage.removeItem('activePage')
+    }
+    firstLoad = false
 }
 
 async function fetchPages(activeSection) {
@@ -150,6 +157,35 @@ function handlePageItemContextMenu(e, page) {
     pageItemContextMenu.left = e.pageX
     pageItemContextMenu.top = e.pageY
     pageItemContextMenu.page = page
+}
+
+let showMovePageModal = false
+let showMovePageModalData = null
+let showMovePageModalSelectedNotebook = null
+let showMovePageModalSelectedSectionId = null
+
+function startMovePage() {
+    showMovePageModalData = JSON.parse(JSON.stringify(pageItemContextMenu.page))
+    showMovePageModalSelectedNotebook = {
+        sections: []
+    }
+    showMovePageModalSelectedSectionId = null
+    showMovePageModal = true
+    pageItemContextMenu.page = null
+}
+
+function movePage() {
+    fetchPlus.put(`/move-page/${showMovePageModalData.id}`, {
+        sectionId: showMovePageModalSelectedSectionId
+    })
+
+    pages = pages.filter(page => page.id !== showMovePageModalData.id)
+
+    if(activePage.id === showMovePageModalData.id) {
+        activePage = {}
+    }
+
+    showMovePageModal = false
 }
 
 function deletePage() {
@@ -574,8 +610,43 @@ import { format } from 'date-fns'
             </div>
         </Modal>
     {/if}
+    {#if showMovePageModal}
+        <Modal on:close-modal={() => showMovePageModal = false}>
+            <h2 class="heading">Move Page</h2>
+            <form on:submit|preventDefault={movePage}>
+                <div>
+                    Selected Page:
+                    <div style="font-weight: bold">{ showMovePageModalData.name }</div>
+                </div>
+                <div class="mt-1em">
+                    <label>
+                        Select Target Notebook<br>
+                        <select class="w-100p" required bind:value={showMovePageModalSelectedNotebook} on:change={() => showMovePageModalSelectedSectionId = null}>
+                            <option></option>
+                            {#each notebooks as notebook}
+                                <option value={notebook}>{ notebook.name }</option>
+                            {/each}
+                        </select>
+                    </label>
+                </div>
+                <div class="mt-1em">
+                    <label>
+                        Select Target Section<br>
+                        <select class="w-100p" required bind:value={showMovePageModalSelectedSectionId}>
+                            <option></option>
+                            {#each showMovePageModalSelectedNotebook.sections.filter(item => item.id !== showMovePageModalData.section_id) as section}
+                                <option value={section.id} selected={showMovePageModalSelectedSectionId === section.id}>{ section.name }</option>
+                            {/each}
+                        </select>
+                    </label>
+                </div>
+                <button class="mt-1em w-100p">Move Page</button>
+            </form>
+        </Modal>
+    {/if}
     {#if pageItemContextMenu.page}
         <div class="context-menu" style="left: {pageItemContextMenu.left}px; top: {pageItemContextMenu.top}px">
+            <div on:click={startMovePage}>Move page</div>
             <div on:click={deletePage}>Delete page</div>
         </div>
     {/if}
