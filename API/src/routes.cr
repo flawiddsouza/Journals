@@ -445,3 +445,13 @@ put "/move-page/:page_id" do |env|
   env.response.content_type = "application/json"
   {success: true}.to_json
 end
+
+put "/move-section/:section_id" do |env|
+  section_id = env.params.url["section_id"]
+  target_notebook_id = env.params.json["notebookId"].as(Int64)
+
+  db.exec "UPDATE sections SET notebook_id=? WHERE id = ? AND user_id = ?", target_notebook_id, section_id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end

@@ -214,6 +214,43 @@ function handleSectionItemContextMenu(e, section, notebook) {
     sectionItemContextMenu.notebook = notebook
 }
 
+let showMoveSectionModal = false
+let showMoveSectionModalData = null
+let showMoveSectionModalSelectedNotebookId = null
+
+function startMoveSection() {
+    showMoveSectionModalSelectedNotebookId = null
+    showMoveSectionModalData = JSON.parse(JSON.stringify(sectionItemContextMenu.section))
+    showMoveSectionModal = true
+}
+
+function moveSection() {
+    fetchPlus.put(`/move-section/${showMoveSectionModalData.id}`, {
+        notebookId: showMoveSectionModalSelectedNotebookId
+    })
+
+    let sourceNotebook = notebooks.find(notebook => notebook.id === showMoveSectionModalData.notebook_id)
+    sourceNotebook.sections = sourceNotebook.sections.filter(section => section.id !== showMoveSectionModalData.id)
+
+    let targetNotebook = notebooks.find(notebook => notebook.id === showMoveSectionModalSelectedNotebookId)
+    let sectionToInsert = JSON.parse(JSON.stringify(showMoveSectionModalData))
+    sectionToInsert.notebook_id = showMoveSectionModalSelectedNotebookId
+    targetNotebook.sections.push(sectionToInsert)
+
+    notebooks = notebooks
+
+    if(activeSection.id === showMoveSectionModalData.id) {
+        activeSection = {}
+    }
+
+    // set activePage to {} if it belongs to the deleted section
+    if(activePage.section_id === showMoveSectionModalData.id) {
+        activePage = {}
+    }
+
+    showMoveSectionModal = false
+}
+
 function renameSection() {
     let newSectionName = prompt('Enter new section name', sectionItemContextMenu.section.name)
     if(newSectionName) {
@@ -233,13 +270,16 @@ function deleteSection() {
         sectionItemContextMenu.notebook.sections = sectionItemContextMenu.notebook.sections.filter(section => section.id !== sectionItemContextMenu.section.id)
         notebooks = notebooks
     }
+
     if(activeSection.id === sectionItemContextMenu.section.id) {
         activeSection = {}
     }
+
     // set activePage to {} if it belongs to the deleted section
     if(activePage.section_id === sectionItemContextMenu.section.id) {
         activePage = {}
     }
+
     sectionItemContextMenu.section = null
     sectionItemContextMenu.notebook = null
 }
@@ -621,6 +661,7 @@ import { format } from 'date-fns'
                 <div class="mt-1em">
                     <label>
                         Select Target Notebook<br>
+                        <!-- svelte-ignore a11y-no-onchange -->
                         <select class="w-100p" required bind:value={showMovePageModalSelectedNotebook} on:change={() => showMovePageModalSelectedSectionId = null}>
                             <option></option>
                             {#each notebooks as notebook}
@@ -644,6 +685,31 @@ import { format } from 'date-fns'
             </form>
         </Modal>
     {/if}
+    {#if showMoveSectionModal}
+        <Modal on:close-modal={() => showMoveSectionModal = false}>
+            <h2 class="heading">Move Section</h2>
+            <form on:submit|preventDefault={moveSection}>
+                <div>
+                    Selected Section:
+                    <div style="font-weight: bold">{ showMoveSectionModalData.name }</div>
+                </div>
+                <div class="mt-1em">
+                    <label>
+                        Select Target Notebook<br>
+                        <!-- svelte-ignore a11y-no-onchange -->
+                        <select class="w-100p" required bind:value={showMoveSectionModalSelectedNotebookId}>
+                            <option></option>
+                            {#each notebooks.filter(item => item.id !== showMoveSectionModalData.notebook_id) as notebook}
+                                <option value={notebook.id}>{ notebook.name }</option>
+                            {/each}
+                        </select>
+                    </label>
+                </div>
+                <button class="mt-1em w-100p">Move Section</button>
+            </form>
+        </Modal>
+    {/if}
+
     {#if pageItemContextMenu.page}
         <div class="context-menu" style="left: {pageItemContextMenu.left}px; top: {pageItemContextMenu.top}px">
             <div on:click={startMovePage}>Move page</div>
@@ -652,6 +718,7 @@ import { format } from 'date-fns'
     {/if}
     {#if sectionItemContextMenu.section}
         <div class="context-menu" style="left: {sectionItemContextMenu.left}px; top: {sectionItemContextMenu.top}px">
+            <div on:click={startMoveSection}>Move section</div>
             <div on:click={renameSection}>Rename section</div>
             <div on:click={deleteSection}>Delete section</div>
         </div>
