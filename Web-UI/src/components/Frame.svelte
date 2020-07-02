@@ -296,6 +296,29 @@ function handleNotebookItemContextMenu(e, notebook) {
     notebookItemContextMenu.notebook = notebook
 }
 
+
+let showConfigureSectionSortOrderModal = false
+let showConfigureSectionSortOrderModalData = null
+
+function startConfigureSectionSortOrder() {
+    showConfigureSectionSortOrderModalData = JSON.parse(JSON.stringify(notebookItemContextMenu.notebook))
+    showConfigureSectionSortOrderModal = true
+}
+
+function configureSectionSortOrder() {
+    fetchPlus.post('/sections/sort-order/update', showConfigureSectionSortOrderModalData.sections.map(item => ({
+        sectionId: item.id,
+        sortOrder: Number(item.sort_order)
+    })))
+
+    let targetNotebook = notebooks.find(notebook => notebook.id === showConfigureSectionSortOrderModalData.id)
+    targetNotebook.sections = showConfigureSectionSortOrderModalData.sections
+    targetNotebook.sections = targetNotebook.sections.sort((a, b) => a.sort_order - b.sort_order)
+    notebooks = notebooks
+
+    showConfigureSectionSortOrderModal = false
+}
+
 function renameNotebook() {
     let newNotebookName = prompt('Enter new notebook name', notebookItemContextMenu.notebook.name)
     if(newNotebookName) {
@@ -709,6 +732,30 @@ import { format } from 'date-fns'
             </form>
         </Modal>
     {/if}
+    {#if showConfigureSectionSortOrderModal}
+        <Modal on:close-modal={() => showConfigureSectionSortOrderModal = false}>
+            <h2 class="heading">Configure Section Sort Order</h2>
+            <form on:submit|preventDefault={configureSectionSortOrder}>
+                <div>
+                    Selected Notebook:
+                    <div style="font-weight: bold">{ showConfigureSectionSortOrderModalData.name }</div>
+                </div>
+                <div class="mt-1em">
+                    <table class="w-100p table">
+                        {#each showConfigureSectionSortOrderModalData.sections as section}
+                            <tr>
+                                <td style="width: 1px">
+                                    <input type="text" pattern= "[0-9]+" bind:value={ section.sort_order } style="width: 4em; text-align: center" required>
+                                </td>
+                                <td>{ section.name }</td>
+                            </tr>
+                        {/each}
+                    </table>
+                </div>
+                <button class="mt-1em w-100p">Update Section Sort Order</button>
+            </form>
+        </Modal>
+    {/if}
 
     {#if pageItemContextMenu.page}
         <div class="context-menu" style="left: {pageItemContextMenu.left}px; top: {pageItemContextMenu.top}px">
@@ -725,6 +772,7 @@ import { format } from 'date-fns'
     {/if}
     {#if notebookItemContextMenu.notebook}
         <div class="context-menu" style="left: {notebookItemContextMenu.left}px; top: {notebookItemContextMenu.top}px">
+            <div on:click={startConfigureSectionSortOrder}>Configure section sort order</div>
             <div on:click={renameNotebook}>Rename notebook</div>
             <div on:click={deleteNotebook}>Delete notebook</div>
         </div>
@@ -888,5 +936,13 @@ h2.heading {
 
 .oy-a {
     overflow-y: auto;
+}
+
+table.table {
+    border-collapse: collapse;
+}
+
+table.table th, table.table td {
+    border: 1px solid black;
 }
 </style>

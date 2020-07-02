@@ -436,6 +436,24 @@ post "/pages/sort-order/update" do |env|
   {success: true}.to_json
 end
 
+private class SectionIdSortOrder
+  include JSON::Serializable
+
+  property sectionId : Int32
+  property sortOrder : Int32
+end
+
+post "/sections/sort-order/update" do |env|
+  section_sort_orders = Array(SectionIdSortOrder).from_json(env.params.json["_json"].to_json)
+
+  section_sort_orders.each do |section_sort_order|
+    db.exec "UPDATE sections SET sort_order=? WHERE id = ? AND user_id = ?", section_sort_order.sortOrder, section_sort_order.sectionId, env.auth_id
+  end
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
 put "/move-page/:page_id" do |env|
   page_id = env.params.url["page_id"]
   target_section_id = env.params.json["sectionId"].as(Int64)
