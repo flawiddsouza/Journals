@@ -66,12 +66,13 @@ function uploadImage() {
     showInsertImageModal = false
     if(insertType === 'url') {
         pageContainer.focus()
-        document.execCommand('insertHTML', false, `<img style="max-width: 100%" src="${image}">`)
+        document.execCommand('insertHTML', false, `<img style="max-width: 100%" loading="lazy" src="${image}">`)
     } else if(insertType === 'file') {
         pageContainer.focus()
         let imageElement = document.createElement('img')
         imageElement.src = '/images/loader-rainbow-dog.gif'
         imageElement.style.maxWidth = '100%'
+        imageElement.loading = 'lazy'
         pageContainer.appendChild(imageElement)
         placeCaretAtEnd(pageContainer)
 
@@ -118,7 +119,7 @@ function handleImagePaste(event) {
             headers: { 'Token': localStorage.getItem('token') }
         }).then(response => response.json()).then(response => {
             document.querySelector('.upload-image-loader').remove()
-            document.execCommand('insertHTML', false, `<img style="max-width: 100%" src="${baseURL + '/' + response.imageUrl}">`)
+            document.execCommand('insertHTML', false, `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`)
         })
     }
 }
