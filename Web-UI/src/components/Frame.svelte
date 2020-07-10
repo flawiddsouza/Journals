@@ -423,9 +423,13 @@ function changePassword() {
 
 let showPageHistoryModal = false
 let showPageUploadsModal = false
-let showPageHistoryItemViewModal = false
+let showPageStylesModal = false
+
 let pageHistory = []
 let pageUploads = []
+let pageStyles = {}
+
+let showPageHistoryItemViewModal = false
 let pageHistoryItemViewPageContent = null
 
 $: if(showPageHistoryModal && activePage) {
@@ -453,6 +457,26 @@ function restorePageHistoryItem(pageHistoryItemId) {
             document.location.reload()
         })
     }
+}
+
+function startShowPageStylesModal() {
+    showPageStylesModal = true
+    pageStyles.fontSize = activePage.font_size || '14'
+    pageStyles.fontSizeUnit = activePage.font_size_unit || 'px'
+    pageStyles.font = activePage.font || 'Ubuntu'
+}
+
+function resetPageStylesToDefault() {
+    pageStyles.fontSize = '14'
+    pageStyles.fontSizeUnit = 'px'
+    pageStyles.font = 'Ubuntu'
+}
+
+function savePageStyles() {
+    fetchPlus.put(`/pages/styles/${activePage.id}`, pageStyles)
+    activePage.font_size = pageStyles.fontSize
+    activePage.font_size_unit = pageStyles.fontSizeUnit
+    activePage.font = pageStyles.font
 }
 
 let activeElement = null
@@ -525,7 +549,7 @@ import { format } from 'date-fns'
     <nav class="journal-sidebar-hamburger" on:click={toggleSidebars}>
         <div class="pos-r">
             <div class="pos-a" style="margin-left: 14em">
-                Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> ]
+                Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> {#if activePage.type !== 'Spreadsheet'} | <a href="#view-page-styles" on:click|preventDefault|stopPropagation={startShowPageStylesModal}>Styles</a> {/if} ]
             </div>
             <a href="#change-password" on:click|preventDefault|stopPropagation={() => showChangePasswordModal = true} class="mr-1em">Change Password</a>
             <a href="#logout" on:click|preventDefault|stopPropagation={logout} class="mr-1em">Logout</a>
@@ -565,10 +589,10 @@ import { format } from 'date-fns'
             <time style="font-size: 10px; color: darkgrey;">{format(activePage.created_at + 'Z', 'DD-MM-YYYY hh:mm A')}</time>
             <div class="journal-page-entries">
                     {#if activePage.type === 'Table'}
-                        <Table bind:pageId={activePage.id}></Table>
+                        <Table bind:pageId={activePage.id} style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"></Table>
                     {/if}
                     {#if activePage.type === 'FlatPage'}
-                        <FlatPage bind:pageId={activePage.id}></FlatPage>
+                        <FlatPage bind:pageId={activePage.id} style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"></FlatPage>
                     {/if}
                     {#if activePage.type === 'Spreadsheet'}
                         <Spreadsheet bind:pageId={activePage.id}></Spreadsheet>
@@ -673,6 +697,45 @@ import { format } from 'date-fns'
             </div>
         </Modal>
     {/if}
+    {#if showPageStylesModal}
+        <Modal on:close-modal={() => showPageStylesModal = false}>
+            <h2 class="heading">Page Styles</h2>
+            <form on:submit|preventDefault={savePageStyles}>
+                <div>
+                    <label>
+                        <div>Font</div>
+                        <div>
+                            <select class="w-100p" bind:value={pageStyles.font} required>
+                                <option>Ubuntu</option>
+                                <option>Courier Prime</option>
+                            </select>
+                        </div>
+                    </label>
+                </div>
+                <div class="mt-1em">
+                    <label>
+                        <div>Font Size</div>
+                        <div>
+                            <input type="text" pattern="[0-9]+" bind:value="{pageStyles.fontSize}" required>
+                            <select bind:value="{pageStyles.fontSizeUnit}" required>
+                                <option>px</option>
+                                <option>em</option>
+                                <option>rem</option>
+                                <option>%</option>
+                            </select>
+                        </div>
+                    </label>
+                </div>
+                <div class="mt-1em">
+                    <button class="w-100p">Save Styles</button>
+                </div>
+            </form>
+            <div class="mt-1em" style="text-align: center">
+                <a href="#page-styles-reset-to-default" on:click|preventDefault|stopPropagation={resetPageStylesToDefault}>Reset to default</a>
+            </div>
+        </Modal>
+    {/if}
+
     {#if showMovePageModal}
         <Modal on:close-modal={() => showMovePageModal = false}>
             <h2 class="heading">Move Page</h2>

@@ -1,6 +1,7 @@
 <script>
 export let pageId = null
 export let pageContentOverride = undefined
+export let style = ''
 
 let pageContent = ''
 
@@ -126,9 +127,9 @@ function handleImagePaste(event) {
 </script>
 
 {#if pageContentOverride === undefined}
-    <div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={savePageContent} bind:this={pageContainer} on:paste={handleImagePaste}></div>
+    <div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={savePageContent} bind:this={pageContainer} on:paste={handleImagePaste} style="{style}"></div>
 {:else}
-    <div class="page-container">{@html pageContent}</div>
+    <div class="page-container" style="{style}">{@html pageContent}</div>
 {/if}
 
 {#if showInsertImageModal}

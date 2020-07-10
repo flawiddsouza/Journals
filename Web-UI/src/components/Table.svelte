@@ -1,6 +1,7 @@
 <script>
 export let pageId = null
 export let pageContentOverride = undefined
+export let style = ''
 
 let columns = []
 let items = []
@@ -339,7 +340,7 @@ function handlePaste(e) {
 <div class="pos-r">
     {#if !configuration}
         <div class="config" on:click={() => configuration = true}>Configure Table</div>
-        <table on:paste={handlePaste} on:keydown={e => handleUndoStacks(e)} class="editable-table" bind:this={editableTable}>
+        <table on:paste={handlePaste} on:keydown={e => handleUndoStacks(e)} class="editable-table" bind:this={editableTable} style="{style}">
             <thead>
                 <tr>
                     {#each columns as column}
@@ -486,7 +487,7 @@ table.config-table > tbody td > input {
     width: 100%;
 }
 
-.config-area-font-size {
+.config-area-font-size, table.config-table {
     font-size: 16px;
 }
 
@@ -496,7 +497,6 @@ table.config-table > tbody td > input {
 
 table {
     border-collapse: collapse;
-    font-size: 16px;
 }
 
 table th, table td {
