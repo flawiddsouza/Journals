@@ -38,6 +38,7 @@ end
 post "/login" do |env|
   username = env.params.json["username"]?
   password = env.params.json["password"]?
+  duration = env.params.json["duration"]?
 
   env.response.content_type = "application/json"
 
@@ -48,6 +49,7 @@ post "/login" do |env|
 
   username = username.as(String)
   password = password.as(String)
+  duration = duration != nil ? duration.as(String) : ""
 
   user = db.query_one?("SELECT username, password FROM users WHERE username = ?", username, as: {
     username: String,
@@ -59,10 +61,15 @@ post "/login" do |env|
   if user
     stored_password = Crypto::Bcrypt::Password.new(user["password"])
     if stored_password.verify(password)
-      exp = Time.utc.to_unix + (60 * 30)
+      # default timeout
+      token_timeout = 60 * 9 # 9 hours
+      if duration === "30 Minutes"
+        token_timeout = 30 # 30 minutes
+      end
+      exp = Time.utc.to_unix + (60 * token_timeout)
       payload = {username: user["username"], exp: exp}
       jwt = JWT.encode(payload, ENV["JWT_SECRET"], JWT::Algorithm::HS256)
-      {token: jwt, expiresIn: "30 minutes"}.to_json
+      {token: jwt, expiresIn: "1 hour"}.to_json
     else
       {error: "Authentication Failed"}.to_json
     end

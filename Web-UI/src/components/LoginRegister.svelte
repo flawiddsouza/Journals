@@ -16,7 +16,8 @@ let error = ''
 function login() {
     fetchPlus.post('/login', {
         username: loginUsername,
-        password: loginPassword
+        password: loginPassword,
+        duration: loginDuration
     }).then(response => {
         if(response.hasOwnProperty('error')) {
             error = response.error
