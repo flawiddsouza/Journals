@@ -40,6 +40,7 @@ function fetchPage(pageId) {
             widths: {}
         }
         columns = parsedResponse.columns
+        dontTriggerSave = true
         items = parsedResponse.items
         totals = parsedResponse.totals
         widths = parsedResponse.widths ? parsedResponse.widths : {}
@@ -78,6 +79,8 @@ const savePageContent = debounce(function() {
     })
 }, 500)
 
+let dontTriggerSave = true
+
 $: if(items) {
     totals = totals
     Object.keys(totals).forEach(columnName => {
@@ -91,7 +94,12 @@ $: if(items) {
             delete widths[columnName]
         }
     })
-    savePageContent()
+
+    if(!dontTriggerSave) {
+        savePageContent()
+    }
+
+    dontTriggerSave = false
 }
 
 function evalulateJS(jsString) {
