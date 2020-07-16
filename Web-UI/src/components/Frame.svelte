@@ -708,6 +708,9 @@ import { format } from 'date-fns'
                             <select class="w-100p" bind:value={pageStyles.font} required>
                                 <option>Ubuntu</option>
                                 <option>Courier Prime</option>
+                                <option>Roboto Mono</option>
+                                <option>Roboto Slab</option>
+                                <option>Roboto</option>
                             </select>
                         </div>
                     </label>
