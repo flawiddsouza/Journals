@@ -453,7 +453,7 @@ function viewPageHistoryItem(pageHistoryItemId) {
 
 function restorePageHistoryItem(pageHistoryItemId) {
     if(confirm('Are you sure you want to restore the page to this state?')) {
-        fetchPlus.post(`/page-history/restore/${pageHistoryItemId}`).then(() => {
+        fetchPlus.post(`/page-history/restore/${pageHistoryItemId}`, {}).then(() => {
             document.location.reload()
         })
     }
