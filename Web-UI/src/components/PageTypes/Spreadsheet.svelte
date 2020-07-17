@@ -21,13 +21,15 @@ import fetchPlus from '../../helpers/fetchPlus.js'
 import Spreadsheet from 'x-data-spreadsheet'
 
 function loadPageContentToSpreadsheet() {
-    spreadsheet
-        .loadData(pageContent !== null ? JSON.parse(pageContent) : {})
+    let parsedData = pageContent !== null ? JSON.parse(pageContent) : [{ name: 'Sheet 1' }]
+
+    spreadsheet.loadData(parsedData)
+    spreadsheet.sheetIndex = parsedData.length + 1
 
     if(pageContentOverride === undefined) {
         spreadsheet
-            .change(data => {
-                pageContent = data
+            .change(() => {
+                pageContent = spreadsheet.getData()
                 savePageContent()
             })
     }
