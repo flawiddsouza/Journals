@@ -266,7 +266,7 @@ put "/pages/:page_id" do |env|
   end
   # end of save page history
 
-  db.exec "UPDATE pages SET content=? WHERE id = ? AND user_id = ?", page_content, page_id, env.auth_id
+  db.exec "UPDATE pages SET content=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", page_content, page_id, env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -285,7 +285,7 @@ put "/pages/name/:page_id" do |env|
   page_id = env.params.url["page_id"]
   page_name = env.params.json["pageName"].as(String)
 
-  db.exec "UPDATE pages SET name=? WHERE id = ? AND user_id = ?", page_name, page_id, env.auth_id
+  db.exec "UPDATE pages SET name=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", page_name, page_id, env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -298,7 +298,7 @@ put "/pages/styles/:page_id" do |env|
   font_size_unit = env.params.json["fontSizeUnit"].as(String)
   font = env.params.json["font"].as(String)
 
-  db.exec "UPDATE pages SET font_size=?, font_size_unit=?, font=? WHERE id = ? AND user_id = ?", font_size, font_size_unit, font, page_id, env.auth_id
+  db.exec "UPDATE pages SET font_size=?, font_size_unit=?, font=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", font_size, font_size_unit, font, page_id, env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -308,7 +308,7 @@ put "/sections/name/:section_id" do |env|
   section_id = env.params.url["section_id"]
   section_name = env.params.json["sectionName"].as(String)
 
-  db.exec "UPDATE sections SET name=? WHERE id = ? AND user_id = ?", section_name, section_id, env.auth_id
+  db.exec "UPDATE sections SET name=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", section_name, section_id, env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -318,7 +318,7 @@ put "/notebooks/name/:notebook_id" do |env|
   notebook_id = env.params.url["notebook_id"]
   notebook_name = env.params.json["notebookName"].as(String)
 
-  db.exec "UPDATE notebooks SET name=? WHERE id = ? AND user_id = ?", notebook_name, notebook_id, env.auth_id
+  db.exec "UPDATE notebooks SET name=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", notebook_name, notebook_id, env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -328,7 +328,7 @@ put "/notebooks/expanded/:notebook_id" do |env|
   notebook_id = env.params.url["notebook_id"]
   notebook_expanded = env.params.json["notebookExpanded"].as(Int64)
 
-  db.exec "UPDATE notebooks SET expanded=? WHERE id = ? AND user_id = ?", notebook_expanded, notebook_id, env.auth_id
+  db.exec "UPDATE notebooks SET expanded=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", notebook_expanded, notebook_id, env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -346,7 +346,7 @@ post "/change-password" do |env|
 
   if stored_password.verify(received_current_password)
     hashed_password = Crypto::Bcrypt::Password.create(new_password).to_s
-    db.exec "UPDATE users SET password=? WHERE id = ?", hashed_password, env.auth_id
+    db.exec "UPDATE users SET password=?, updated_at=CURRENT_TIMESTAMP WHERE id = ?", hashed_password, env.auth_id
 
     {success: true}.to_json
   else
@@ -419,7 +419,7 @@ post "/page-history/restore/:id" do |env|
   end
   # end of save page history
 
-  db.exec "UPDATE pages SET content=? WHERE id = ? AND user_id = ?", page_history["content"], page_history["page_id"], env.auth_id
+  db.exec "UPDATE pages SET content=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", page_history["content"], page_history["page_id"], env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -452,7 +452,7 @@ post "/pages/sort-order/update" do |env|
   page_sort_orders = Array(PageIdSortOrder).from_json(env.params.json["_json"].to_json)
 
   page_sort_orders.each do |page_sort_order|
-    db.exec "UPDATE pages SET sort_order=? WHERE id = ? AND user_id = ?", page_sort_order.sortOrder, page_sort_order.pageId, env.auth_id
+    db.exec "UPDATE pages SET sort_order=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", page_sort_order.sortOrder, page_sort_order.pageId, env.auth_id
   end
 
   env.response.content_type = "application/json"
@@ -470,7 +470,7 @@ post "/sections/sort-order/update" do |env|
   section_sort_orders = Array(SectionIdSortOrder).from_json(env.params.json["_json"].to_json)
 
   section_sort_orders.each do |section_sort_order|
-    db.exec "UPDATE sections SET sort_order=? WHERE id = ? AND user_id = ?", section_sort_order.sortOrder, section_sort_order.sectionId, env.auth_id
+    db.exec "UPDATE sections SET sort_order=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", section_sort_order.sortOrder, section_sort_order.sectionId, env.auth_id
   end
 
   env.response.content_type = "application/json"
@@ -481,7 +481,7 @@ put "/move-page/:page_id" do |env|
   page_id = env.params.url["page_id"]
   target_section_id = env.params.json["sectionId"].as(Int64)
 
-  db.exec "UPDATE pages SET section_id=? WHERE id = ? AND user_id = ?", target_section_id, page_id, env.auth_id
+  db.exec "UPDATE pages SET section_id=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", target_section_id, page_id, env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -491,7 +491,7 @@ put "/move-section/:section_id" do |env|
   section_id = env.params.url["section_id"]
   target_notebook_id = env.params.json["notebookId"].as(Int64)
 
-  db.exec "UPDATE sections SET notebook_id=? WHERE id = ? AND user_id = ?", target_notebook_id, section_id, env.auth_id
+  db.exec "UPDATE sections SET notebook_id=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", target_notebook_id, section_id, env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json
