@@ -101,6 +101,11 @@ get "/install" do
     db.exec "PRAGMA user_version = 3"
   end
 
+  if user_version === 3
+    db.exec "ALTER TABLE pages ADD COLUMN view_only INTEGER DEFAULT 0"
+    db.exec "PRAGMA user_version = 4"
+  end
+
   "Installation Complete!"
 end
 
@@ -161,13 +166,31 @@ end
 get "/pages/:section_id" do |env|
   section_id = env.params.url["section_id"]
 
-  pages = db.query_all("SELECT pages.id, pages.name, pages.type, pages.font_size, pages.font_size_unit, pages.font, pages.sort_order, pages.section_id, pages.created_at, sections.notebook_id from pages JOIN sections ON sections.id = pages.section_id WHERE pages.section_id = ? AND pages.user_id = ? ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order", section_id, env.auth_id, as: {
+  pages = db.query_all("
+    SELECT
+      pages.id,
+      pages.name,
+      pages.type,
+      pages.font_size,
+      pages.font_size_unit,
+      pages.font,
+      pages.view_only,
+      pages.sort_order,
+      pages.section_id,
+      pages.created_at,
+      sections.notebook_id
+    FROM pages
+    JOIN sections ON sections.id = pages.section_id
+    WHERE pages.section_id = ? AND pages.user_id = ?
+    ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order
+  ", section_id, env.auth_id, as: {
     id:   Int64,
     name: String,
     type: String,
     font_size: String | Nil,
     font_size_unit: String | Nil,
     font: String | Nil,
+    view_only: Bool,
     sort_order: Int64 | Nil,
     section_id: Int64,
     created_at: String,
@@ -299,6 +322,23 @@ put "/pages/styles/:page_id" do |env|
   font = env.params.json["font"].as(String)
 
   db.exec "UPDATE pages SET font_size=?, font_size_unit=?, font=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", font_size, font_size_unit, font, page_id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+put "/pages/view-only/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  view_only = env.params.json["viewOnly"].as(Bool)
+
+  if view_only
+    view_only = 1
+  else
+    view_only = 0
+  end
+
+  db.exec "UPDATE pages SET view_only=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", view_only, page_id, env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json

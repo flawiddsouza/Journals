@@ -1,5 +1,6 @@
 <script>
 export let pageId = null
+export let viewOnly = false
 export let pageContentOverride = undefined
 
 let pageContent = ''
@@ -26,7 +27,7 @@ function loadPageContentToSpreadsheet() {
     spreadsheet.loadData(parsedData)
     spreadsheet.sheetIndex = parsedData.length + 1
 
-    if(pageContentOverride === undefined) {
+    if(pageContentOverride === undefined && viewOnly === false) {
         spreadsheet
             .change(() => {
                 pageContent = spreadsheet.getData()
@@ -56,8 +57,8 @@ import { onMount } from 'svelte'
 
 onMount(() => {
     spreadsheet = new Spreadsheet(pageContainer, {
-        mode: pageContentOverride ? 'read' : 'edit',
-        showToolbar: pageContentOverride ? false : true,
+        mode: pageContentOverride || viewOnly ? 'read' : 'edit',
+        showToolbar: pageContentOverride || viewOnly ? false : true,
         view: {
             height: () => pageContentOverride ? '700' : (pageContainer.parentElement.parentElement.clientHeight - 151),
             width: () => pageContentOverride ? '1200' : pageContainer.parentElement.parentElement.clientWidth

@@ -1,5 +1,6 @@
 <script>
 export let pageId = null
+export let viewOnly = false
 export let pageContentOverride = undefined
 export let style = ''
 
@@ -347,7 +348,9 @@ function handlePaste(e) {
 
 <div class="pos-r">
     {#if !configuration}
-        <div class="config" on:click={() => configuration = true}>Configure Table</div>
+        {#if pageContentOverride === undefined && viewOnly === false}
+            <div class="config" on:click={() => configuration = true}>Configure Table</div>
+        {/if}
         <table on:paste={handlePaste} on:keydown={e => handleUndoStacks(e)} class="editable-table" bind:this={editableTable} style="{style}">
             <thead>
                 <tr>
@@ -361,7 +364,7 @@ function handlePaste(e) {
                     <tr>
                         {#each columns as column}
                             <td style="width: {widths[column.name]}">
-                                {#if pageContentOverride === undefined}
+                                {#if pageContentOverride === undefined && viewOnly === false}
                                     <div contenteditable bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
                                 {:else}
                                     <div>{@html item[column.name]}</div>

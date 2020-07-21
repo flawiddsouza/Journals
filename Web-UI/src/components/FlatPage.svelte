@@ -1,5 +1,6 @@
 <script>
 export let pageId = null
+export let viewOnly = false
 export let pageContentOverride = undefined
 export let style = ''
 
@@ -20,14 +21,16 @@ function fetchPage(pageId) {
     if(pageId) {
         fetchPlus.get(`/pages/content/${pageId}`).then(response => {
             pageContent = response.content
-            tick().then(() => {
-                pageContainer.focus()
-                document.execCommand('selectAll', false, null)
-                try {
-                    document.getSelection().collapseToEnd()
-                } catch(e) {}
-                pageContainer.parentElement.parentElement.scrollTop = pageContainer.parentElement.parentElement.scrollHeight
-            })
+            if(!viewOnly) {
+                tick().then(() => {
+                    pageContainer.focus()
+                    document.execCommand('selectAll', false, null)
+                    try {
+                        document.getSelection().collapseToEnd()
+                    } catch(e) {}
+                    pageContainer.parentElement.parentElement.scrollTop = pageContainer.parentElement.parentElement.scrollHeight
+                })
+            }
         })
     }
 }
@@ -126,7 +129,7 @@ function handleImagePaste(event) {
 }
 </script>
 
-{#if pageContentOverride === undefined}
+{#if pageContentOverride === undefined && viewOnly === false}
     <div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={savePageContent} bind:this={pageContainer} on:paste={handleImagePaste} style="{style}"></div>
 {:else}
     <div class="page-container" style="{style}">{@html pageContent}</div>

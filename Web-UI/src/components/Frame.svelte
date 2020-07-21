@@ -164,6 +164,34 @@ let showMovePageModalData = null
 let showMovePageModalSelectedNotebook = null
 let showMovePageModalSelectedSectionId = null
 
+function pageMakeViewOnly() {
+    fetchPlus.put(`/pages/view-only/${activePage.id}`, {
+        viewOnly: true
+    })
+
+    pageItemContextMenu.page.view_only = true
+
+    if(activePage.id === pageItemContextMenu.page.id) {
+        activePage.view_only = true
+    }
+
+    pageItemContextMenu.page = null
+}
+
+function pageEnableEdits() {
+    fetchPlus.put(`/pages/view-only/${activePage.id}`, {
+        viewOnly: false
+    })
+
+    pageItemContextMenu.page.view_only = false
+
+    if(activePage.id === pageItemContextMenu.page.id) {
+        activePage.view_only = false
+    }
+
+    pageItemContextMenu.page = null
+}
+
 function startMovePage() {
     showMovePageModalData = JSON.parse(JSON.stringify(pageItemContextMenu.page))
     showMovePageModalSelectedNotebook = {
@@ -583,20 +611,35 @@ import { format } from 'date-fns'
     </nav>
     <main class="journal-page">
         {#if activePage.id !== undefined && activePage.id !== null}
-            <h1 class="journal-page-title" contenteditable on:keydown={makeContentEditableSingleLine} spellcheck="false" on:input={updatePageName} style="margin-bottom: 0">
-                {activePage.name}
-            </h1>
+            {#if activePage.view_only }
+                <h1 class="journal-page-title" style="margin-bottom: 0">{activePage.name}</h1>
+            {:else}
+                <h1 class="journal-page-title" contenteditable on:keydown={makeContentEditableSingleLine} spellcheck="false" on:input={updatePageName} style="margin-bottom: 0">
+                    {activePage.name}
+                </h1>
+            {/if}
             <time style="font-size: 10px; color: darkgrey;">{format(activePage.created_at + 'Z', 'DD-MM-YYYY hh:mm A')}</time>
             <div class="journal-page-entries">
-                    {#if activePage.type === 'Table'}
-                        <Table bind:pageId={activePage.id} style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"></Table>
-                    {/if}
-                    {#if activePage.type === 'FlatPage'}
-                        <FlatPage bind:pageId={activePage.id} style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"></FlatPage>
-                    {/if}
-                    {#if activePage.type === 'Spreadsheet'}
-                        <Spreadsheet bind:pageId={activePage.id}></Spreadsheet>
-                    {/if}
+                {#if activePage.type === 'Table'}
+                    <Table
+                        bind:pageId={activePage.id}
+                        style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                        bind:viewOnly={activePage.view_only}
+                    ></Table>
+                {/if}
+                {#if activePage.type === 'FlatPage'}
+                    <FlatPage
+                        bind:pageId={activePage.id}
+                        style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                        bind:viewOnly={activePage.view_only}
+                    ></FlatPage>
+                {/if}
+                {#if activePage.type === 'Spreadsheet'}
+                    <Spreadsheet
+                        bind:pageId={activePage.id}
+                        bind:viewOnly={activePage.view_only}
+                    ></Spreadsheet>
+                {/if}
             </div>
         {/if}
     </main>
@@ -825,6 +868,11 @@ import { format } from 'date-fns'
 
     {#if pageItemContextMenu.page}
         <div class="context-menu" style="left: {pageItemContextMenu.left}px; top: {pageItemContextMenu.top}px">
+            {#if pageItemContextMenu.page.view_only === false}
+                <div on:click={pageMakeViewOnly}>Make view only</div>
+            {:else}
+                <div on:click={pageEnableEdits}>Enable Edits</div>
+            {/if}
             <div on:click={startMovePage}>Move page</div>
             <div on:click={deletePage}>Delete page</div>
         </div>
