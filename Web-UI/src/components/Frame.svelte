@@ -1023,9 +1023,23 @@ h2.heading {
 .context-menu {
     position: fixed;
     background-color: white;
-    padding: 4px 8px;
+    padding: 4px 0;
     cursor: pointer;
-    box-shadow: 1px 1px 4px -1px black;
+    box-shadow: 6px 8px 7px -11px black;
+    border: 1px solid #cccccc;
+}
+
+.context-menu > div {
+    padding: 4px 13px;
+    border-bottom: 1px solid #cccccc;
+}
+
+.context-menu > div:last-of-type {
+    border-bottom: 0;
+}
+
+.context-menu > div:hover {
+    background-color: lightgrey;
 }
 
 .mr-1em {
