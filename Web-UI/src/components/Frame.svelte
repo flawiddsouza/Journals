@@ -297,15 +297,15 @@ function deleteSection() {
         fetchPlus.delete(`/sections/${sectionItemContextMenu.section.id}`)
         sectionItemContextMenu.notebook.sections = sectionItemContextMenu.notebook.sections.filter(section => section.id !== sectionItemContextMenu.section.id)
         notebooks = notebooks
-    }
 
-    if(activeSection.id === sectionItemContextMenu.section.id) {
-        activeSection = {}
-    }
+        if(activeSection.id === sectionItemContextMenu.section.id) {
+            activeSection = {}
+        }
 
-    // set activePage to {} if it belongs to the deleted section
-    if(activePage.section_id === sectionItemContextMenu.section.id) {
-        activePage = {}
+        // set activePage to {} if it belongs to the deleted section
+        if(activePage.section_id === sectionItemContextMenu.section.id) {
+            activePage = {}
+        }
     }
 
     sectionItemContextMenu.section = null
@@ -363,15 +363,17 @@ function deleteNotebook() {
     if(confirm('Are you sure you want to delete this notebook?')) {
         fetchPlus.delete(`/notebooks/${notebookItemContextMenu.notebook.id}`)
         notebooks = notebooks.filter(notebook => notebook.id !== notebookItemContextMenu.notebook.id)
+
+        // set activeSection to {} if it belongs to the deleted notebook
+        if(activeSection.notebook_id === notebookItemContextMenu.notebook.id) {
+            activeSection = {}
+        }
+        // set activePage to {} if it belongs to the deleted notebook
+        if(activePage.notebook_id === notebookItemContextMenu.notebook.id) {
+            activePage = {}
+        }
     }
-    // set activeSection to {} if it belongs to the deleted notebook
-    if(activeSection.notebook_id === notebookItemContextMenu.notebook.id) {
-        activeSection = {}
-    }
-    // set activePage to {} if it belongs to the deleted notebook
-    if(activePage.notebook_id === notebookItemContextMenu.notebook.id) {
-        activePage = {}
-    }
+
     notebookItemContextMenu.notebook = null
 }
 
