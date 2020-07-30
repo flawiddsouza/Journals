@@ -128,7 +128,8 @@ async function addPageToActiveSection() {
         name: pageName,
         type: pageType,
         section_id: activeSection.id,
-        notebook_id: activeSection.notebook_id
+        notebook_id: activeSection.notebook_id,
+        view_only: false
     })
 
     pages = pages
@@ -138,7 +139,8 @@ async function addPageToActiveSection() {
         name: pageName,
         type: pageType,
         section_id: activeSection.id,
-        notebook_id: activeSection.notebook_id
+        notebook_id: activeSection.notebook_id,
+        view_only: false
     }
 
     addPage = {
