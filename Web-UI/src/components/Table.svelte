@@ -365,7 +365,7 @@ function handlePaste(e) {
                         {#each columns as column}
                             <td style="width: {widths[column.name]}">
                                 {#if pageContentOverride === undefined && viewOnly === false}
-                                    <div contenteditable bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
+                                    <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
                                 {:else}
                                     <div>{@html item[column.name]}</div>
                                 {/if}
