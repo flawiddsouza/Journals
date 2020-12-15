@@ -51,6 +51,12 @@ function handleKeysInPageContainer(e) {
     if(e.ctrlKey && e.key.toLowerCase() === 'i') {
         showInsertImageModal = true
     }
+
+    // add 4 spaces when pressing tab instead of its default behavior
+    if(e.key === 'Tab') {
+        e.preventDefault()
+        document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;')
+    }
 }
 
 import Modal from './Modal.svelte'
