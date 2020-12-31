@@ -1,5 +1,8 @@
 <script>
 let pages = []
+let pagesFilter = ''
+
+$: filteredPages = pagesFilter !== '' ? pages.filter(page => page.name.toLowerCase().includes(pagesFilter.toLowerCase())): pages
 
 let leftSidebarElement = null
 let rightSidebarElement = null
@@ -515,6 +518,10 @@ let activeElement = null
 
 function makeDraggableContainer(element, sidebarItemClass) {
     function dragover(e) {
+        if(pagesFilter !== '') { // disable drag sort order functionality when pages are filtered
+            return
+        }
+
         e.preventDefault()
         if(e.target.classList.contains(sidebarItemClass)) {
             if(e.target === activeElement.previousElementSibling) { // if item is before drag element
@@ -527,6 +534,10 @@ function makeDraggableContainer(element, sidebarItemClass) {
     }
 
     function updateSortOrder() {
+        if(pagesFilter !== '') { // disable drag sort order functionality when pages are filtered
+            return
+        }
+
         let pageIdsInOrder = Array.from(activeElement.parentElement.querySelectorAll('[draggable="true"')).map(item => item.dataset.pageId)
         let pageIdsWithSortOrder = pageIdsInOrder.map((pageId, index) => {
             return {
@@ -559,6 +570,10 @@ function makeDraggableItem(element) {
     element.draggable = true
 
     function dragstart(e) {
+        if(pagesFilter !== '') { // disable drag sort order functionality when pages are filtered
+            return
+        }
+
         activeElement = e.target
 
         // hide drag image by setting it to transparent image - https://stackoverflow.com/a/49535378/4932305
@@ -604,7 +619,12 @@ import { format } from 'date-fns'
                 {#if notebook.expanded}
                     <div>
                         {#each notebook.sections as section}
-                            <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activeSection.id === section.id } on:click={ () => activeSection = section } on:contextmenu|preventDefault={(e) => handleSectionItemContextMenu(e, section, notebook)}>{ section.name }</div>
+                            <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activeSection.id === section.id } on:click={
+                                () => {
+                                    activeSection = section
+                                    pagesFilter = '' // reset pages filter on section change
+                                }
+                            } on:contextmenu|preventDefault={(e) => handleSectionItemContextMenu(e, section, notebook)}>{ section.name }</div>
                         {/each}
                         <div class="journal-sidebar-item" on:click={() => addSectionToNotebook(notebook)}>Add Section +</div>
                     </div>
@@ -649,7 +669,10 @@ import { format } from 'date-fns'
     </main>
     <nav class="journal-right-sidebar" bind:this={rightSidebarElement} style="display: block" use:makeDraggableContainer={'page-sidebar-item'}>
         {#if activeSection.id !== undefined && activeSection.id !== null}
-            {#each pages as page}
+            <div class="w-100p" style="height: 1.6em">
+                <input type="search" placeholder="Filter..." class="pos-f" style="top: 50px; width: 20.9em; margin-left: 1px;" bind:value="{pagesFilter}">
+            </div>
+            {#each filteredPages as page}
                 <div class="journal-sidebar-item page-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === page.id } on:click={ () => activePage = page } on:contextmenu|preventDefault={(e) => handlePageItemContextMenu(e, page)} data-page-id={page.id} use:makeDraggableItem>{ page.name }</div>
             {/each}
             <div class="journal-sidebar-item" on:click={() => showAddPageModal = true}>Add Page +</div>
@@ -1064,6 +1087,10 @@ h2.heading {
 
 .pos-a {
     position: absolute;
+}
+
+.pos-f {
+    position: fixed;
 }
 
 .oy-a {
