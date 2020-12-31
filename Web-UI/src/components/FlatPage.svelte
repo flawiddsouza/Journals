@@ -40,6 +40,8 @@ import debounce from '../helpers/debounce.js'
 const savePageContent = debounce(function() {
     fetchPlus.put(`/pages/${pageId}`, {
         pageContent
+    }).catch(() => {
+        alert('Page Save Failed')
     })
 }, 500)
 
