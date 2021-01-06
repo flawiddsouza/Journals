@@ -340,9 +340,9 @@ function focus(element) {
 
 // strip formatting on paste and make it plain text
 function handlePaste(e) {
-    e.preventDefault()
-    var text = (e.originalEvent || e).clipboardData.getData('text/plain')
-    document.execCommand('insertText', false, text.trim())
+    // e.preventDefault()
+    // var text = (e.originalEvent || e).clipboardData.getData('text/plain')
+    // document.execCommand('insertText', false, text.trim())
 }
 </script>
 
