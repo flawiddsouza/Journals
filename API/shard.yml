@@ -15,7 +15,6 @@ license: MIT
 dependencies:
   kemal:
     github: kemalcr/kemal
-    commit: a8c0f09b858162bd13c96663febef5527b322a32
   sqlite3:
     github: crystal-lang/crystal-sqlite3
   jwt:

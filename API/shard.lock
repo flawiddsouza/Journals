@@ -2,11 +2,11 @@ version: 2.0
 shards:
   bindata:
     git: https://github.com/spider-gazelle/bindata.git
-    version: 1.5.4
+    version: 1.8.1
 
   db:
     git: https://github.com/crystal-lang/crystal-db.git
-    version: 0.9.0
+    version: 0.10.0
 
   dotenv:
     git: https://github.com/gdotdesign/cr-dotenv.git
@@ -22,7 +22,7 @@ shards:
 
   kemal:
     git: https://github.com/kemalcr/kemal.git
-    version: 0.26.1+git.commit.a8c0f09b858162bd13c96663febef5527b322a32
+    version: 0.27.0
 
   kilt:
     git: https://github.com/jeromegn/kilt.git
@@ -30,7 +30,7 @@ shards:
 
   openssl_ext:
     git: https://github.com/stakach/openssl_ext.git
-    version: 1.2.1
+    version: 1.2.2
 
   radix:
     git: https://github.com/luislavena/radix.git
@@ -38,5 +38,5 @@ shards:
 
   sqlite3:
     git: https://github.com/crystal-lang/crystal-sqlite3.git
-    version: 0.16.0
+    version: 0.17.0
 
