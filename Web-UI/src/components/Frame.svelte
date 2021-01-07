@@ -473,10 +473,14 @@ $: if(showPageHistoryModal && activePage) {
     })
 }
 
-$: if(showPageUploadsModal && activePage) {
-    fetchPlus.get(`/page-uploads/${activePage.id}`).then(response => {
+function fetchPageUploads(page) {
+    fetchPlus.get(`/page-uploads/${page.id}`).then(response => {
         pageUploads = response
     })
+}
+
+$: if(showPageUploadsModal && activePage) {
+    fetchPageUploads(activePage)
 }
 
 function viewPageHistoryItem(pageHistoryItemId) {
@@ -490,6 +494,20 @@ function restorePageHistoryItem(pageHistoryItemId) {
     if(confirm('Are you sure you want to restore the page to this state?')) {
         fetchPlus.post(`/page-history/restore/${pageHistoryItemId}`, {}).then(() => {
             document.location.reload()
+        })
+    }
+}
+
+import { baseURL } from '../../config.js'
+
+function viewImage(pageUploadsItem) {
+    window.open(`${baseURL}/${pageUploadsItem.file_path}`)
+}
+
+function deleteImage(pageUploadsItemId) {
+    if(confirm('Are you sure you want to delete this image?')) {
+        fetchPlus.delete(`/page-uploads/delete/${pageUploadsItemId}`).then(() => {
+            fetchPageUploads(activePage)
         })
     }
 }
@@ -742,8 +760,8 @@ import { format } from 'date-fns'
                         <tr>
                             <td>{format(pageUploadsItem.created_at + 'Z', 'DD-MM-YYYY hh:mm A')}</td>
                             <!-- show view if image, show download if file -->
-                            <td><button>View</button></td>
-                            <td><button>Delete</button></td>
+                            <td><button on:click={() => viewImage(pageUploadsItem)}>View</button></td>
+                            <td><button on:click={() => deleteImage(pageUploadsItem.id)}>Delete</button></td>
                         </tr>
                     {:else}
                         <div>No Uploads Found</div>

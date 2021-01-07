@@ -403,16 +403,22 @@ post "/upload-image/:page_id" do|env|
 
   if found_page_for_user
     file = env.params.files["image"].tempfile
+    filename = env.params.files["image"].filename
+    if filename
+    	file_extension = File.extname(filename)
+    else
+    	file_extension = ""
+    end
 
     FileUtils.mkdir_p(::File.join [Kemal.config.public_folder, "uploads/images/"])
 
-    file_path = ::File.join [Kemal.config.public_folder, "uploads/images/", File.basename(file.path)]
+    file_path = ::File.join [Kemal.config.public_folder, "uploads/images/", File.basename(file.path) + file_extension]
 
     File.open(file_path, "w") do |f|
       IO.copy(file, f)
     end
 
-    file_path_to_save = "uploads/images/" + File.basename(file.path)
+    file_path_to_save = "uploads/images/" + File.basename(file.path) + file_extension
 
     db.exec "INSERT INTO page_uploads(page_id, user_id, file_path) VALUES(?, ?, ?)", page_id, env.auth_id, file_path_to_save
 
@@ -478,6 +484,22 @@ get "/page-uploads/:page_id" do |env|
   page_uploads.to_json
 end
 
+delete "/page-uploads/delete/:id" do |env|
+  id = env.params.url["id"]
+
+  page_upload = db.query_one("SELECT file_path from page_uploads WHERE id = ? AND user_id = ?", id, env.auth_id, as: {
+    file_path: String
+  })
+
+  puts page_upload["file_path"]
+  file_path = ::File.join [Kemal.config.public_folder, page_upload["file_path"]]
+  File.delete(file_path)
+
+  db.exec "DELETE FROM page_uploads WHERE id = ? AND user_id = ?", id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
 
 require "json"
 
