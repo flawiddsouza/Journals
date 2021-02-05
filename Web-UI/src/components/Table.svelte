@@ -378,7 +378,7 @@ function handlePaste(e) {
                 <tr>
                     {#each columns as column}
                         {#if totals.hasOwnProperty(column.name)}
-                            <th>{ evalulateJS(totals[column.name]) }</th>
+                            <th>{@html evalulateJS(totals[column.name]) }</th>
                         {:else}
                             <th></th>
                         {/if}
