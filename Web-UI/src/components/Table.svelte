@@ -82,6 +82,10 @@ const savePageContent = debounce(function() {
 
 let dontTriggerSave = true
 
+function save() {
+    items = items // save
+}
+
 $: if(items) {
     totals = totals
     Object.keys(totals).forEach(columnName => {
@@ -103,9 +107,9 @@ $: if(items) {
     dontTriggerSave = false
 }
 
-function evalulateJS(jsString) {
+function evalulateJS(jsString, rowIndex=null) {
     try {
-        return new Function('items', jsString).call(this, items)
+        return new Function('items', 'rowIndex', jsString).call(this, items, rowIndex)
     } catch(e) {
         return 'error evaluating given expression'
     }
@@ -225,13 +229,15 @@ let configuration = false
 let showAddColumn = false
 let column = {
     name: '',
-    label: ''
+    label: '',
+    type: ''
 }
 
 $: if(showAddColumn) {
     column = {
         name: '',
-        label: ''
+        label: '',
+        type: ''
     }
     cancelEditColumn()
 }
@@ -256,7 +262,8 @@ function addColumn() {
     items = items // save
     column = {
         name: '',
-        label: ''
+        label: '',
+        type: ''
     }
     showAddColumn = false
 }
@@ -315,6 +322,7 @@ function updateColumn() {
     }
     columnToEditReference.name = columnToEditCopy.name
     columnToEditReference.label = columnToEditCopy.label
+    columnToEditReference.type = columnToEditCopy.type
     items = items // save
     columnToEditCopy = null
     columnToEditReference = null
@@ -364,10 +372,14 @@ function handlePaste(e) {
                     <tr>
                         {#each columns as column}
                             <td style="width: {widths[column.name]}">
-                                {#if pageContentOverride === undefined && viewOnly === false}
+                                {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
                                     <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
                                 {:else}
-                                    <div>{@html item[column.name]}</div>
+                                    {#if column.type === 'Computed'}
+                                        <div>{@html column.expression ? evalulateJS(column.expression, itemIndex) : '' }</div>
+                                    {:else}
+                                        <div>{@html item[column.name]}</div>
+                                    {/if}
                                 {/if}
                             </td>
                         {/each}
@@ -396,6 +408,7 @@ function handlePaste(e) {
                     <tr>
                         <th>Name</th>
                         <th>Label</th>
+                        <th>Type</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -404,6 +417,12 @@ function handlePaste(e) {
                             <tr>
                                 <td><input type="text" bind:value={columnToEditCopy.name} use:focus></td>
                                 <td><input type="text" bind:value={columnToEditCopy.label}></td>
+                                <td>
+                                    <select bind:value={columnToEditCopy.type}>
+                                        <option value="">Input</option>
+                                        <option>Computed</option>
+                                    </select>
+                                </td>
                                 <td>
                                     <button type="button" on:click={updateColumn}>Update</button>
                                 </td>
@@ -415,6 +434,7 @@ function handlePaste(e) {
                             <tr>
                                 <td>{column.name}</td>
                                 <td>{column.label}</td>
+                                <td>{column.type || 'Input'}</td>
                                 <td><button type="button" on:click={() => moveUp(index)}>Move Up</button></td>
                                 <td><button type="button" on:click={() => moveDown(index)}>Move Down</button></td>
                                 <td><button type="button" on:click={() => startEditColumn(column)}>Edit</button></td>
@@ -426,6 +446,12 @@ function handlePaste(e) {
                         <tr>
                             <td><input type="text" bind:value={column.name} required use:focus></td>
                             <td><input type="text" bind:value={column.label}></td>
+                            <td>
+                                <select bind:value={column.type}>
+                                    <option value="">Input</option>
+                                    <option>Computed</option>
+                                </select>
+                            </td>
                             <td>
                                 <button>Add</button>
                             </td>
@@ -439,6 +465,18 @@ function handlePaste(e) {
         </form>
         {#if !showAddColumn}
             <button class="mt-1em" on:click={() => showAddColumn = true}>Add Column</button>
+        {/if}
+
+        {#if columns.filter(column => column.type === 'Computed').length > 0}
+            <div class="config-heading mt-1em">Computed Columns</div>
+            <div class="config-area-font-size">
+                {#each columns.filter(column => column.type === 'Computed') as column}
+                    <div>{column.label ? column.label : column.name}</div>
+                    <div>
+                        <textarea bind:value={column.expression} class="w-100p" on:input={e => save()}></textarea>
+                    </div>
+                {/each}
+            </div>
         {/if}
 
         <div class="config-heading mt-1em">Totals</div>
