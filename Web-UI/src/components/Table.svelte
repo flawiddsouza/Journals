@@ -54,8 +54,12 @@ function fetchPage(pageId) {
         // set focus to the last cell in the table
         setTimeout(() => {
             if(editableTable) {
-                editableTable.querySelector('tbody > tr:last-child > td:last-child > div').focus()
-                editableTable.querySelector('tbody > tr:last-child > td:last-child > div').scrollIntoView()
+                let lastEditableTD = editableTable.querySelectorAll('tbody > tr:last-child > td > div[contenteditable]')
+                lastEditableTD = lastEditableTD[lastEditableTD.length - 1]
+                if(lastEditableTD) {
+                    lastEditableTD.focus()
+                    lastEditableTD.scrollIntoView()
+                }
                 // move cursor to the end of editable area
                 document.execCommand('selectAll', false, null);
                 document.getSelection().collapseToEnd();
