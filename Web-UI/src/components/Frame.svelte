@@ -697,6 +697,64 @@ function makeDraggableItem(element) {
     element.addEventListener('dragstart', e => dragstart(e))
 }
 
+function exportPage() {
+    let html = ''
+
+    if(activePage.type === 'FlatPage') {
+        html = document.querySelector('.page-container').innerHTML
+    }
+
+    if(activePage.type === 'Table') {
+        html = document.querySelector('.editable-table').outerHTML
+    }
+
+    html = `
+        <head>
+            <title>${activePage.name} - ${activeSection.name}</title>
+            <style>
+            table {
+                border-collapse: collapse;
+            }
+
+            table th, table td {
+                border: 1px solid grey;
+                min-width: 3em;
+                padding: 2px 5px;
+            }
+
+            table > tbody td {
+                padding: 0;
+                vertical-align: top;
+            }
+
+            table > tbody td > div {
+                padding: 2px 5px;
+            }
+
+            table td > div[contenteditable] {
+                outline: 0;
+            }
+
+            body {
+                margin-left: 2em;
+                margin-top: 1em;
+            }
+            </style>
+        </head>
+        <body>
+            <h1>${activePage.name}</h1>
+            <main>${html}</main>
+        </body>
+    `
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = slugify(activePage.name) + '_' + slugify(activeSection.name) + '.html'
+    a.click()
+    a.remove()
+}
+
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
@@ -716,7 +774,7 @@ import { format } from 'date-fns'
                 <a href="#manage-profiles" on:click|preventDefault|stopPropagation={() => showManageProfilesModal = true}>Manage</a>
             </div>
             <div class="pos-a" style="margin-left: 14em">
-                Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> {#if activePage.type !== 'Spreadsheet'} | <a href="#view-page-styles" on:click|preventDefault|stopPropagation={() => activePage.id ? startShowPageStylesModal() : null}>Styles</a> {/if} ]
+                Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> {#if activePage.type !== 'Spreadsheet'} | <a href="#view-page-styles" on:click|preventDefault|stopPropagation={() => activePage.id ? startShowPageStylesModal() : null}>Styles</a> | <a href="#export" on:click|preventDefault|stopPropagation={() => activePage.id ? exportPage() : null}>Export</a> {/if} ]
             </div>
             <a href="#change-password" on:click|preventDefault|stopPropagation={() => showChangePasswordModal = true} class="mr-1em">Change Password</a>
             <a href="#logout" on:click|preventDefault|stopPropagation={logout} class="mr-1em">Logout</a>
