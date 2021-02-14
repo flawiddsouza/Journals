@@ -25,14 +25,108 @@ let notebooks = []
 
 import fetchPlus from '../helpers/fetchPlus.js'
 
-fetchPlus.get('/notebooks').then(response => {
-    notebooks = response
-})
+let profiles = [
+    {
+        id: null,
+        name: 'Default'
+    }
+]
+
+function slugify(string) {
+    return string.toLowerCase().replace(/[^\w ]+/g,'').replace(/ +/g,'-')
+}
+
+function clearDocumentLocationHash() {
+    history.replaceState(null, null, ' ')
+}
+
+function fetchProfiles() {
+    fetchPlus.get(`/profiles`).then(response => {
+        profiles = response
+        if(document.location.hash) {
+            let localionHashProfile = profiles.find(profile => slugify(profile.name) === document.location.hash.substring(1))
+            if(localionHashProfile) {
+                selectedProfileId = localionHashProfile.id
+            } else {
+                // clear location hash and load notebooks when hash on load is invalid
+                clearDocumentLocationHash()
+                fetchNotebooks()
+            }
+        }
+    })
+}
+
+fetchProfiles()
+
+let selectedProfileId = null
+
+let showManageProfilesModal = false
+
+function addProfile() {
+    let profileName = prompt('Enter a name for the new profile')
+    if(profileName && profileName.trim() !== '') {
+        fetchPlus.post('/profiles', { profileName }).then(() => {
+            fetchProfiles()
+        })
+    }
+}
+
+function renameProfile(profile) {
+    let newProfileName = prompt('Enter the new name for the profile', profile.name)
+    if(newProfileName && newProfileName.trim() !== '') {
+        fetchPlus.put(`/profiles/name/${profile.id}`, {
+            profileName: newProfileName
+        }).then(() => {
+            if(profile.id === selectedProfileId) {
+                document.location.hash = slugify(newProfileName)
+            }
+            fetchProfiles()
+        })
+    }
+}
+
+function deleteProfile(profileId) {
+    if(confirm('Are you sure you want to delete this profile?')) {
+        fetchPlus.delete(`/profiles/delete/${profileId}`).then(() => {
+            fetchProfiles()
+            if(profileId === selectedProfileId) {
+                selectedProfileId = null
+            }
+        })
+    }
+}
+
+let firstLoadFetchNotebooks = true
+
+function fetchNotebooks(profileId=null) {
+    if(profileId) {
+        document.location.hash = slugify(profiles.find(profile => profile.id === profileId).name)
+    } else {
+        if(!firstLoadFetchNotebooks) { // don't reset document.location.hash on first load
+            clearDocumentLocationHash()
+        } else { // if first load
+            if(document.location.hash) { // if hash exists on load, exit method, to prevent double loading of notebooks route
+                return
+            }
+        }
+    }
+    fetchPlus.get(`/notebooks?profile_id=${profileId}`).then(response => {
+        notebooks = response
+        if(!firstLoadFetchNotebooks) {
+            pages = []
+            activeSection = {}
+            activePage = {}
+        }
+        firstLoadFetchNotebooks = false
+    })
+}
+
+$: fetchNotebooks(selectedProfileId)
 
 async function addNotebook() {
     let notebookName = prompt('Enter new notebook name')
     if(notebookName) {
-        const response = await fetchPlus.post('/notebooks', { notebookName })
+        const response = await fetchPlus.post('/notebooks', { notebookName, profileId: selectedProfileId })
 
         notebooks.push({
             id: response.insertedRowId,
@@ -613,6 +707,14 @@ import { format } from 'date-fns'
 <div>
     <nav class="journal-sidebar-hamburger" on:click={toggleSidebars}>
         <div class="pos-r">
+            <div class="pos-a" style="margin-left: 1em" on:click|preventDefault|stopPropagation>
+                <select style="padding: 0.2em; width: 9em" bind:value={selectedProfileId}>
+                    {#each profiles as profile}
+                        <option value={profile.id}>{profile.name}</option>
+                    {/each}
+                </select>
+                <a href="#manage-profiles" on:click|preventDefault|stopPropagation={() => showManageProfilesModal = true}>Manage</a>
+            </div>
             <div class="pos-a" style="margin-left: 14em">
                 Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> {#if activePage.type !== 'Spreadsheet'} | <a href="#view-page-styles" on:click|preventDefault|stopPropagation={() => activePage.id ? startShowPageStylesModal() : null}>Styles</a> {/if} ]
             </div>
@@ -908,6 +1010,35 @@ import { format } from 'date-fns'
                 </div>
                 <button class="mt-1em w-100p">Update Section Sort Order</button>
             </form>
+        </Modal>
+    {/if}
+    {#if showManageProfilesModal}
+        <Modal on:close-modal={() => showManageProfilesModal = false}>
+            <h2 class="heading">Manage Profiles</h2>
+            <div>
+                <table class="w-100p table">
+                    <thead>
+                        <th>Profile</th>
+                        <th colspan="2">Actions</th>
+                    </thead>
+                    <tbody>
+                        {#each profiles as profile}
+                            <tr>
+                                <td>{ profile.name }</td>
+                                {#if profile.id !== null}
+                                    <td><button on:click={() => renameProfile(profile)}>Rename</button></td>
+                                    <td><button on:click={() => deleteProfile(profile.id)}>Delete</button></td>
+                                {:else}
+                                    <td colspan="2"></td>
+                                {/if}
+                            </tr>
+                        {/each}
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-1em">
+                <button on:click={addProfile}>Add Profile +</button>
+            </div>
         </Modal>
     {/if}
 

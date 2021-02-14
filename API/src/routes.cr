@@ -106,15 +106,45 @@ get "/install" do
     db.exec "PRAGMA user_version = 4"
   end
 
+  if user_version === 4
+    db.exec "
+      CREATE TABLE IF NOT EXISTS profiles (
+          id INTEGER,
+          user_id INTEGER,
+          name TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY(id),
+          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    "
+
+    db.exec "ALTER TABLE notebooks ADD COLUMN profile_id INTEGER REFERENCES profiles(id)"
+
+    db.exec "PRAGMA user_version = 5"
+  end
+
   "Installation Complete!"
 end
 
 get "/notebooks" do |env|
-  notebooks = db.query_all("SELECT id, name, expanded from notebooks WHERE user_id = ?", env.auth_id, as: {
+  profile_id = env.params.query["profile_id"]
+
+  notebooksAsStructure = {
     id:       Int64,
     name:     String,
-    expanded: Bool,
-  })
+    expanded: Bool
+  }
+
+  if profile_id == "null"
+    params = {env.auth_id}
+    append_to_query = " AND profile_id IS NULL"
+    notebooks = db.query_all("SELECT id, name, expanded from notebooks WHERE user_id = ?" + append_to_query, *params, as: notebooksAsStructure)
+  else
+    params = {env.auth_id, profile_id}
+    append_to_query = " AND profile_id = ?"
+    notebooks = db.query_all("SELECT id, name, expanded from notebooks WHERE user_id = ?" + append_to_query, *params, as: notebooksAsStructure)
+  end
 
   hashed_notebooks = [] of Hash(String, Int64 | String | Bool | Array(NamedTuple(id: Int64, name: String, notebook_id: Int64, sort_order: Int64 | Nil)))
 
@@ -138,7 +168,8 @@ end
 
 post "/notebooks" do |env|
   notebook_name = env.params.json["notebookName"].as(String)
-  result = db.exec "INSERT INTO notebooks(name, user_id) VALUES(?, ?)", notebook_name, env.auth_id
+  profile_id = env.params.json["profileId"].as(Int64 | Nil)
+  result = db.exec "INSERT INTO notebooks(name, profile_id, user_id) VALUES(?, ?, ?)", notebook_name, profile_id, env.auth_id
 
   env.response.content_type = "application/json"
   {insertedRowId: result.last_insert_id}.to_json
@@ -245,21 +276,19 @@ delete "/sections/:section_id" do |env|
   {success: true}.to_json
 end
 
-delete "/notebooks/:notebook_id" do |env|
-  notebook_id = env.params.url["notebook_id"]
-
+def delete_notebook(db, notebook_id, auth_id)
   # start delete file_uploads for pages
-  sections = db.query_all("SELECT id from sections WHERE notebook_id = ? AND user_id = ?", notebook_id, env.auth_id, as: {
+  sections = db.query_all("SELECT id from sections WHERE notebook_id = ? AND user_id = ?", notebook_id, auth_id, as: {
     id: Int64
   })
 
   sections.each do |section|
-    pages = db.query_all("SELECT id from pages WHERE section_id = ? AND user_id = ?", section["id"], env.auth_id, as: {
+    pages = db.query_all("SELECT id from pages WHERE section_id = ? AND user_id = ?", section["id"], auth_id, as: {
       id: Int64
     })
 
     pages.each do |page|
-      page_uploads = db.query_all("SELECT file_path from page_uploads WHERE page_id = ? AND user_id = ?", page["id"], env.auth_id, as: {
+      page_uploads = db.query_all("SELECT file_path from page_uploads WHERE page_id = ? AND user_id = ?", page["id"], auth_id, as: {
         file_path: String
       })
 
@@ -271,7 +300,13 @@ delete "/notebooks/:notebook_id" do |env|
   end
   # end delete file_uploads for pages
 
-  db.exec "DELETE FROM notebooks WHERE id = ? AND user_id = ?", notebook_id, env.auth_id
+  db.exec "DELETE FROM notebooks WHERE id = ? AND user_id = ?", notebook_id, auth_id
+end
+
+delete "/notebooks/:notebook_id" do |env|
+  notebook_id = env.params.url["notebook_id"]
+
+  delete_notebook(db, notebook_id, env.auth_id)
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -554,6 +589,53 @@ put "/move-section/:section_id" do |env|
   target_notebook_id = env.params.json["notebookId"].as(Int64)
 
   db.exec "UPDATE sections SET notebook_id=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", target_notebook_id, section_id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+get "/profiles" do |env|
+  profiles = db.query_all("SELECT id, name FROM profiles WHERE user_id = ? ORDER BY created_at DESC", env.auth_id, as: {
+    id:   Int64 | Nil,
+    name: String
+  })
+
+  profiles.insert(0, {id: nil, name: "Default"})
+
+  env.response.content_type = "application/json"
+  profiles.to_json
+end
+
+post "/profiles" do |env|
+  profile_name = env.params.json["profileName"].as(String)
+  result = db.exec "INSERT INTO profiles(name, user_id) VALUES(?, ?)", profile_name, env.auth_id
+
+  env.response.content_type = "application/json"
+  {insertedRowId: result.last_insert_id}.to_json
+end
+
+put "/profiles/name/:profile_id" do |env|
+  profile_id = env.params.url["profile_id"]
+  profile_name = env.params.json["profileName"].as(String)
+
+  db.exec "UPDATE profiles SET name=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", profile_name, profile_id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+delete "/profiles/delete/:profile_id" do |env|
+  profile_id = env.params.url["profile_id"]
+
+  notebooks = db.query_all("SELECT id from notebooks WHERE profile_id = ? AND user_id = ?", profile_id, env.auth_id, as: {
+    id: Int64
+  })
+
+  notebooks.each do |notebook|
+    delete_notebook(db, notebook["id"], env.auth_id)
+  end
+
+  db.exec "DELETE FROM profiles WHERE id = ? AND user_id = ?", profile_id, env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json
