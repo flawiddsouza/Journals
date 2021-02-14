@@ -697,7 +697,19 @@ function makeDraggableItem(element) {
     element.addEventListener('dragstart', e => dragstart(e))
 }
 
-function exportPage() {
+const htmlParser = new DOMParser()
+
+async function readFileAsDataURL(fileBlob) {
+    let base64String = await new Promise((resolve) => {
+        let fileReader = new FileReader()
+        fileReader.onload = () => resolve(fileReader.result)
+        fileReader.readAsDataURL(fileBlob)
+    })
+
+    return base64String
+}
+
+async function exportPage() {
     let html = ''
 
     if(activePage.type === 'FlatPage') {
@@ -706,6 +718,16 @@ function exportPage() {
 
     if(activePage.type === 'Table') {
         html = document.querySelector('.editable-table').outerHTML
+    }
+
+    let parsedHtml = htmlParser.parseFromString(html, 'text/html')
+
+    // convert all img url srcs to base64 srcs
+    for(const img of parsedHtml.querySelectorAll('img')) {
+        let response = await fetch(img.src)
+        let blob = await response.blob()
+        let base64String = await readFileAsDataURL(blob)
+        img.src = base64String
     }
 
     html = `
@@ -743,7 +765,7 @@ function exportPage() {
         </head>
         <body>
             <h1>${activePage.name}</h1>
-            <main>${html}</main>
+            <main>${parsedHtml.body.innerHTML}</main>
         </body>
     `
     const blob = new Blob([html], { type: 'text/html' })
