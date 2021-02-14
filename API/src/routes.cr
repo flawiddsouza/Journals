@@ -447,13 +447,15 @@ post "/upload-image/:page_id" do|env|
 
     FileUtils.mkdir_p(::File.join [Kemal.config.public_folder, "uploads/images/"])
 
-    file_path = ::File.join [Kemal.config.public_folder, "uploads/images/", File.basename(file.path) + file_extension]
+    unix_timestamp = Time.utc.to_unix.to_s
+
+    file_path = ::File.join [Kemal.config.public_folder, "uploads/images/", unix_timestamp + "_" + File.basename(file.path) + file_extension]
 
     File.open(file_path, "w") do |f|
       IO.copy(file, f)
     end
 
-    file_path_to_save = "uploads/images/" + File.basename(file.path) + file_extension
+    file_path_to_save = "uploads/images/" + unix_timestamp + "_" + File.basename(file.path) + file_extension
 
     db.exec "INSERT INTO page_uploads(page_id, user_id, file_path) VALUES(?, ?, ?)", page_id, env.auth_id, file_path_to_save
 
