@@ -614,7 +614,7 @@ import { format } from 'date-fns'
     <nav class="journal-sidebar-hamburger" on:click={toggleSidebars}>
         <div class="pos-r">
             <div class="pos-a" style="margin-left: 14em">
-                Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> {#if activePage.type !== 'Spreadsheet'} | <a href="#view-page-styles" on:click|preventDefault|stopPropagation={startShowPageStylesModal}>Styles</a> {/if} ]
+                Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> {#if activePage.type !== 'Spreadsheet'} | <a href="#view-page-styles" on:click|preventDefault|stopPropagation={() => activePage.id ? startShowPageStylesModal() : null}>Styles</a> {/if} ]
             </div>
             <a href="#change-password" on:click|preventDefault|stopPropagation={() => showChangePasswordModal = true} class="mr-1em">Change Password</a>
             <a href="#logout" on:click|preventDefault|stopPropagation={logout} class="mr-1em">Logout</a>
