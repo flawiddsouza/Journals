@@ -872,6 +872,9 @@ import { format } from 'date-fns'
             <div class="w-100p" style="height: 1.6em">
                 <input type="search" placeholder="Filter..." class="pos-f" style="top: 50px; width: 20.9em; margin-left: 1px;" bind:value="{pagesFilter}">
             </div>
+            {#if filteredPages.length > 0}
+                <div class="journal-sidebar-item" on:click={() => showAddPageModal = true}>Add Page +</div>
+            {/if}
             {#each filteredPages as page}
                 <div class="journal-sidebar-item page-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === page.id } on:click={ () => activePage = page } on:contextmenu|preventDefault={(e) => handlePageItemContextMenu(e, page)} data-page-id={page.id} use:makeDraggableItem>{ page.name }</div>
             {/each}
