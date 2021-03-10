@@ -322,6 +322,13 @@ put "/pages/:page_id" do |env|
   if existing_content && existing_content != page_content
     db.exec "INSERT INTO page_history(page_id, user_id, content) VALUES(?, ?, ?)", page_id, env.auth_id, existing_content
   end
+
+  ## limit history entries to 100
+  db.exec "DELETE FROM page_history WHERE page_id = ? AND user_id = ? AND id NOT IN (
+    SELECT id FROM page_history WHERE page_id = ? AND user_id = ?
+    ORDER BY created_at DESC
+    LIMIT 100
+  )", page_id, env.auth_id, page_id, env.auth_id
   # end of save page history
 
   db.exec "UPDATE pages SET content=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", page_content, page_id, env.auth_id
@@ -597,7 +604,7 @@ put "/move-section/:section_id" do |env|
 end
 
 get "/profiles" do |env|
-  profiles = db.query_all("SELECT id, name FROM profiles WHERE user_id = ? ORDER BY created_at DESC", env.auth_id, as: {
+  profiles = db.query_all("SELECT id, name FROM profiles WHERE user_id = ? ORDER BY created_at ASC", env.auth_id, as: {
     id:   Int64 | Nil,
     name: String
   })
