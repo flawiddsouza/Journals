@@ -203,6 +203,7 @@ async function fetchPages(activeSection) {
 }
 
 let showAddPageModal = false
+let addPageToTop = false
 let addPage = {
     name: '',
     type: 'FlatPage'
@@ -220,16 +221,33 @@ async function addPageToActiveSection() {
         pageType
     })
 
-    pages.push({
+    let pageObj = {
         id: response.insertedRowId,
         name: pageName,
         type: pageType,
         section_id: activeSection.id,
         notebook_id: activeSection.notebook_id,
         view_only: false
-    })
+    }
+
+    if(addPageToTop) {
+        pages.unshift(pageObj)
+    } else {
+        pages.push(pageObj)
+    }
 
     pages = pages
+
+    // set sort order {
+    let pageIdsWithSortOrder = pages.map((page, index) => {
+        return {
+            pageId: String(page.id),
+            sortOrder: index + 1
+        }
+    })
+
+    fetchPlus.post('/pages/sort-order/update', pageIdsWithSortOrder)
+    // }
 
     activePage = {
         id: response.insertedRowId,
@@ -873,12 +891,18 @@ import { format } from 'date-fns'
                 <input type="search" placeholder="Filter..." class="pos-f" style="top: 50px; width: 20.9em; margin-left: 1px;" bind:value="{pagesFilter}">
             </div>
             {#if filteredPages.length > 0}
-                <div class="journal-sidebar-item" on:click={() => showAddPageModal = true}>Add Page +</div>
+                <div class="journal-sidebar-item" on:click={() => {
+                    addPageToTop = true
+                    showAddPageModal = true
+                }}>Add Page +</div>
             {/if}
             {#each filteredPages as page}
                 <div class="journal-sidebar-item page-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === page.id } on:click={ () => activePage = page } on:contextmenu|preventDefault={(e) => handlePageItemContextMenu(e, page)} data-page-id={page.id} use:makeDraggableItem>{ page.name }</div>
             {/each}
-            <div class="journal-sidebar-item" on:click={() => showAddPageModal = true}>Add Page +</div>
+            <div class="journal-sidebar-item" on:click={() => {
+                addPageToTop = false
+                showAddPageModal = true
+            }}>Add Page +</div>
         {/if}
     </nav>
     {#if showAddPageModal}
