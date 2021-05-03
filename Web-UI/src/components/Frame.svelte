@@ -795,6 +795,15 @@ async function exportPage() {
     a.remove()
 }
 
+function handleAddPageInput(e) {
+    // insert current date at cursor
+    if(e.altKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+        const el = e.target
+        const textToInsert = format(new Date(), 'DD-MMM-YY')
+        el.setRangeText(textToInsert, el.selectionStart, el.selectionEnd, 'end')
+    }
+}
+
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
@@ -910,7 +919,7 @@ import { format } from 'date-fns'
             <form on:submit|preventDefault={addPageToActiveSection}>
                 <h2 class="heading">Add Page</h2>
                 <label>Name<br>
-                    <input type="text" bind:value={addPage.name} required class="w-100p" use:focus>
+                    <input type="text" bind:value={addPage.name} required class="w-100p" use:focus on:keydown={handleAddPageInput}>
                 </label>
                 <label class="d-b mt-0_5em">Type<br>
                     <select bind:value={addPage.type} required class="w-100p">
