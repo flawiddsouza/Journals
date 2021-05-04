@@ -356,6 +356,8 @@ function handlePaste(e) {
     // var text = (e.originalEvent || e).clipboardData.getData('text/plain')
     // document.execCommand('insertText', false, text.trim())
 }
+
+import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
 </script>
 
 <div class="pos-r">
@@ -477,7 +479,7 @@ function handlePaste(e) {
                 {#each columns.filter(column => column.type === 'Computed') as column}
                     <div>{column.label ? column.label : column.name}</div>
                     <div>
-                        <textarea bind:value={column.expression} class="w-100p" on:input={e => save()}></textarea>
+                        <textarea bind:value={column.expression} class="w-100p" on:input={e => save()} use:autoResizeTextarea></textarea>
                     </div>
                 {/each}
             </div>
@@ -488,7 +490,7 @@ function handlePaste(e) {
             {#each columns as column}
                 <div>{column.label ? column.label : column.name}</div>
                 <div>
-                    <textarea value={totals[column.name] ? totals[column.name]: ''} on:input={(e) => totals[column.name] = e.target.value} class="w-100p"></textarea>
+                    <textarea value={totals[column.name] ? totals[column.name]: ''} on:input={(e) => totals[column.name] = e.target.value} class="w-100p" use:autoResizeTextarea></textarea>
                 </div>
             {/each}
         </div>
