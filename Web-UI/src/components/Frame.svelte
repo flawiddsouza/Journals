@@ -801,6 +801,7 @@ function handleAddPageInput(e) {
         const el = e.target
         const textToInsert = format(new Date(), 'DD-MMM-YY')
         el.setRangeText(textToInsert, el.selectionStart, el.selectionEnd, 'end')
+        el.dispatchEvent(new Event('input')) // trigger the input event, so the data binding gets updated by svelte
     }
 }
 
