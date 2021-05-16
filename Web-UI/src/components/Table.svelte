@@ -479,7 +479,7 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                 {#each columns.filter(column => column.type === 'Computed') as column}
                     <div>{column.label ? column.label : column.name}</div>
                     <div>
-                        <textarea bind:value={column.expression} class="w-100p" on:input={e => save()} use:autoResizeTextarea></textarea>
+                        <textarea bind:value={column.expression} class="w-100p code" spellcheck="false" on:input={e => save()} use:autoResizeTextarea></textarea>
                     </div>
                 {/each}
             </div>
@@ -490,7 +490,7 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
             {#each columns as column}
                 <div>{column.label ? column.label : column.name}</div>
                 <div>
-                    <textarea value={totals[column.name] ? totals[column.name]: ''} on:input={(e) => totals[column.name] = e.target.value} class="w-100p" use:autoResizeTextarea></textarea>
+                    <textarea value={totals[column.name] ? totals[column.name]: ''} on:input={(e) => totals[column.name] = e.target.value} class="w-100p code" spellcheck="false" use:autoResizeTextarea></textarea>
                 </div>
             {/each}
         </div>
@@ -548,6 +548,11 @@ table.config-table > tbody td > input {
 
 .config-area-font-size textarea, .config-area-font-size input {
     font: inherit;
+}
+
+.config-area-font-size textarea.code {
+    font-family: "Roboto Mono";
+    font-size: 13px;
 }
 
 table {
