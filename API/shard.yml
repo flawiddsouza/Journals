@@ -1,5 +1,5 @@
 name: API
-version: 0.1.0
+version: 1.0.0
 
 authors:
   - Flawid D'Souza <me@flawiddsouza.com>
@@ -8,7 +8,7 @@ targets:
   journals:
     main: src/main.cr
 
-crystal: 0.35.0
+crystal: 1.10.0
 
 license: MIT
 
