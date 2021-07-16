@@ -1,5 +1,6 @@
 import { token } from '../stores.js'
 import { baseURL } from '../../config.js'
+import { logoutAccount } from './account.js'
 
 const fetchPlus = function(method, url, data, headers = {}) {
     return fetch(baseURL + url, {
@@ -15,10 +16,7 @@ const fetchPlus = function(method, url, data, headers = {}) {
             }).then(response => {
                 if(response.hasOwnProperty('error')) {
                     // if there's an error, perform logout + avoid infinite loop
-                    localStorage.removeItem('username')
-                    localStorage.removeItem('password')
-                    localStorage.removeItem('token')
-                    location.reload()
+                    logoutAccount()
                 } else {
                     localStorage.setItem('token', response.token)
                     location.reload()

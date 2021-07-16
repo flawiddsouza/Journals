@@ -525,12 +525,11 @@ const updatePageName = debounce(function(e) {
     pages = pages
 }, 500)
 
+import { logoutAccount } from '../helpers/account.js'
+
 function logout() {
     if(confirm('Are you sure you want to logout?')) {
-        localStorage.removeItem('username')
-        localStorage.removeItem('password')
-        localStorage.removeItem('token')
-        location.reload()
+        logoutAccount()
     }
 }
 
@@ -805,6 +804,7 @@ function handleAddPageInput(e) {
     }
 }
 
+import { switchAccount } from '../helpers/account'
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
@@ -826,6 +826,7 @@ import { format } from 'date-fns'
             <div class="pos-a" style="margin-left: 14em">
                 Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> {#if activePage.type !== 'Spreadsheet'} | <a href="#view-page-styles" on:click|preventDefault|stopPropagation={() => activePage.id ? startShowPageStylesModal() : null}>Styles</a> | <a href="#export" on:click|preventDefault|stopPropagation={() => activePage.id ? exportPage() : null}>Export</a> {/if} ]
             </div>
+            <a href="#add-account" on:click|preventDefault|stopPropagation={switchAccount} class="mr-1em">Switch Account</a>
             <a href="#change-password" on:click|preventDefault|stopPropagation={() => showChangePasswordModal = true} class="mr-1em">Change Password</a>
             <a href="#logout" on:click|preventDefault|stopPropagation={logout} class="mr-1em">Logout</a>
             &#9776; Menu

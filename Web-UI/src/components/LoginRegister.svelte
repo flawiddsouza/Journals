@@ -23,9 +23,9 @@ function login() {
             error = response.error
         } else {
             if(loginDuration === 'Permanent') {
-                localStorage.setItem('username', loginUsername)
                 localStorage.setItem('password', loginPassword)
             }
+            localStorage.setItem('username', loginUsername)
             localStorage.setItem('token', response.token)
             location.reload()
         }
@@ -47,6 +47,18 @@ function register() {
         }
     })
 }
+
+let accounts = localStorage.getItem('accounts')
+accounts = JSON.parse(accounts ? accounts : '[]')
+
+let accountIndexToSwitchTo = accounts.length > 0 ? 0 : null
+
+import { switchToAccount } from '../helpers/account'
+
+function switchAccount() {
+    const account = accounts[accountIndexToSwitchTo]
+    switchToAccount(account)
+}
 </script>
 
 <div class="container">
@@ -59,11 +71,11 @@ function register() {
             <form on:submit|preventDefault={login}>
                 <label>
                     Username:<br>
-                    <input type="text" required bind:value={loginUsername} use:focus>
+                    <input type="text" required bind:value={loginUsername} class="w-100p" use:focus>
                 </label>
                 <label class="mt-0_5em">
                     Password:<br>
-                    <input type="password" required bind:value={loginPassword}>
+                    <input type="password" required bind:value={loginPassword} class="w-100p">
                 </label>
                 <label class="mt-0_5em">Login Duration:<br>
                     <select bind:value={loginDuration} class="w-100p">
@@ -92,6 +104,19 @@ function register() {
                 Error: {error}
             {/if}
         </div>
+        {#if accounts.length > 0}
+            <div style="margin-top: 2em">
+                Currently Logged In Accounts:
+                <div style="display: flex;" class="mt-0_5em">
+                    <select class="w-100p" bind:value={accountIndexToSwitchTo}>
+                        {#each accounts as account, index}
+                            <option value={index}>{account.username}</option>
+                        {/each}
+                    </select>
+                    <button style="margin-left: 0.5em;" on:click={switchAccount}>Switch</button>
+                </div>
+            </div>
+        {/if}
     </div>
 </div>
 
