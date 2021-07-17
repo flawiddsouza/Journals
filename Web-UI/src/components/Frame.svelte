@@ -848,12 +848,26 @@ import { format } from 'date-fns'
                 {#if notebook.expanded}
                     <div>
                         {#each notebook.sections as section}
-                            <div class="journal-sidebar-item" class:journal-sidebar-item-selected={ activeSection.id === section.id } on:click={
-                                () => {
-                                    activeSection = section
-                                    pagesFilter = '' // reset pages filter on section change
+                            <div
+                                class="journal-sidebar-item"
+                                class:journal-sidebar-item-selected={ activeSection.id === section.id }
+                                on:click={
+                                    () => {
+                                        activeSection = section
+                                        pagesFilter = '' // reset pages filter on section change
+                                    }
                                 }
-                            } on:contextmenu|preventDefault={(e) => handleSectionItemContextMenu(e, section, notebook)}>{ section.name }</div>
+                                on:keyup={
+                                    e => {
+                                        if(e.key === 'Enter') {
+                                            activeSection = section
+                                            pagesFilter = '' // reset pages filter on section change
+                                        }
+                                    }
+                                }
+                                tabindex="0"
+                                on:contextmenu|preventDefault={(e) => handleSectionItemContextMenu(e, section, notebook)}
+                            >{ section.name }</div>
                         {/each}
                         <div class="journal-sidebar-item" on:click={() => addSectionToNotebook(notebook)}>Add Section +</div>
                     </div>
@@ -908,7 +922,16 @@ import { format } from 'date-fns'
                 }}>Add Page +</div>
             {/if}
             {#each filteredPages as page}
-                <div class="journal-sidebar-item page-sidebar-item" class:journal-sidebar-item-selected={ activePage.id === page.id } on:click={ () => activePage = page } on:contextmenu|preventDefault={(e) => handlePageItemContextMenu(e, page)} data-page-id={page.id} use:makeDraggableItem>{ page.name }</div>
+                <div
+                    class="journal-sidebar-item page-sidebar-item"
+                    class:journal-sidebar-item-selected={ activePage.id === page.id }
+                    on:click={() => activePage = page}
+                    on:keyup={e => e.key === 'Enter' && (activePage = page)}
+                    tabindex="0"
+                    on:contextmenu|preventDefault={(e) => handlePageItemContextMenu(e, page)}
+                    data-page-id={page.id}
+                    use:makeDraggableItem
+                >{ page.name }</div>
             {/each}
             <div class="journal-sidebar-item" on:click={() => {
                 addPageToTop = false
