@@ -518,7 +518,7 @@ end
 get "/page-uploads/:page_id" do |env|
   page_id = env.params.url["page_id"]
 
-  page_uploads = db.query_all("SELECT id, file_path, created_at FROM page_uploads WHERE page_id = ? AND user_id = ?", page_id, env.auth_id, as: {
+  page_uploads = db.query_all("SELECT id, file_path, created_at FROM page_uploads WHERE page_id = ? AND user_id = ? ORDER BY created_at DESC", page_id, env.auth_id, as: {
     id:   Int64,
     file_path: String,
     created_at: String
