@@ -234,6 +234,7 @@ let showAddColumn = false
 let column = {
     name: '',
     label: '',
+    wrap: '',
     type: ''
 }
 
@@ -241,6 +242,7 @@ $: if(showAddColumn) {
     column = {
         name: '',
         label: '',
+        wrap: '',
         type: ''
     }
     cancelEditColumn()
@@ -267,6 +269,7 @@ function addColumn() {
     column = {
         name: '',
         label: '',
+        wrap: '',
         type: ''
     }
     showAddColumn = false
@@ -326,6 +329,7 @@ function updateColumn() {
     }
     columnToEditReference.name = columnToEditCopy.name
     columnToEditReference.label = columnToEditCopy.label
+    columnToEditReference.wrap = columnToEditCopy.wrap
     columnToEditReference.type = columnToEditCopy.type
     items = items // save
     columnToEditCopy = null
@@ -369,7 +373,7 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
             <thead>
                 <tr>
                     {#each columns as column}
-                        <th>{column.label}<span class="v-h">{column.label === '' ? column.name : ''}</span></th>
+                        <th style="{column.wrap === 'No' ? 'white-space: nowrap;' : ''}">{column.label}<span class="v-h">{column.label === '' ? column.name : ''}</span></th>
                     {/each}
                 </tr>
             </thead>
@@ -377,14 +381,14 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                 {#each items as item, itemIndex}
                     <tr>
                         {#each columns as column}
-                            <td style="width: {widths[column.name]}">
+                            <td style="width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : ''}">
                                 {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
                                     <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
                                 {:else}
                                     {#if column.type === 'Computed'}
                                         <div>{@html column.expression ? evalulateJS(column.expression, itemIndex) : '' }</div>
                                     {:else}
-                                        <div>{@html item[column.name]}</div>
+                                        <div>{@html item[column.name] || '<span style="visibility: hidden">cat</span>'}</div>
                                     {/if}
                                 {/if}
                             </td>
@@ -414,6 +418,7 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                     <tr>
                         <th>Name</th>
                         <th>Label</th>
+                        <th>Wrap</th>
                         <th>Type</th>
                     </tr>
                 </thead>
@@ -423,6 +428,12 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                             <tr>
                                 <td><input type="text" bind:value={columnToEditCopy.name} use:focus></td>
                                 <td><input type="text" bind:value={columnToEditCopy.label}></td>
+                                <td>
+                                    <select bind:value={columnToEditCopy.wrap}>
+                                        <option value="">Yes</option>
+                                        <option>No</option>
+                                    </select>
+                                </td>
                                 <td>
                                     <select bind:value={columnToEditCopy.type}>
                                         <option value="">Input</option>
@@ -440,6 +451,7 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                             <tr>
                                 <td>{column.name}</td>
                                 <td>{column.label}</td>
+                                <td>{column.wrap || 'Yes'}</td>
                                 <td>{column.type || 'Input'}</td>
                                 <td><button type="button" on:click={() => moveUp(index)}>Move Up</button></td>
                                 <td><button type="button" on:click={() => moveDown(index)}>Move Down</button></td>
@@ -452,6 +464,12 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                         <tr>
                             <td><input type="text" bind:value={column.name} required use:focus></td>
                             <td><input type="text" bind:value={column.label}></td>
+                            <td>
+                                <select bind:value={column.wrap}>
+                                    <option value="">Yes</option>
+                                    <option>No</option>
+                                </select>
+                            </td>
                             <td>
                                 <select bind:value={column.type}>
                                     <option value="">Input</option>
