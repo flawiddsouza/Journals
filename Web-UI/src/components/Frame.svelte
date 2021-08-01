@@ -40,23 +40,35 @@ function clearDocumentLocationHash() {
     history.replaceState(null, null, ' ')
 }
 
+function setSelectedProfileFromLocationHash() {
+    if(document.location.hash) {
+        let localionHashProfile = profiles.find(profile => slugify(profile.name) === document.location.hash.substring(1))
+        if(selectedProfileId === localionHashProfile.id) {
+            return
+        }
+        if(localionHashProfile) {
+            selectedProfileId = localionHashProfile.id
+        } else {
+            // clear location hash and load notebooks when hash on load is invalid
+            clearDocumentLocationHash()
+            fetchNotebooks()
+        }
+    }
+}
+
 function fetchProfiles() {
     fetchPlus.get(`/profiles`).then(response => {
         profiles = response
-        if(document.location.hash) {
-            let localionHashProfile = profiles.find(profile => slugify(profile.name) === document.location.hash.substring(1))
-            if(localionHashProfile) {
-                selectedProfileId = localionHashProfile.id
-            } else {
-                // clear location hash and load notebooks when hash on load is invalid
-                clearDocumentLocationHash()
-                fetchNotebooks()
-            }
-        }
+        setSelectedProfileFromLocationHash()
     })
 }
 
 fetchProfiles()
+
+// this is triggered when the user clicks on a bookmark of a journals url with location hash in it,
+// so the switch to the given profile happens - else nothing happens, only the hash in the url changes
+// while the profile remains unchanged
+window.onhashchange = setSelectedProfileFromLocationHash
 
 let selectedProfileId = null
 
