@@ -124,6 +124,11 @@ get "/install" do
     db.exec "PRAGMA user_version = 5"
   end
 
+  if user_version === 5
+    db.exec "ALTER TABLE pages ADD COLUMN password TEXT"
+    db.exec "PRAGMA user_version = 6"
+  end
+
   "Installation Complete!"
 end
 
@@ -206,6 +211,8 @@ get "/pages/:section_id" do |env|
       pages.font_size_unit,
       pages.font,
       pages.view_only,
+      (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as password_exists,
+      (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as locked,
       pages.sort_order,
       pages.section_id,
       pages.created_at,
@@ -222,6 +229,8 @@ get "/pages/:section_id" do |env|
     font_size_unit: String | Nil,
     font: String | Nil,
     view_only: Bool,
+    password_exists: Bool,
+    locked: Bool,
     sort_order: Int64 | Nil,
     section_id: Int64,
     created_at: String,
@@ -384,6 +393,73 @@ put "/pages/view-only/:page_id" do |env|
 
   env.response.content_type = "application/json"
   {success: true}.to_json
+end
+
+put "/pages/password-protect/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  password = env.params.json["password"].as(String)
+  hashed_password = Crypto::Bcrypt::Password.create(password).to_s
+
+  db.exec "UPDATE pages SET password=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", hashed_password, page_id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+post "/pages/unlock/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  password = env.params.json["password"].as(String)
+
+  hashed_current_password = db.scalar("SELECT password FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(String)
+  stored_password = Crypto::Bcrypt::Password.new(hashed_current_password)
+
+  env.response.content_type = "application/json"
+
+  if stored_password.verify(password)
+    {success: true}.to_json
+  else
+    {error: "Invalid Password"}.to_json
+  end
+end
+
+put "/pages/change-password/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  current_password = env.params.json["currentPassword"].as(String)
+  new_password = env.params.json["newPassword"].as(String)
+
+  hashed_current_password = db.scalar("SELECT password FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(String)
+  stored_password = Crypto::Bcrypt::Password.new(hashed_current_password)
+
+  env.response.content_type = "application/json"
+
+  if stored_password.verify(current_password)
+    hashed_new_password = Crypto::Bcrypt::Password.create(new_password).to_s
+    db.exec "UPDATE pages SET password=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", hashed_new_password, page_id, env.auth_id
+    {success: true}.to_json
+  else
+    {error: "Invalid Password"}.to_json
+  end
+end
+
+post "/pages/remove-password/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  password = env.params.json["password"].as(String)
+
+  hashed_current_password = db.scalar("SELECT password FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(String)
+  stored_password = Crypto::Bcrypt::Password.new(hashed_current_password)
+
+  env.response.content_type = "application/json"
+
+  if stored_password.verify(password)
+    db.exec "UPDATE pages SET password=null, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", page_id, env.auth_id
+    {success: true}.to_json
+  else
+    {error: "Invalid Password"}.to_json
+  end
 end
 
 put "/sections/name/:section_id" do |env|

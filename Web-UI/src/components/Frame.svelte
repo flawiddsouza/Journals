@@ -197,7 +197,7 @@ async function fetchPages(activeSection) {
             localStorage.removeItem('activePage')
             activePage = {}
         } else {
-            activePage = savedActivePage
+            activePage = page
         }
     }
 }
@@ -227,7 +227,9 @@ async function addPageToActiveSection() {
         type: pageType,
         section_id: activeSection.id,
         notebook_id: activeSection.notebook_id,
-        view_only: false
+        view_only: false,
+        password_exists: false,
+        locked: false
     }
 
     if(addPageToTop) {
@@ -249,14 +251,7 @@ async function addPageToActiveSection() {
     fetchPlus.post('/pages/sort-order/update', pageIdsWithSortOrder)
     // }
 
-    activePage = {
-        id: response.insertedRowId,
-        name: pageName,
-        type: pageType,
-        section_id: activeSection.id,
-        notebook_id: activeSection.notebook_id,
-        view_only: false
-    }
+    activePage = pageObj
 
     addPage = {
         name: '',
@@ -342,6 +337,123 @@ function deletePage() {
             activePage = {}
         }
     }
+    pageItemContextMenu.page = null
+}
+
+async function passwordProtect() {
+    let password = prompt('Password:')
+    let passwordConfirm = prompt('Password Confirm:')
+
+    if(password && passwordConfirm && password === passwordConfirm) {
+        await fetchPlus.put(`/pages/password-protect/${pageItemContextMenu.page.id}`, {
+            password
+        })
+
+        pageItemContextMenu.page.password_exists = true
+        pageItemContextMenu.page.locked = true
+
+        if(activePage.id === pageItemContextMenu.page.id) {
+            activePage.password_exists = true
+            activePage.locked = true
+        }
+    } else {
+        if(password === passwordConfirm) {
+            alert('Empty passwords given')
+        } else {
+            alert('Given passwords didn\'t match')
+        }
+    }
+
+    pageItemContextMenu.page = null
+}
+
+async function unlockPage() {
+    let password = prompt('Password:')
+
+    if(password) {
+        const response = await fetchPlus.post(`/pages/unlock/${pageItemContextMenu.page.id}`, {
+            password
+        })
+
+        if('error' in response) {
+            alert('Invalid password given')
+        } else {
+            pageItemContextMenu.page.locked = false
+
+            if(activePage.id === pageItemContextMenu.page.id) {
+                activePage.locked = false
+            }
+        }
+    } else {
+        alert('Empty password given')
+    }
+
+    pageItemContextMenu.page = null
+}
+
+async function changePagePassword() {
+    let currentPassword = prompt('Current Password:')
+
+    if(currentPassword === '') {
+        alert('Current Password required')
+        return
+    }
+
+    let newPassword = prompt('New Password:')
+
+    if(newPassword === '') {
+        alert('New Password required')
+        return
+    }
+
+    let newPasswordConfirm = prompt('Confirm New Password:')
+
+    if(newPasswordConfirm === '') {
+        alert('Confirm New Password required')
+        return
+    }
+
+    if(newPassword === newPasswordConfirm) {
+        const response = await fetchPlus.put(`/pages/change-password/${pageItemContextMenu.page.id}`, {
+            currentPassword,
+            newPassword
+        })
+
+        if('error' in response) {
+            alert('Invalid current password given')
+        } else {
+            alert('Page password changed')
+        }
+    } else {
+        alert('Given passwords didn\'t match')
+    }
+
+    pageItemContextMenu.page = null
+}
+
+async function removePagePassword() {
+    let password = prompt('Password:')
+
+    if(password) {
+        const response = await fetchPlus.post(`/pages/remove-password/${pageItemContextMenu.page.id}`, {
+            password
+        })
+
+        if('error' in response) {
+            alert('Invalid password given')
+        } else {
+            pageItemContextMenu.page.locked = false
+            pageItemContextMenu.page.password_exists = false
+
+            if(activePage.id === pageItemContextMenu.page.id) {
+                activePage.locked = false
+                activePage.password_exists = false
+            }
+        }
+    } else {
+        alert('Empty password given')
+    }
+
     pageItemContextMenu.page = null
 }
 
@@ -824,7 +936,9 @@ import { format } from 'date-fns'
                 <a href="#manage-profiles" on:click|preventDefault|stopPropagation={() => showManageProfilesModal = true}>Manage</a>
             </div>
             <div class="pos-a" style="margin-left: 14em">
+                {#if activePage.locked === false}
                 Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> {#if activePage.type !== 'Spreadsheet'} | <a href="#view-page-styles" on:click|preventDefault|stopPropagation={() => activePage.id ? startShowPageStylesModal() : null}>Styles</a> | <a href="#export" on:click|preventDefault|stopPropagation={() => activePage.id ? exportPage() : null}>Export</a> {/if} ]
+                {/if}
             </div>
             <a href="#add-account" on:click|preventDefault|stopPropagation={switchAccount} class="mr-1em">Switch Account</a>
             <a href="#change-password" on:click|preventDefault|stopPropagation={() => showChangePasswordModal = true} class="mr-1em">Change Password</a>
@@ -877,7 +991,7 @@ import { format } from 'date-fns'
         <div class="journal-sidebar-item" on:click={addNotebook}>Add Notebook +</div>
     </nav>
     <main class="journal-page">
-        {#if activePage.id !== undefined && activePage.id !== null}
+        {#if activePage.id !== undefined && activePage.id !== null && activePage.locked === false}
             {#if activePage.view_only }
                 <h1 class="journal-page-title" style="margin-bottom: 0">{activePage.name}</h1>
             {:else}
@@ -908,6 +1022,9 @@ import { format } from 'date-fns'
                     ></Spreadsheet>
                 {/if}
             </div>
+        {/if}
+        {#if activePage.locked === true}
+            Page Locked
         {/if}
     </main>
     <nav class="journal-right-sidebar" bind:this={rightSidebarElement} style="display: block" use:makeDraggableContainer={'page-sidebar-item'}>
@@ -1047,6 +1164,7 @@ import { format } from 'date-fns'
                     </label>
                 </div>
                 <div class="mt-1em">
+                    <!-- svelte-ignore a11y-label-has-associated-control -->
                     <label>
                         <div>Font Size</div>
                         <div>
@@ -1185,13 +1303,23 @@ import { format } from 'date-fns'
 
     {#if pageItemContextMenu.page}
         <div class="context-menu" style="left: {pageItemContextMenu.left}px; top: {pageItemContextMenu.top}px">
-            {#if pageItemContextMenu.page.view_only === false}
-                <div on:click={pageMakeViewOnly}>Make view only</div>
+            {#if pageItemContextMenu.page.locked === false}
+                {#if pageItemContextMenu.page.view_only === false}
+                    <div on:click={pageMakeViewOnly}>Make view only</div>
+                {:else}
+                    <div on:click={pageEnableEdits}>Enable Edits</div>
+                {/if}
+                {#if pageItemContextMenu.page.password_exists === false}
+                    <div on:click={passwordProtect}>Password Protect</div>
+                {:else}
+                    <div on:click={changePagePassword}>Change Password</div>
+                    <div on:click={removePagePassword}>Remove Password</div>
+                {/if}
+                <div on:click={startMovePage}>Move page</div>
+                <div on:click={deletePage}>Delete page</div>
             {:else}
-                <div on:click={pageEnableEdits}>Enable Edits</div>
+                <div on:click={unlockPage}>Unlock Page</div>
             {/if}
-            <div on:click={startMovePage}>Move page</div>
-            <div on:click={deletePage}>Delete page</div>
         </div>
     {/if}
     {#if sectionItemContextMenu.section}
