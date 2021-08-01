@@ -1244,7 +1244,7 @@ import { format } from 'date-fns'
     background-color: wheat;
 }
 
-.journal-sidebar-hamburger, .journal-sidebar {
+.journal-sidebar-hamburger {
     user-select: none;
 }
 
