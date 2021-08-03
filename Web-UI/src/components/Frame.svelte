@@ -43,7 +43,7 @@ function clearDocumentLocationHash() {
 function setSelectedProfileFromLocationHash() {
     if(document.location.hash) {
         let localionHashProfile = profiles.find(profile => slugify(profile.name) === document.location.hash.substring(1))
-        if(selectedProfileId === localionHashProfile.id) {
+        if(localionHashProfile && selectedProfileId === localionHashProfile.id) {
             return
         }
         if(localionHashProfile) {
@@ -51,7 +51,10 @@ function setSelectedProfileFromLocationHash() {
         } else {
             // clear location hash and load notebooks when hash on load is invalid
             clearDocumentLocationHash()
-            fetchNotebooks()
+            selectedProfileId = null
+            if(firstLoadFetchNotebooks) {
+                fetchNotebooks()
+            }
         }
     }
 }
