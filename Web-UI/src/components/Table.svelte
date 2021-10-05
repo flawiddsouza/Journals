@@ -133,18 +133,24 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
             insertObj[column.name] = ''
         })
 
-        items.splice(itemIndex + 1, 0, insertObj)
+        if(e.shiftKey === false) {
+            items.splice(itemIndex + 1, 0, insertObj)
+        } else { // insert row above if ctrl + shift + enter
+            items.splice(itemIndex, 0, insertObj)
+        }
         items = items
 
-        // move focus to the first cell of the inserted row
-        setTimeout(() => {
-            let rows = e.target.closest('tbody').querySelectorAll('tr')
-            let bottomRow = rows[itemIndex + 1]
-            if(typeof bottomRow !== 'undefined') {
-                let bottomCell = bottomRow.querySelector('div')
-                bottomCell.focus()
-            }
-        }, 0)
+        // move focus to the first cell of the inserted row, if shift key is not pressed
+        if(e.shiftKey === false) {
+            setTimeout(() => {
+                let rows = e.target.closest('tbody').querySelectorAll('tr')
+                let bottomRow = rows[itemIndex + 1]
+                if(typeof bottomRow !== 'undefined') {
+                    let bottomCell = bottomRow.querySelector('div')
+                    bottomCell.focus()
+                }
+            }, 0)
+        }
     }
 
     // remove current row
