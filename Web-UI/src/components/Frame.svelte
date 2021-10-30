@@ -319,6 +319,12 @@ function pageEnableEdits() {
     pageItemContextMenu.page = null
 }
 
+async function duplicatePage() {
+    await fetchPlus.post(`/duplicate-page/${pageItemContextMenu.page.id}`, {})
+    pageItemContextMenu.page = null
+    fetchPages(activeSection)
+}
+
 function startMovePage() {
     showMovePageModalData = JSON.parse(JSON.stringify(pageItemContextMenu.page))
     showMovePageModalSelectedNotebook = {
@@ -1330,6 +1336,7 @@ import { format } from 'date-fns'
                     <div on:click={changePagePassword}>Change Password</div>
                     <div on:click={removePagePassword}>Remove Password</div>
                 {/if}
+                <div on:click={duplicatePage}>Duplicate page</div>
                 <div on:click={startMovePage}>Move page</div>
                 <div on:click={deletePage}>Delete page</div>
             {:else}

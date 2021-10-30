@@ -659,6 +659,20 @@ post "/sections/sort-order/update" do |env|
   {success: true}.to_json
 end
 
+post "/duplicate-page/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  db.exec "
+    INSERT INTO pages(section_id, name, type, content, user_id, sort_order, font_size, font_size_unit, font, view_only, password)
+    SELECT section_id, name || ' (copy)' as name, type, content, user_id, sort_order - 1, font_size, font_size_unit, font, view_only, password
+    FROM pages
+    WHERE id = ?
+  ", page_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
 put "/move-page/:page_id" do |env|
   page_id = env.params.url["page_id"]
   target_section_id = env.params.json["sectionId"].as(Int64)
