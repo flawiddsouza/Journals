@@ -662,12 +662,42 @@ end
 post "/duplicate-page/:page_id" do |env|
   page_id = env.params.url["page_id"]
 
-  db.exec "
+  result = db.exec "
     INSERT INTO pages(section_id, name, type, content, user_id, sort_order, font_size, font_size_unit, font, view_only, password)
-    SELECT section_id, name || ' (copy)' as name, type, content, user_id, sort_order - 1, font_size, font_size_unit, font, view_only, password
+    SELECT section_id, name || ' (copy)' as name, type, content, user_id, -9999, font_size, font_size_unit, font, view_only, password
     FROM pages
-    WHERE id = ?
-  ", page_id
+    WHERE id = ? AND user_id = ?
+  ", page_id, env.auth_id
+
+  if result.rows_affected == 0
+    env.response.content_type = "application/json"
+    {success: true}.to_json
+  end
+
+  original_page = db.query_one("SELECT id, section_id from pages WHERE id = ?", page_id, as: {
+    id: Int64,
+    section_id: Int64
+  })
+
+  pages_for_section = db.query_all("
+    SELECT id FROM pages
+    WHERE section_id = ?
+    ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order
+  ", original_page["section_id"], as: {
+    id: Int64
+  })
+
+  original_page_index = pages_for_section.index { |page_for_section| page_for_section["id"] == original_page["id"] }
+  duplicate_page_index = pages_for_section.index { |page_for_section| page_for_section["id"] == result.last_insert_id }
+
+  if original_page_index && duplicate_page_index
+    pages_for_section.insert(original_page_index, pages_for_section[duplicate_page_index])
+    pages_for_section.delete_at(duplicate_page_index)
+
+    pages_for_section.each_with_index do |page_for_section, index|
+      db.exec "UPDATE pages SET sort_order=?, updated_at=CURRENT_TIMESTAMP WHERE id = ?", index + 1, page_for_section["id"]
+    end
+  end
 
   env.response.content_type = "application/json"
   {success: true}.to_json
