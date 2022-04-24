@@ -122,6 +122,17 @@ function evalulateJS(jsString, rowIndex=null) {
 let undoStackForRemoveRow = []
 
 import defaultKeydownHandlerForContentEditableArea from '../helpers/defaultKeydownHandlerForContentEditableArea.js'
+import placeCaretAtEnd from '../helpers/placeCaretAtEnd.js'
+
+function getNodeAtCursorStart() {
+    const node = window.getSelection().anchorNode
+   return (node.nodeType == 3 ? node.parentNode : node)
+}
+
+function getNodeAtCursorEnd() {
+   const node = window.getSelection().focusNode
+   return (node.nodeType == 3 ? node.parentNode : node)
+}
 
 function handleKeysInTD(e, itemIndex, itemColumn) {
     defaultKeydownHandlerForContentEditableArea(e)
@@ -185,19 +196,33 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
 
     // move to upper cell
     if(e.key === 'ArrowUp') {
-        e.preventDefault()
+        const td = e.target.closest('td > div')
+        const nodeAtCursor = getNodeAtCursorStart()
+        const firstNodeInside = td.children.length > 0 ? td.firstChild : td
+        if(nodeAtCursor === firstNodeInside) {
+            e.preventDefault()
+        } else {
+            return
+        }
         let rows = e.target.closest('tbody').querySelectorAll('tr')
         let currentColumn = e.target.parentElement.cellIndex
         let upperRow = rows[e.target.parentElement.parentElement.rowIndex - 2]
         if(typeof upperRow !== 'undefined') {
             let upperCell = upperRow.querySelector('td:nth-of-type(' + (currentColumn + 1) + ') > div')
-            upperCell.focus()
+            placeCaretAtEnd(upperCell)
         }
     }
 
     // move to bottom cell
     if(e.key === 'ArrowDown') {
-        e.preventDefault()
+        const td = e.target.closest('td > div')
+        const nodeAtCursor = getNodeAtCursorStart()
+        const lastNodeInsideTd = td.children.length > 0 ? td.lastChild : td
+        if(nodeAtCursor === lastNodeInsideTd || nodeAtCursor === td) {
+            e.preventDefault()
+        } else {
+            return
+        }
         let rows = e.target.closest('tbody').querySelectorAll('tr')
         let currentColumn = e.target.parentElement.cellIndex
         let bottomRow = rows[e.target.parentElement.parentElement.rowIndex]
