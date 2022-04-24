@@ -406,7 +406,7 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                 <tr>
                     {#each columns as column}
                         {#if totals.hasOwnProperty(column.name)}
-                            <th>{@html evalulateJS(totals[column.name]) }</th>
+                            <th style="{column.wrap === 'No' ? 'white-space: nowrap;' : ''}">{@html evalulateJS(totals[column.name]) }</th>
                         {:else}
                             <th></th>
                         {/if}
