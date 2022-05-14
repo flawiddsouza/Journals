@@ -8,6 +8,7 @@ let columns = []
 let items = []
 let totals = {}
 let widths = {}
+let rowStyle = ''
 
 $: if(pageContentOverride) {
     let parsedPage = JSON.parse(pageContentOverride)
@@ -15,6 +16,7 @@ $: if(pageContentOverride) {
     items = parsedPage.items
     totals = parsedPage.totals
     widths = parsedPage.widths
+    rowStyle = parsedPage.rowStyle
 }
 
 $: fetchPage(pageId)
@@ -38,13 +40,15 @@ function fetchPage(pageId) {
             columns: [],
             items: [],
             totals: {},
-            widths: {}
+            widths: {},
+            rowStyle: ''
         }
         columns = parsedResponse.columns
         dontTriggerSave = true
         items = parsedResponse.items
         totals = parsedResponse.totals
         widths = parsedResponse.widths ? parsedResponse.widths : {}
+        rowStyle = parsedResponse.rowStyle ? parsedResponse.rowStyle : ''
 
         if(columns.length === 0) {
             configuration = true
@@ -79,7 +83,8 @@ const savePageContent = debounce(function() {
             columns,
             items,
             totals,
-            widths
+            widths,
+            rowStyle
         })
     })
 }, 500)
@@ -97,12 +102,15 @@ $: if(items) {
             delete totals[columnName]
         }
     })
+
     widths = widths
     Object.keys(widths).forEach(columnName => {
         if(widths[columnName] === '') {
             delete widths[columnName]
         }
     })
+
+    rowStyle = rowStyle
 
     if(!dontTriggerSave) {
         savePageContent()
@@ -387,7 +395,7 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                 {#each items as item, itemIndex}
                     <tr>
                         {#each columns as column}
-                            <td style="width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : ''}">
+                            <td style="width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : ''} {rowStyle ? evalulateJS(rowStyle, itemIndex) : ''}">
                                 {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
                                     <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
                                 {:else}
@@ -527,6 +535,13 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                     <input type="text" value={widths[column.name] ? widths[column.name]: ''} on:input={(e) => widths[column.name] = e.target.value}>
                 </div>
             {/each}
+        </div>
+
+        <div class="config-heading mt-1em">Row Style</div>
+        <div class="config-area-font-size">
+            <div>
+                <textarea value={rowStyle} on:input={(e) => rowStyle = e.target.value} class="w-100p code" spellcheck="false" use:autoResizeTextarea></textarea>
+            </div>
         </div>
     {/if}
 </div>
