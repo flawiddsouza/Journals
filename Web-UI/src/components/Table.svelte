@@ -400,7 +400,7 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                                     <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
                                 {:else}
                                     {#if column.type === 'Computed'}
-                                        <div>{@html column.expression ? evalulateJS(column.expression, itemIndex) : '' }</div>
+                                        <div>{@html column.expression ? evalulateJS(column.expression, itemIndex, item[column.name]) : '' }</div>
                                     {:else}
                                         <div>{@html item[column.name] || '<span style="visibility: hidden">cat</span>'}</div>
                                     {/if}
