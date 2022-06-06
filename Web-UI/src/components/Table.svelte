@@ -249,6 +249,7 @@ let column = {
     name: '',
     label: '',
     wrap: '',
+    align: '',
     type: ''
 }
 
@@ -257,6 +258,7 @@ $: if(showAddColumn) {
         name: '',
         label: '',
         wrap: '',
+        align: '',
         type: ''
     }
     cancelEditColumn()
@@ -284,6 +286,7 @@ function addColumn() {
         name: '',
         label: '',
         wrap: '',
+        align: '',
         type: ''
     }
     showAddColumn = false
@@ -344,6 +347,7 @@ function updateColumn() {
     columnToEditReference.name = columnToEditCopy.name
     columnToEditReference.label = columnToEditCopy.label
     columnToEditReference.wrap = columnToEditCopy.wrap
+    columnToEditReference.align = columnToEditCopy.align
     columnToEditReference.type = columnToEditCopy.type
     items = items // save
     columnToEditCopy = null
@@ -395,7 +399,7 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                 {#each items as item, itemIndex}
                     <tr>
                         {#each columns as column}
-                            <td style="width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : ''} {rowStyle ? evalulateJS(rowStyle, itemIndex) : ''}">
+                            <td style="width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : ''} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {rowStyle ? evalulateJS(rowStyle, itemIndex) : ''}">
                                 {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
                                     <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
                                 {:else}
@@ -433,6 +437,7 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                         <th>Name</th>
                         <th>Label</th>
                         <th>Wrap</th>
+                        <th>Align</th>
                         <th>Type</th>
                     </tr>
                 </thead>
@@ -446,6 +451,13 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                                     <select bind:value={columnToEditCopy.wrap}>
                                         <option value="">Yes</option>
                                         <option>No</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select bind:value={columnToEditCopy.align}>
+                                        <option value="">Left</option>
+                                        <option>Center</option>
+                                        <option>Right</option>
                                     </select>
                                 </td>
                                 <td>
@@ -466,6 +478,7 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                                 <td>{column.name}</td>
                                 <td>{column.label}</td>
                                 <td>{column.wrap || 'Yes'}</td>
+                                <td>{column.align || 'Left'}</td>
                                 <td>{column.type || 'Input'}</td>
                                 <td><button type="button" on:click={() => moveUp(index)}>Move Up</button></td>
                                 <td><button type="button" on:click={() => moveDown(index)}>Move Down</button></td>
@@ -482,6 +495,13 @@ import autoResizeTextarea from '../helpers/autoResizeTextarea.js'
                                 <select bind:value={column.wrap}>
                                     <option value="">Yes</option>
                                     <option>No</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select bind:value={column.align}>
+                                    <option value="">Left</option>
+                                    <option>Center</option>
+                                    <option>Right</option>
                                 </select>
                             </td>
                             <td>
