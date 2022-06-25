@@ -521,7 +521,6 @@ function moveSection() {
         activeSection = {}
     }
 
-    // set activePage to {} if it belongs to the deleted section
     if(activePage.section_id === showMoveSectionModalData.id) {
         activePage = {}
     }
@@ -574,6 +573,34 @@ function handleNotebookItemContextMenu(e, notebook) {
     notebookItemContextMenu.notebook = notebook
 }
 
+let showMoveNotebookModal = false
+let showMoveNotebookModalData = null
+let showMoveNotebookModalSelectedProfileId = null
+
+function startMoveNotebook() {
+    showMoveNotebookModalSelectedProfileId = ''
+    showMoveNotebookModalData = JSON.parse(JSON.stringify(notebookItemContextMenu.notebook))
+    showMoveNotebookModalData.profile_id = selectedProfileId
+    showMoveNotebookModal = true
+}
+
+function moveNotebook() {
+    fetchPlus.put(`/move-notebook/${showMoveNotebookModalData.id}`, {
+        profileId: showMoveNotebookModalSelectedProfileId
+    })
+
+    notebooks = notebooks.filter(notebook => notebook.id !== showMoveNotebookModalData.id)
+
+    if(activeSection.notebook_id === showMoveNotebookModalData.id) {
+        activeSection = {}
+    }
+
+    if(activePage.notebook_id === showMoveNotebookModalData.id) {
+        activePage = {}
+    }
+
+    showMoveNotebookModal = false
+}
 
 let showConfigureSectionSortOrderModal = false
 let showConfigureSectionSortOrderModalData = null
@@ -1268,6 +1295,30 @@ import { format } from 'date-fns'
             </form>
         </Modal>
     {/if}
+    {#if showMoveNotebookModal}
+        <Modal on:close-modal={() => showMoveNotebookModal = false}>
+            <h2 class="heading">Move Notebook</h2>
+            <form on:submit|preventDefault={moveNotebook}>
+                <div>
+                    Selected Notebook:
+                    <div style="font-weight: bold">{ showMoveNotebookModalData.name }</div>
+                </div>
+                <div class="mt-1em">
+                    <label>
+                        Select Target Profile<br>
+                        <!-- svelte-ignore a11y-no-onchange -->
+                        <select class="w-100p" required bind:value={showMoveNotebookModalSelectedProfileId}>
+                            <option></option>
+                            {#each profiles.filter(item => item.id !== showMoveNotebookModalData.profile_id) as profile}
+                                <option value={profile.id}>{ profile.name }</option>
+                            {/each}
+                        </select>
+                    </label>
+                </div>
+                <button class="mt-1em w-100p">Move Notebook</button>
+            </form>
+        </Modal>
+    {/if}
     {#if showConfigureSectionSortOrderModal}
         <Modal on:close-modal={() => showConfigureSectionSortOrderModal = false}>
             <h2 class="heading">Configure Section Sort Order</h2>
@@ -1353,6 +1404,7 @@ import { format } from 'date-fns'
     {/if}
     {#if notebookItemContextMenu.notebook}
         <div class="context-menu" style="left: {notebookItemContextMenu.left}px; top: {notebookItemContextMenu.top}px">
+            <div on:click={startMoveNotebook}>Move notebook</div>
             <div on:click={startConfigureSectionSortOrder}>Configure section sort order</div>
             <div on:click={renameNotebook}>Rename notebook</div>
             <div on:click={deleteNotebook}>Delete notebook</div>

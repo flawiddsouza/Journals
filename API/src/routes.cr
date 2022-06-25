@@ -723,6 +723,16 @@ put "/move-section/:section_id" do |env|
   {success: true}.to_json
 end
 
+put "/move-notebook/:notebook_id" do |env|
+  notebook_id = env.params.url["notebook_id"]
+  target_profile_id = env.params.json["profileId"].as(Int64|Nil)
+
+  db.exec "UPDATE notebooks SET profile_id=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", target_profile_id, notebook_id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
 get "/profiles" do |env|
   profiles = db.query_all("SELECT id, name FROM profiles WHERE user_id = ? ORDER BY created_at ASC", env.auth_id, as: {
     id:   Int64 | Nil,
