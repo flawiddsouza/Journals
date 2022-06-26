@@ -346,6 +346,49 @@ put "/pages/:page_id" do |env|
   {success: true}.to_json
 end
 
+get "/pages/info/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  pageType = {
+    id:   Int64,
+    name: String,
+    type: String,
+    font_size: String | Nil,
+    font_size_unit: String | Nil,
+    font: String | Nil,
+    view_only: Bool,
+    password_exists: Bool,
+    locked: Bool,
+    created_at: String
+  }
+
+  begin
+    page = db.query_one("
+      SELECT
+        pages.id,
+        pages.name,
+        pages.type,
+        pages.font_size,
+        pages.font_size_unit,
+        pages.font,
+        pages.view_only,
+        (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as password_exists,
+        (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as locked,
+        pages.created_at
+      FROM pages
+      WHERE id = ? AND user_id = ?
+    ", page_id, env.auth_id, as: pageType)
+  rescue
+    env.response.content_type = "application/json"
+    env.response.status_code = 400
+    env.response << {"error": "Invalid page id"}.to_json
+    next
+  end
+
+  env.response.content_type = "application/json"
+  page.to_json
+end
+
 get "/pages/content/:page_id" do |env|
   page_id = env.params.url["page_id"]
 

@@ -4,6 +4,7 @@ import commonjs from 'rollup-plugin-commonjs';
 import livereload from 'rollup-plugin-livereload';
 import { terser } from 'rollup-plugin-terser';
 import postcss from 'rollup-plugin-postcss'
+import copy from 'rollup-plugin-copy'
 
 const production = !process.env.ROLLUP_WATCH;
 
@@ -11,13 +12,16 @@ const ignoreWarnings = new Set([
 	'a11y-label-has-associated-control'
 ])
 
-export default {
-    input: 'src/main.js',
+export default [
+    { input: 'main', output: 'public' },
+    { input: 'main2', output: 'public2' }
+].map((bundle) => ({
+    input: `src/${bundle.input}.js`,
     output: {
         sourcemap: true,
         format: 'iife',
         name: 'app',
-        file: 'public/bundle.js'
+        file: `${bundle.output}/bundle.js`
     },
     plugins: [
         postcss({
@@ -48,15 +52,21 @@ export default {
         }),
         commonjs(),
 
-        // Watch the `public` directory and refresh the
+        // Watch the `public` / `public2` directory and refresh the
         // browser on changes when not in production
-        !production && livereload('public'),
+        !production && livereload(bundle.output),
 
         // If we're building for production (npm run build
         // instead of npm run dev), minify
-        production && terser()
+        production && terser(),
+
+        copy({
+            targets: [
+                { src: 'public-assets/**/*', dest: `${bundle.output}` }
+            ]
+        })
     ],
     watch: {
         clearScreen: false
     }
-};
+}));

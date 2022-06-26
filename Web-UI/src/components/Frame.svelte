@@ -667,12 +667,6 @@ function focus(element) {
     element.focus()
 }
 
-function makeContentEditableSingleLine(e) {
-    if(e.key.toLowerCase() === 'enter')  {
-        e.preventDefault()
-    }
-}
-
 import debounce from '../helpers/debounce.js'
 
 const updatePageName = debounce(function(e) {
@@ -964,10 +958,19 @@ function handleAddPageInput(e) {
     }
 }
 
+function handlePagesSidebarItemClick(e, page) {
+    if(e.ctrlKey) {
+        return
+    }
+    e.preventDefault()
+    activePage = page
+}
+
 import { switchAccount } from '../helpers/account'
 import Table from './Table.svelte'
 import FlatPage from './FlatPage.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
+import Page from './Page.svelte'
 import Modal from './Modal.svelte'
 import { format } from 'date-fns'
 </script>
@@ -1038,43 +1041,7 @@ import { format } from 'date-fns'
         {/each}
         <div class="journal-sidebar-item" on:click={addNotebook}>Add Notebook +</div>
     </nav>
-    <main class="journal-page">
-        {#if activePage.id !== undefined && activePage.id !== null && activePage.locked === false}
-            {#if activePage.view_only }
-                <h1 class="journal-page-title" style="margin-bottom: 0">{activePage.name}</h1>
-            {:else}
-                <h1 class="journal-page-title" contenteditable on:keydown={makeContentEditableSingleLine} spellcheck="false" on:input={updatePageName} style="margin-bottom: 0">
-                    {activePage.name}
-                </h1>
-            {/if}
-            <time style="font-size: 10px; color: darkgrey;">{format(activePage.created_at + 'Z', 'DD-MM-YYYY hh:mm A')}</time>
-            <div class="journal-page-entries">
-                {#if activePage.type === 'Table'}
-                    <Table
-                        bind:pageId={activePage.id}
-                        style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"
-                        bind:viewOnly={activePage.view_only}
-                    ></Table>
-                {/if}
-                {#if activePage.type === 'FlatPage'}
-                    <FlatPage
-                        bind:pageId={activePage.id}
-                        style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"
-                        bind:viewOnly={activePage.view_only}
-                    ></FlatPage>
-                {/if}
-                {#if activePage.type === 'Spreadsheet'}
-                    <Spreadsheet
-                        bind:pageId={activePage.id}
-                        bind:viewOnly={activePage.view_only}
-                    ></Spreadsheet>
-                {/if}
-            </div>
-        {/if}
-        {#if activePage.locked === true}
-            Page Locked
-        {/if}
-    </main>
+    <Page activePage={activePage} updatePageName={updatePageName} className="journal-page-container"></Page>
     <nav class="journal-right-sidebar" bind:this={rightSidebarElement} style="display: block" use:makeDraggableContainer={'page-sidebar-item'}>
         {#if activeSection.id !== undefined && activeSection.id !== null}
             <div class="w-100p" style="height: 1.6em">
@@ -1087,16 +1054,17 @@ import { format } from 'date-fns'
                 }}>Add Page +</div>
             {/if}
             {#each filteredPages as page}
-                <div
+                <a
+                    href="{`/page/${page.id}`}"
                     class="journal-sidebar-item page-sidebar-item"
                     class:journal-sidebar-item-selected={ activePage.id === page.id }
-                    on:click={() => activePage = page}
+                    on:click={event => handlePagesSidebarItemClick(event, page)}
                     on:keyup={e => e.key === 'Enter' && (activePage = page)}
                     tabindex="0"
                     on:contextmenu|preventDefault={(e) => handlePageItemContextMenu(e, page)}
                     data-page-id={page.id}
                     use:makeDraggableItem
-                >{ page.name }</div>
+                >{ page.name }</a>
             {/each}
             <div class="journal-sidebar-item" on:click={() => {
                 addPageToTop = false
@@ -1490,12 +1458,7 @@ import { format } from 'date-fns'
     border-bottom: 1px solid #d08700;
 }
 
-.journal-page-entries {
-    margin-top: 0.7em;
-    margin-right: 1em;
-}
-
-.journal-left-sidebar, .journal-right-sidebar, .journal-page {
+.journal-left-sidebar, .journal-right-sidebar, :global(.journal-page-container) {
     overflow-y: auto;
     height: calc(100vh - 3em);
     margin-top: 3em;
@@ -1503,19 +1466,9 @@ import { format } from 'date-fns'
     padding-bottom: 1.4em;
 }
 
-.journal-page {
-    margin-left: 2em;
-    padding-bottom: 5.4em;
-}
-
-.journal-left-sidebar[style*="block"] + .journal-page {
+:global(.journal-left-sidebar[style*="block"] + .journal-page) {
     margin-left: 17em;
     margin-right: 20em;
-}
-
-h1.journal-page-title {
-    margin-top: 0;
-    outline: 0;
 }
 
 .w-100p {
@@ -1595,5 +1548,11 @@ table.table {
 
 table.table th, table.table td {
     border: 1px solid black;
+}
+
+a.page-sidebar-item {
+    display: block;
+    color: inherit;
+    text-decoration: none;
 }
 </style>
