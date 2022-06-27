@@ -26,6 +26,10 @@ const updatePageName = debounce(function(e) {
     })
 }, 500)
 
+$: if(activePage && activePage.id) {
+    document.title = activePage.name + ' | ' + ' Journals'
+}
+
 getPageInfo()
 </script>
 
