@@ -1053,7 +1053,7 @@ import { format } from 'date-fns'
                     showAddPageModal = true
                 }}>Add Page +</div>
             {/if}
-            {#each filteredPages as page}
+            {#each filteredPages as page (page.id)}
                 <a
                     href="{`/page/${page.id}`}"
                     class="journal-sidebar-item page-sidebar-item"
