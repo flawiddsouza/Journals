@@ -214,6 +214,18 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
             bottomCell.focus()
         }
     }
+
+    // copy all content from the above cell to the current cell
+    if(e.ctrlKey && e.key === ';') {
+        e.preventDefault()
+        const rows = e.target.closest('tbody').querySelectorAll('tr')
+        const currentColumn = e.target.parentElement.cellIndex
+        const upperRow = rows[e.target.parentElement.parentElement.rowIndex - 2]
+        if(typeof upperRow !== 'undefined') {
+            const upperCell = upperRow.querySelector('td:nth-of-type(' + (currentColumn + 1) + ') > div')
+            document.execCommand('insertHTML', false, upperCell.innerHTML)
+        }
+    }
 }
 
 function handleUndoStacks(e) {
