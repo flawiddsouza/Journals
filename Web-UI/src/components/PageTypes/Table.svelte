@@ -21,7 +21,7 @@ $: if(pageContentOverride) {
 
 $: fetchPage(pageId)
 
-import fetchPlus from '../helpers/fetchPlus.js'
+import fetchPlus from '../../helpers/fetchPlus.js'
 
 let editableTable = null
 
@@ -72,7 +72,7 @@ function fetchPage(pageId) {
     })
 }
 
-import debounce from '../helpers/debounce.js'
+import debounce from '../../helpers/debounce.js'
 
 const savePageContent = debounce(function() {
     if(pageId === null) {
@@ -129,7 +129,7 @@ function evalulateJS(jsString, rowIndex=null) {
 
 let undoStackForRemoveRow = []
 
-import defaultKeydownHandlerForContentEditableArea from '../helpers/defaultKeydownHandlerForContentEditableArea.js'
+import defaultKeydownHandlerForContentEditableArea from '../../helpers/defaultKeydownHandlerForContentEditableArea.js'
 
 function handleKeysInTD(e, itemIndex, itemColumn) {
     defaultKeydownHandlerForContentEditableArea(e)

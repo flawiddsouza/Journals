@@ -967,8 +967,8 @@ function handlePagesSidebarItemClick(e, page) {
 }
 
 import { switchAccount } from '../helpers/account'
-import Table from './Table.svelte'
-import FlatPage from './FlatPage.svelte'
+import Table from './PageTypes/Table.svelte'
+import FlatPage from './PageTypes/FlatPage.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import Page from './Page.svelte'
 import Modal from './Modal.svelte'

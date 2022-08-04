@@ -12,7 +12,7 @@ $: if(pageContentOverride !== undefined) {
 
 $: fetchPage(pageId)
 
-import fetchPlus from '../helpers/fetchPlus.js'
+import fetchPlus from '../../helpers/fetchPlus.js'
 let pageContainer
 
 import { tick } from 'svelte'
@@ -35,7 +35,7 @@ function fetchPage(pageId) {
     }
 }
 
-import debounce from '../helpers/debounce.js'
+import debounce from '../../helpers/debounce.js'
 
 const savePageContent = debounce(function() {
     fetchPlus.put(`/pages/${pageId}`, {
@@ -45,7 +45,7 @@ const savePageContent = debounce(function() {
     })
 }, 500)
 
-import defaultKeydownHandlerForContentEditableArea from '../helpers/defaultKeydownHandlerForContentEditableArea.js'
+import defaultKeydownHandlerForContentEditableArea from '../../helpers/defaultKeydownHandlerForContentEditableArea.js'
 
 function handleKeysInPageContainer(e) {
     defaultKeydownHandlerForContentEditableArea(e)
@@ -61,7 +61,7 @@ function handleKeysInPageContainer(e) {
     }
 }
 
-import Modal from './Modal.svelte'
+import Modal from '../Modal.svelte'
 
 let showInsertImageModal = false
 let image = null
@@ -71,8 +71,8 @@ function focus(element) {
     element.focus()
 }
 
-import { baseURL } from '../../config.js'
-import placeCaretAtEnd from '../helpers/placeCaretAtEnd.js'
+import { baseURL } from '../../../config.js'
+import placeCaretAtEnd from '../../helpers/placeCaretAtEnd.js'
 
 function uploadImage() {
     showInsertImageModal = false
