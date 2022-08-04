@@ -148,13 +148,13 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
         }
         items = items
 
-        // move focus to the first cell of the inserted row, if shift key is not pressed
+        // move focus to the first focusable cell of the inserted row, if shift key is not pressed
         if(e.shiftKey === false) {
             setTimeout(() => {
                 let rows = e.target.closest('tbody').querySelectorAll('tr')
                 let bottomRow = rows[itemIndex + 1]
                 if(typeof bottomRow !== 'undefined') {
-                    let bottomCell = bottomRow.querySelector('div')
+                    let bottomCell = bottomRow.querySelector('div[contenteditable]')
                     bottomCell.focus()
                 }
             }, 0)
@@ -180,13 +180,13 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
         items.splice(itemIndex, 1)
         items = items
 
-        // move focus to the first cell of the row before the removed row
+        // move focus to the first focusable cell of the row before the removed row
         let tbody = e.target.closest('tbody')
         if(!tbody) { return }
         let rows = tbody.querySelectorAll('tr')
         let bottomRow = rows[itemIndex - 1]
         if(typeof bottomRow !== 'undefined') {
-            let bottomCell = bottomRow.querySelector('div')
+            let bottomCell = bottomRow.querySelector('div[contenteditable]')
             bottomCell.focus()
         }
     }
