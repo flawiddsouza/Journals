@@ -1471,6 +1471,10 @@ import { format } from 'date-fns'
     margin-right: 20em;
 }
 
+:global(.journal-left-sidebar[style*="none"] + .journal-page) {
+    padding-left: 2rem;
+}
+
 .w-100p {
     width: 100%;
 }
