@@ -66,9 +66,22 @@ import Modal from '../Modal.svelte'
 let showInsertImageModal = false
 let image = null
 let insertType = 'url'
+let savedCursorPosition = null
 
 function focus(element) {
     element.focus()
+}
+
+function restoreCursorPosition() {
+    if(window.getSelection) {
+        var s = window.getSelection()
+        if(s.rangeCount > 0) {
+            s.removeAllRanges()
+        }
+        s.addRange(savedCursorPosition)
+    } else if (document.createRange) {
+        window.getSelection().addRange(savedCursorPosition)
+    }
 }
 
 import { baseURL } from '../../../config.js'
@@ -81,12 +94,10 @@ function uploadImage() {
         document.execCommand('insertHTML', false, `<img style="max-width: 100%" loading="lazy" src="${image}">`)
     } else if(insertType === 'file') {
         pageContainer.focus()
-        let imageElement = document.createElement('img')
-        imageElement.src = '/images/loader-rainbow-dog.gif'
-        imageElement.style.maxWidth = '100%'
-        imageElement.loading = 'lazy'
-        pageContainer.appendChild(imageElement)
-        placeCaretAtEnd(pageContainer)
+
+        restoreCursorPosition()
+
+        document.execCommand('insertHTML', false, `<img class="upload-image-loader" style="max-width: 100%" src="/images/loader-rainbow-dog.gif">`)
 
         var data = new FormData()
         data.append('image', image[0])
@@ -96,8 +107,8 @@ function uploadImage() {
             body: data,
             headers: { 'Token': localStorage.getItem('token') }
         }).then(response => response.json()).then(response => {
-            imageElement.src = baseURL + '/' + response.imageUrl
-            pageContainer.dispatchEvent(new Event('input'))
+            document.querySelector('.upload-image-loader').remove()
+            document.execCommand('insertHTML', false, `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`)
         })
     }
 }
@@ -135,10 +146,23 @@ function handleImagePaste(event) {
         })
     }
 }
+
+function saveCursorPosition() {
+    savedCursorPosition = window.getSelection().getRangeAt(0)
+}
+
+function onInput() {
+    saveCursorPosition()
+    savePageContent(event)
+}
+
+function onMouseUp() {
+    saveCursorPosition()
+}
 </script>
 
 {#if pageContentOverride === undefined && viewOnly === false}
-    <div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={savePageContent} bind:this={pageContainer} on:paste={handleImagePaste} style="{style}"></div>
+    <div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={onInput} bind:this={pageContainer} on:paste={handleImagePaste} on:mouseup={onMouseUp} style="{style}"></div>
 {:else}
     <div class="page-container" style="{style}">{@html pageContent}</div>
 {/if}
