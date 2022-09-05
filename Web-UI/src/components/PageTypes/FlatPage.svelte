@@ -85,7 +85,6 @@ function restoreCursorPosition() {
 }
 
 import { baseURL } from '../../../config.js'
-import placeCaretAtEnd from '../../helpers/placeCaretAtEnd.js'
 
 function uploadImage() {
     showInsertImageModal = false
