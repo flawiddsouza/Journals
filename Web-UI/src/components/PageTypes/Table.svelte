@@ -10,8 +10,6 @@ let totals = {}
 let widths = {}
 let rowStyle = ''
 let showInsertFileModal = false
-let insertFileModalFile = null
-let insertFileModalType = 'file'
 let insertFileModalLinkLabel = ''
 let currentTd = null
 let savedCursorPosition = null
@@ -28,7 +26,6 @@ $: if(pageContentOverride) {
 $: fetchPage(pageId)
 
 import fetchPlus from '../../helpers/fetchPlus.js'
-import { baseURL } from '../../../config.js'
 
 let editableTable = null
 
@@ -406,59 +403,12 @@ function handlePaste(e) {
     // document.execCommand('insertText', false, text.trim())
 }
 
-import { createLoader } from '../../helpers/loader.js'
-import { restoreCursorPosition, insertElementAtCursor } from '../../helpers/cursorHelpers.js'
-
-function uploadFile() {
-    showInsertFileModal = false
-    currentTd.focus()
-    restoreCursorPosition(savedCursorPosition)
-
-    if(insertFileModalType === 'url') {
-        if(insertFileModalLinkLabel === '') {
-            document.execCommand('insertHTML', false, `<img style="max-width: 100%" loading="lazy" src="${insertFileModalFile}">`)
-        } else {
-            document.execCommand('insertHTML', false, `<a href="${insertFileModalFile}" target="_blank" contenteditable="false">${insertFileModalLinkLabel}</a>`)
-        }
-
-        insertFileModalFile = null
-        insertFileModalLinkLabel = ''
-    } else if(insertFileModalType === 'file') {
-        const loader = createLoader()
-
-        var data = new FormData()
-        data.append('image', insertFileModalFile[0])
-
-        fetch(`${baseURL}/upload-image/${pageId}`, {
-            method: 'POST',
-            body: data,
-            headers: { 'Token': localStorage.getItem('token') }
-        }).then(response => response.json()).then(response => {
-            loader.remove()
-            if(insertFileModalLinkLabel === '') {
-                document.execCommand('insertHTML', false, `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`)
-            } else {
-                let anchorTag = document.createElement('a')
-                anchorTag.href = baseURL + '/' + response.imageUrl
-                anchorTag.target = '_blank'
-                anchorTag.contentEditable = false
-                anchorTag.textContent = insertFileModalLinkLabel
-                insertElementAtCursor(anchorTag)
-                currentTd.dispatchEvent(new Event('input'))
-            }
-
-            insertFileModalFile = null
-            insertFileModalLinkLabel = ''
-        })
-    }
-}
-
 function saveCursorPosition() {
     savedCursorPosition = window.getSelection().getRangeAt(0)
 }
 
 import 'code-mirror-custom-element'
-import Modal from '../Modal.svelte'
+import InsertFileModal from '../Modals/InsertFileModal.svelte'
 </script>
 
 <div class="pos-r">
@@ -659,26 +609,13 @@ import Modal from '../Modal.svelte'
 </div>
 
 {#if showInsertFileModal}
-    <Modal on:close-modal={() => showInsertFileModal = false}>
-        <form on:submit|preventDefault={uploadFile}>
-            <h2>Insert File</h2>
-            <a href="#from-url" on:click|preventDefault={() => insertFileModalType = 'url'} class:td-n={insertFileModalType === 'url'}>From URL</a> | <a href="#from-file" on:click|preventDefault={() => insertFileModalType = 'file'} class:td-n={insertFileModalType === 'file'}>From File</a>
-            {#if insertFileModalType === 'url'}
-                <label class="d-b mt-1em">From URL<br>
-                    <input type="text" bind:value={insertFileModalFile} required class="w-100p" use:focus>
-                </label>
-            {:else}
-                <label class="d-b mt-1em">From File<br>
-                    <input type="file" bind:files={insertFileModalFile} required class="w-100p" use:focus>
-                </label>
-            {/if}
-            <label class="d-b mt-1em">Link Label<br>
-                <input type="text" bind:value={insertFileModalLinkLabel} class="w-100p">
-            </label>
-            <div style="width: 16rem; margin-top: 0.3rem">If link label is provided, inserted file will be inserted as a link instead of a image.</div>
-            <button class="w-100p mt-1em">Add</button>
-        </form>
-    </Modal>
+    <InsertFileModal
+        bind:pageId={pageId}
+        bind:savedCursorPosition={savedCursorPosition}
+        bind:contentEditableDivToFocus={currentTd}
+        bind:insertFileModalLinkLabel={insertFileModalLinkLabel}
+        bind:showInsertFileModal={showInsertFileModal}
+    ></InsertFileModal>
 {/if}
 
 <style>
@@ -749,13 +686,5 @@ table td > div[contenteditable] {
 
 .editable-table {
     margin-bottom: 2em;
-}
-
-.d-b {
-    display: block;
-}
-
-.w-100p {
-    width: 100%;
 }
 </style>
