@@ -135,5 +135,7 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
 <style>
 .page-container {
     outline: 0;
+    height: 100%;
+    word-break: break-word;
 }
 </style>

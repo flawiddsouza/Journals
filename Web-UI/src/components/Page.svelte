@@ -15,16 +15,18 @@ function makeContentEditableSingleLine(e) {
 }
 </script>
 
-<main class="journal-page {className}">
+<main class="journal-page {className}" style="display: grid; grid-template-rows: auto 1fr;">
     {#if activePage.id !== undefined && activePage.id !== null && activePage.locked === false}
-        {#if activePage.view_only }
-            <h1 class="journal-page-title" style="margin-bottom: 0">{activePage.name}</h1>
-        {:else}
-            <h1 class="journal-page-title" contenteditable on:keydown={makeContentEditableSingleLine} spellcheck="false" on:input={updatePageName} style="margin-bottom: 0">
-                {activePage.name}
-            </h1>
-        {/if}
-        <time style="font-size: 10px; color: darkgrey;">{format(activePage.created_at + 'Z', 'DD-MM-YYYY hh:mm A')}</time>
+        <div>
+            {#if activePage.view_only }
+                <h1 class="journal-page-title" style="margin-bottom: 0">{activePage.name}</h1>
+            {:else}
+                <h1 class="journal-page-title" contenteditable on:keydown={makeContentEditableSingleLine} spellcheck="false" on:input={updatePageName} style="margin-bottom: 0">
+                    {activePage.name}
+                </h1>
+            {/if}
+            <time style="font-size: 10px; color: darkgrey;">{format(activePage.created_at + 'Z', 'DD-MM-YYYY hh:mm A')}</time>
+        </div>
         <div class="journal-page-entries">
             {#if activePage.type === 'Table'}
                 <Table
