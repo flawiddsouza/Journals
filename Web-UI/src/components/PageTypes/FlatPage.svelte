@@ -137,5 +137,6 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
     outline: 0;
     height: 100%;
     word-break: break-word;
+    padding-bottom: 5.4em;
 }
 </style>

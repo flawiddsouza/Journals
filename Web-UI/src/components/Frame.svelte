@@ -1466,6 +1466,10 @@ import { format } from 'date-fns'
     padding-bottom: 1.4em;
 }
 
+:global(.journal-page-container) {
+    padding-bottom: 0;
+}
+
 :global(.journal-left-sidebar[style*="block"] + .journal-page) {
     margin-left: 17em;
     margin-right: 20em;

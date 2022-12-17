@@ -685,6 +685,6 @@ table td > div[contenteditable] {
 }
 
 .editable-table {
-    margin-bottom: 2em;
+    margin-bottom: 7.4em;
 }
 </style>

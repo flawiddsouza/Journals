@@ -56,10 +56,6 @@ function makeContentEditableSingleLine(e) {
 </main>
 
 <style>
-.journal-page {
-    padding-bottom: 5.4em;
-}
-
 h1.journal-page-title {
     margin-top: 0;
     outline: 0;
