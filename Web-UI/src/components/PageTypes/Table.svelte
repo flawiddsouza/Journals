@@ -135,6 +135,40 @@ let undoStackForRemoveRow = []
 
 import defaultKeydownHandlerForContentEditableArea from '../../helpers/defaultKeydownHandlerForContentEditableArea.js'
 
+// From: https://stackoverflow.com/a/7478420/4932305
+function getSelectionTextInfo(el) {
+    var atStart = false, atEnd = false
+    var selRange, testRange
+    if (window.getSelection) {
+        var sel = window.getSelection()
+        if (sel.rangeCount) {
+            selRange = sel.getRangeAt(0)
+            testRange = selRange.cloneRange()
+
+            testRange.selectNodeContents(el)
+            testRange.setEnd(selRange.startContainer, selRange.startOffset)
+            atStart = (testRange.toString() == '')
+
+            testRange.selectNodeContents(el)
+            testRange.setStart(selRange.endContainer, selRange.endOffset)
+            atEnd = (testRange.toString() == '')
+        }
+    } else if (document.selection && document.selection.type != 'Control') {
+        selRange = document.selection.createRange()
+        testRange = selRange.duplicate()
+
+        testRange.moveToElementText(el)
+        testRange.setEndPoint('EndToStart', selRange)
+        atStart = (testRange.text == '')
+
+        testRange.moveToElementText(el)
+        testRange.setEndPoint('StartToEnd', selRange)
+        atEnd = (testRange.text == '')
+    }
+
+    return { atStart: atStart, atEnd: atEnd }
+}
+
 function handleKeysInTD(e, itemIndex, itemColumn) {
     defaultKeydownHandlerForContentEditableArea(e)
     saveCursorPosition()
@@ -198,6 +232,9 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
 
     // move to upper cell
     if(e.key === 'ArrowUp') {
+        if(getSelectionTextInfo(e.target.closest('td')).atStart === false && e.ctrlKey === false) {
+            return
+        }
         e.preventDefault()
         let rows = e.target.closest('tbody').querySelectorAll('tr')
         let currentColumn = e.target.parentElement.cellIndex
@@ -210,6 +247,9 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
 
     // move to bottom cell
     if(e.key === 'ArrowDown') {
+        if(getSelectionTextInfo(e.target.closest('td')).atEnd === false && e.ctrlKey === false) {
+            return
+        }
         e.preventDefault()
         let rows = e.target.closest('tbody').querySelectorAll('tr')
         let currentColumn = e.target.parentElement.cellIndex
