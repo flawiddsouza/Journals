@@ -970,6 +970,7 @@ import { switchAccount } from '../helpers/account'
 import Table from './PageTypes/Table.svelte'
 import FlatPage from './PageTypes/FlatPage.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
+import DrawIO from './PageTypes/DrawIO.svelte'
 import Page from './Page.svelte'
 import Modal from './Modal.svelte'
 import { format } from 'date-fns'
@@ -988,7 +989,7 @@ import { format } from 'date-fns'
             </div>
             <div class="pos-a" style="margin-left: 14em">
                 {#if activePage.locked === false}
-                Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> {#if activePage.type !== 'Spreadsheet'} | <a href="#view-page-styles" on:click|preventDefault|stopPropagation={() => activePage.id ? startShowPageStylesModal() : null}>Styles</a> | <a href="#export" on:click|preventDefault|stopPropagation={() => activePage.id ? exportPage() : null}>Export</a> {/if} ]
+                Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> {#if activePage.type !== 'Spreadsheet' && activePage.type !== 'DrawIO'} | <a href="#view-page-styles" on:click|preventDefault|stopPropagation={() => activePage.id ? startShowPageStylesModal() : null}>Styles</a> | <a href="#export" on:click|preventDefault|stopPropagation={() => activePage.id ? exportPage() : null}>Export</a> {/if} ]
                 {/if}
             </div>
             <a href="#add-account" on:click|preventDefault|stopPropagation={switchAccount} class="mr-1em">Switch Account</a>
@@ -1084,6 +1085,7 @@ import { format } from 'date-fns'
                         <option value="FlatPage">Flat Page</option>
                         <option value="Table">Table</option>
                         <option value="Spreadsheet">Spreadsheet</option>
+                        <option value="DrawIO">Draw.io</option>
                     </select>
                 </label>
                 <button class="w-100p mt-1em">Add</button>
@@ -1157,6 +1159,9 @@ import { format } from 'date-fns'
                 {/if}
                 {#if activePage.type === 'Spreadsheet'}
                     <Spreadsheet bind:pageContentOverride={pageHistoryItemViewPageContent}></Spreadsheet>
+                {/if}
+                {#if activePage.type === 'DrawIO'}
+                    <DrawIO bind:pageContentOverride={pageHistoryItemViewPageContent}></DrawIO>
                 {/if}
             </div>
         </Modal>
