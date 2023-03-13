@@ -76,7 +76,7 @@ function focus(element) {
 
 import { baseURL } from '../../../config.js'
 
-function handleImagePaste(event) {
+function handlePaste(event) {
     var items = (event.clipboardData  || event.originalEvent.clipboardData).items
     // find pasted image among pasted items
     var blob = null
@@ -103,6 +103,25 @@ function handleImagePaste(event) {
             document.execCommand('insertHTML', false, `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`)
         })
     }
+
+    // on a plain text paste, detect links, show confirmation and if yes, convert the
+    // detected links to links before the pasted text is inserted into the page
+    if(event.clipboardData.types.includes('text/plain')) {
+        const text = event.clipboardData.getData('text/plain')
+        const linksRegex = /(https?:\/\/[^\s]+)/g
+        const links = text.match(linksRegex)
+        if (links && links.length > 0) {
+            if(confirm(`Do you want to convert ${links.length} links to clickable links?`)) {
+                event.preventDefault()
+                const html = text.replace(linksRegex, '<a href="$1" target="_blank" contenteditable="false">$1</a>')
+                // wrap each line break line with a div, as it would do if we had pasted the plain text directly
+                .split(/\r?\n/)
+                .map(line => `<div>${line}</div>`)
+                .join('')
+                document.execCommand('insertHTML', false, html)
+            }
+        }
+    }
 }
 
 function saveCursorPosition() {
@@ -117,7 +136,7 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
 </script>
 
 {#if pageContentOverride === undefined && viewOnly === false}
-    <div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={onInput} bind:this={pageContainer} on:paste={handleImagePaste} style="{style}"></div>
+    <div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={onInput} bind:this={pageContainer} on:paste={handlePaste} style="{style}"></div>
 {:else}
     <div class="page-container" style="{style}">{@html pageContent}</div>
 {/if}
