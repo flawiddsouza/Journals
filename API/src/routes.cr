@@ -251,7 +251,19 @@ end
 delete "/pages/:page_id" do |env|
   page_id = env.params.url["page_id"]
 
-  page_uploads = db.query_all("SELECT file_path from page_uploads WHERE page_id = ? AND user_id = ?", page_id, env.auth_id, as: {
+  child_pages = db.query_all("SELECT id from pages WHERE parent_id = ? AND user_id = ?", page_id, env.auth_id, as: {
+    id: Int64
+  })
+
+  page_ids = child_pages.map { |item| item[:id] }
+
+  page_ids << page_id.to_i
+
+  args = [*page_ids, env.auth_id] of DB::Any
+
+  page_id_placeholder = page_ids.map { "?" }.join(", ")
+
+  page_uploads = db.query_all("SELECT file_path from page_uploads WHERE page_id IN (#{page_id_placeholder}) AND user_id = ?", args: args, as: {
     file_path: String
   })
 
@@ -260,7 +272,9 @@ delete "/pages/:page_id" do |env|
     File.delete(file_path)
   end
 
-  db.exec "DELETE FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id
+  db.exec "DELETE FROM pages WHERE id IN (#{page_id_placeholder}) AND user_id = ?", args: args
+
+  puts args.inspect
 
   env.response.content_type = "application/json"
   {success: true}.to_json
