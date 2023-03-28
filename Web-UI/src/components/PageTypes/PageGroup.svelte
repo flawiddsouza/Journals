@@ -10,6 +10,7 @@ $: fetchPages(pageId)
 import fetchPlus from '../../helpers/fetchPlus.js'
 import Page from '../Page.svelte'
 import debounce from '../../helpers/debounce.js'
+import PageNav from '../PageNav.svelte'
 
 function fetchPages(pageId) {
     if(pageId) {
@@ -43,6 +44,9 @@ const updatePageName = debounce(function(e) {
         {/each}
     </div>
     {#if activePage}
+        <div style="margin-bottom: 1rem">
+            <PageNav activePage={activePage}></PageNav>
+        </div>
         <Page activePage={activePage} updatePageName={updatePageName} />
     {/if}
 </div>
@@ -50,7 +54,7 @@ const updatePageName = debounce(function(e) {
 <style>
 .page-group-tabs {
     display: flex;
-    margin-bottom: 0.5rem;
+    margin-bottom: 1rem;
 }
 
 .page-group-tabs > a {
@@ -63,6 +67,6 @@ const updatePageName = debounce(function(e) {
 }
 
 .page-group-tabs > a.active {
-    background-color: wheat;
+    background-color: #fff6e5;
 }
 </style>

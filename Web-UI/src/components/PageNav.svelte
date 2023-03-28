@@ -124,9 +124,11 @@ async function exportPage() {
         img.src = base64String
     }
 
+    const activeSectionName = activeSection ? ` - ${activeSection.name}` : ''
+
     html = `
         <head>
-            <title>${activePage.name} - ${activeSection.name}</title>
+            <title>${activePage.name}${activeSectionName}</title>
             <style>
             table {
                 border-collapse: collapse;
@@ -166,7 +168,17 @@ async function exportPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = slugify(activePage.name) + '_' + slugify(activeSection.name) + '.html'
+
+    let downloadFilename = slugify(activePage.name)
+
+    if(activeSection) {
+        downloadFilename += '_' + slugify(activeSection.name)
+    }
+
+    downloadFilename += '.html'
+
+    a.download = downloadFilename
+
     a.click()
     a.remove()
 }
