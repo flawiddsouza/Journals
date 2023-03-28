@@ -129,6 +129,11 @@ get "/install" do
     db.exec "PRAGMA user_version = 6"
   end
 
+  if user_version === 6
+    db.exec "ALTER TABLE pages ADD COLUMN parent_id INTEGER REFERENCES pages(id)"
+    db.exec "PRAGMA user_version = 7"
+  end
+
   "Installation Complete!"
 end
 
@@ -193,7 +198,9 @@ post "/pages" do |env|
   section_id = env.params.json["sectionId"].as(Int64)
   page_type = env.params.json["pageType"].as(String)
   page_name = env.params.json["pageName"].as(String)
-  result = db.exec "INSERT INTO pages(section_id, type, name, user_id) VALUES(?, ?, ?, ?)", section_id, page_type, page_name, env.auth_id
+  page_parent_id = env.params.json["pageParentId"].as(Int64 | Nil)
+
+  result = db.exec "INSERT INTO pages(section_id, type, name, parent_id, user_id) VALUES(?, ?, ?, ?, ?)", section_id, page_type, page_name, page_parent_id, env.auth_id
 
   env.response.content_type = "application/json"
   {insertedRowId: result.last_insert_id}.to_json
@@ -219,7 +226,7 @@ get "/pages/:section_id" do |env|
       sections.notebook_id
     FROM pages
     JOIN sections ON sections.id = pages.section_id
-    WHERE pages.section_id = ? AND pages.user_id = ?
+    WHERE pages.section_id = ? AND pages.user_id = ? AND pages.parent_id IS NULL
     ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order
   ", section_id, env.auth_id, as: {
     id:   Int64,
@@ -821,4 +828,46 @@ delete "/profiles/delete/:profile_id" do |env|
 
   env.response.content_type = "application/json"
   {success: true}.to_json
+end
+
+get "/page-group/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  pages = db.query_all("
+    SELECT
+      pages.id,
+      pages.name,
+      pages.type,
+      pages.font_size,
+      pages.font_size_unit,
+      pages.font,
+      pages.view_only,
+      (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as password_exists,
+      (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as locked,
+      pages.sort_order,
+      pages.section_id,
+      pages.created_at,
+      sections.notebook_id
+    FROM pages
+    JOIN sections ON sections.id = pages.section_id
+    WHERE pages.parent_id = ? AND pages.user_id = ?
+    ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order
+  ", page_id, env.auth_id, as: {
+    id:   Int64,
+    name: String,
+    type: String,
+    font_size: String | Nil,
+    font_size_unit: String | Nil,
+    font: String | Nil,
+    view_only: Bool,
+    password_exists: Bool,
+    locked: Bool,
+    sort_order: Int64 | Nil,
+    section_id: Int64,
+    created_at: String,
+    notebook_id: Int64
+  })
+
+  env.response.content_type = "application/json"
+  pages.to_json
 end

@@ -229,11 +229,13 @@ async function addPageToActiveSection() {
 
     let pageName = addPage.name
     let pageType = addPage.type
+    let pageParentId = addPage.type !== 'PageGroup' ? Number(addPage.parentId ?? null) : null
 
     const response = await fetchPlus.post('/pages', {
         sectionId: activeSection.id,
         pageName,
-        pageType
+        pageType,
+        pageParentId: pageParentId !== 0 ? pageParentId : null
     })
 
     let pageObj = {
@@ -245,6 +247,15 @@ async function addPageToActiveSection() {
         view_only: false,
         password_exists: false,
         locked: false
+    }
+
+    if(addPage.parentId) {
+        addPage = {
+            name: '',
+            type: 'FlatPage'
+        }
+
+        return
     }
 
     if(addPageToTop) {
@@ -988,7 +999,7 @@ import { format } from 'date-fns'
                 <a href="#manage-profiles" on:click|preventDefault|stopPropagation={() => showManageProfilesModal = true}>Manage</a>
             </div>
             <div class="pos-a" style="margin-left: 14em">
-                {#if activePage.locked === false}
+                {#if activePage.locked === false && activePage.type !== 'PageGroup'}
                 Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> {#if activePage.type !== 'Spreadsheet' && activePage.type !== 'DrawIO'} | <a href="#view-page-styles" on:click|preventDefault|stopPropagation={() => activePage.id ? startShowPageStylesModal() : null}>Styles</a> | <a href="#export" on:click|preventDefault|stopPropagation={() => activePage.id ? exportPage() : null}>Export</a> {/if} ]
                 {/if}
             </div>
@@ -1042,7 +1053,9 @@ import { format } from 'date-fns'
         {/each}
         <div class="journal-sidebar-item" on:click={addNotebook}>Add Notebook +</div>
     </nav>
-    <Page activePage={activePage} updatePageName={updatePageName} className="journal-page-container"></Page>
+    {#key activePage.id}
+        <Page activePage={activePage} updatePageName={updatePageName} className="journal-page-container"></Page>
+    {/key}
     <nav class="journal-right-sidebar" bind:this={rightSidebarElement} style="display: block" use:makeDraggableContainer={'page-sidebar-item'}>
         {#if activeSection.id !== undefined && activeSection.id !== null}
             <div class="w-100p" style="height: 1.6em">
@@ -1086,8 +1099,21 @@ import { format } from 'date-fns'
                         <option value="Table">Table</option>
                         <option value="Spreadsheet">Spreadsheet</option>
                         <option value="DrawIO">Draw.io</option>
+                        <option value="PageGroup">Page Group</option>
                     </select>
                 </label>
+                {#if addPage.type !== 'PageGroup'}
+                    <label class="d-b mt-0_5em">Page Group<br>
+                        <select bind:value={addPage.parentId} class="w-100p">
+                            <option value="">No Page Group</option>
+                            {#each pages as page (page.id)}
+                                {#if page.type === 'PageGroup'}
+                                    <option value={page.id}>{page.name}</option>
+                                {/if}
+                            {/each}
+                        </select>
+                    </label>
+                {/if}
                 <button class="w-100p mt-1em">Add</button>
             </form>
         </Modal>

@@ -3,6 +3,7 @@ import Table from './PageTypes/Table.svelte'
 import FlatPage from './PageTypes/FlatPage.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
+import PageGroup from './PageTypes/PageGroup.svelte'
 import { format } from 'date-fns'
 
 export let activePage = null
@@ -54,6 +55,12 @@ function makeContentEditableSingleLine(e) {
                     bind:pageId={activePage.id}
                     bind:viewOnly={activePage.view_only}
                 ></DrawIO>
+            {/if}
+            {#if activePage.type === 'PageGroup'}
+                <PageGroup
+                    bind:pageId={activePage.id}
+                    bind:viewOnly={activePage.view_only}
+                ></PageGroup>
             {/if}
         </div>
     {/if}
