@@ -60,6 +60,7 @@ function makeContentEditableSingleLine(e) {
                 <PageGroup
                     bind:pageId={activePage.id}
                     bind:viewOnly={activePage.view_only}
+                    activePageId={activePage.activePageId}
                 ></PageGroup>
             {/if}
         </div>

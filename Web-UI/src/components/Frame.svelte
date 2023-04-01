@@ -250,12 +250,17 @@ async function addPageToActiveSection() {
     }
 
     if(addPage.parentId) {
-        eventStore.set({
-            event: 'pageAddedToPageGroup',
-            data: {
-                pageGroupId: addPage.parentId
-            }
-        })
+        if(addPage.parentId !== activePage.id) {
+            activePage = pages.find(page => page.id === addPage.parentId)
+            activePage.activePageId = response.insertedRowId
+        } else {
+            eventStore.set({
+                event: 'pageAddedToPageGroup',
+                data: {
+                    pageGroupId: addPage.parentId
+                }
+            })
+        }
 
         addPage = {
             name: '',

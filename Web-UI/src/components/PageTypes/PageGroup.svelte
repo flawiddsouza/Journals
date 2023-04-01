@@ -1,6 +1,7 @@
 <script>
 export let pageId = null
 export let viewOnly = false
+export let activePageId = null
 
 let pages = []
 let activePage = null
@@ -32,6 +33,11 @@ function fetchPages(pageId) {
             pages = pagesData
 
             if(pages.length) {
+                if(activePageId) {
+                    selectPage(pages.find(page => page.id === activePageId))
+                    return
+                }
+
                 let parsedResponse = pageData.content ? JSON.parse(pageData.content) : {
                     activePageId: null
                 }
