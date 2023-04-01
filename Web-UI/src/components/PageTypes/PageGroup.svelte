@@ -56,6 +56,9 @@ const updatePageName = debounce(function(e) {
     fetchPlus.put(`/pages/name/${activePage.id}`, {
         pageName: e.target.innerText
     })
+    const page = pages.find(page => page.id === activePage.id)
+    page.name = e.target.innerText
+    pages = pages
 }, 500)
 
 function onSort(draggedPage, targetPage) {
