@@ -42,6 +42,15 @@ function onSort(draggedPage, targetPage) {
 
     // Update the pages array
     pages = [...pages]
+
+    const pageIdsWithSortOrder = pages.map((page, index) => {
+        return {
+            pageId: String(page.id),
+            sortOrder: index + 1
+        }
+    })
+
+    fetchPlus.post('/pages/sort-order/update', pageIdsWithSortOrder)
 }
 </script>
 
