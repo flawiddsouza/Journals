@@ -94,7 +94,7 @@ function selectPage(page) {
 }
 </script>
 
-<div>
+<div style="display: grid; grid-template-rows: auto auto 1fr; height: 100%">
     {#if pages.length === 0}
         There are no pages in this page group.
     {/if}
