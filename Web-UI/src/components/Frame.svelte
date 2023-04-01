@@ -841,7 +841,7 @@ import { format } from 'date-fns'
             </div>
             <div class="pos-a" style="margin-left: 14em">
                 {#if activePage.locked === false && activePage.type !== 'PageGroup'}
-                    <PageNav activePage={activePage} activeSection={activeSection}></PageNav>
+                    <PageNav bind:activePage={activePage} activeSection={activeSection}></PageNav>
                 {/if}
             </div>
             <a href="#add-account" on:click|preventDefault|stopPropagation={switchAccount} class="mr-1em">Switch Account</a>
