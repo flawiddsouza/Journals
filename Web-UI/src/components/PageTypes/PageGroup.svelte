@@ -11,6 +11,7 @@ import fetchPlus from '../../helpers/fetchPlus.js'
 import Page from '../Page.svelte'
 import debounce from '../../helpers/debounce.js'
 import PageNav from '../PageNav.svelte'
+import { dragSort } from '../../actions/dragSort.js'
 
 function fetchPages(pageId) {
     if(pageId) {
@@ -28,6 +29,20 @@ const updatePageName = debounce(function(e) {
         pageName: e.target.innerText
     })
 }, 500)
+
+function onSort(draggedPage, targetPage) {
+    const draggedIndex = pages.findIndex(page => page.id === draggedPage.id)
+    const targetIndex = pages.findIndex(page => page.id === targetPage.id)
+
+    // Remove the dragged item from the array
+    pages.splice(draggedIndex, 1)
+
+    // Insert the dragged item at the new position
+    pages.splice(targetIndex, 0, draggedPage)
+
+    // Update the pages array
+    pages = [...pages]
+}
 </script>
 
 <div>
@@ -40,6 +55,7 @@ const updatePageName = debounce(function(e) {
                 href="{`/page/${page.id}`}"
                 on:click|preventDefault={() => activePage = page}
                 class:active={ activePage && activePage.id === page.id }
+                use:dragSort={{ item: page, onSort }}
             >{page.name}</a>
         {/each}
     </div>
