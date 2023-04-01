@@ -250,6 +250,13 @@ async function addPageToActiveSection() {
     }
 
     if(addPage.parentId) {
+        eventStore.set({
+            event: 'pageAddedToPageGroup',
+            data: {
+                pageGroupId: addPage.parentId
+            }
+        })
+
         addPage = {
             name: '',
             type: 'FlatPage'
@@ -826,6 +833,7 @@ import PageNav from './PageNav.svelte'
 import Page from './Page.svelte'
 import Modal from './Modal.svelte'
 import { format } from 'date-fns'
+import { eventStore } from '../stores.js'
 </script>
 
 <div>

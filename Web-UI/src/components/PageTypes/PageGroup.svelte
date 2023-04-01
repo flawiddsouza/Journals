@@ -12,6 +12,16 @@ import Page from '../Page.svelte'
 import debounce from '../../helpers/debounce.js'
 import PageNav from '../PageNav.svelte'
 import { dragSort } from '../../actions/dragSort.js'
+import { eventStore } from '../../stores.js'
+
+eventStore.subscribe(event => {
+    if(event && event.event === 'pageAddedToPageGroup' && event.data.pageGroupId === pageId) {
+        fetchPlus.get(`/page-group/${pageId}`).then(response => {
+            pages = response
+            selectPage(pages[pages.length - 1]) // set last page as active page as it has been just added
+        })
+    }
+})
 
 function fetchPages(pageId) {
     if(pageId) {
@@ -110,6 +120,10 @@ function selectPage(page) {
     padding: 0.3rem;
     border: 1px solid #ccc;
     cursor: pointer;
+}
+
+.page-group-tabs > a:not(:last-child) {
+    border-right: 0;
 }
 
 .page-group-tabs > a.active {
