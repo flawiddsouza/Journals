@@ -15,10 +15,22 @@ import { dragSort } from '../../actions/dragSort.js'
 
 function fetchPages(pageId) {
     if(pageId) {
-        fetchPlus.get(`/page-group/${pageId}`).then(response => {
-            pages = response
+        Promise.all([
+            fetchPlus.get(`/page-group/${pageId}`),
+            fetchPlus.get(`/pages/content/${pageId}`)
+        ]).then(([pagesData, pageData]) => {
+            pages = pagesData
+
             if(pages.length) {
-                activePage = pages[0]
+                let parsedResponse = pageData.content ? JSON.parse(pageData.content) : {
+                    activePageId: null
+                }
+
+                if(parsedResponse.activePageId) {
+                    activePage = pages.find(page => page.id === parsedResponse.activePageId)
+                } else {
+                    activePage = pages[0]
+                }
             }
         })
     }
@@ -52,6 +64,15 @@ function onSort(draggedPage, targetPage) {
 
     fetchPlus.post('/pages/sort-order/update', pageIdsWithSortOrder)
 }
+
+function selectPage(page) {
+    activePage = page
+    fetchPlus.put(`/pages/${pageId}`, {
+        pageContent: JSON.stringify({
+            activePageId: page.id
+        })
+    })
+}
 </script>
 
 <div>
@@ -62,7 +83,7 @@ function onSort(draggedPage, targetPage) {
         {#each pages as page}
             <a
                 href="{`/page/${page.id}`}"
-                on:click|preventDefault={() => activePage = page}
+                on:click|preventDefault={() => selectPage(page)}
                 class:active={ activePage && activePage.id === page.id }
                 use:dragSort={{ item: page, onSort }}
             >{page.name}</a>
