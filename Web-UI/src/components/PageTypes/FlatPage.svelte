@@ -17,10 +17,13 @@ let pageContainer
 
 import { tick } from 'svelte'
 
+let loaded = false
+
 function fetchPage(pageId) {
     if(pageId) {
         fetchPlus.get(`/pages/content/${pageId}`).then(response => {
             pageContent = response.content
+            loaded = true
             if(!viewOnly) {
                 tick().then(() => {
                     pageContainer.focus()
@@ -136,7 +139,11 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
 </script>
 
 {#if pageContentOverride === undefined && viewOnly === false}
-    <div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={onInput} bind:this={pageContainer} on:paste={handlePaste} style="{style}"></div>
+    {#if loaded === false}
+        <div class="page-container" style="{style}">Loading...</div>
+    {:else}
+        <div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={onInput} bind:this={pageContainer} on:paste={handlePaste} style="{style}"></div>
+    {/if}
 {:else}
     <div class="page-container" style="{style}">{@html pageContent}</div>
 {/if}
