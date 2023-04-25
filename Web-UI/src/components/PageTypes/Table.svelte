@@ -123,9 +123,9 @@ $: if(items) {
     dontTriggerSave = false
 }
 
-function evalulateJS(jsString, rowIndex=null) {
+function evalulateJS(jsString, rowIndex=null, columnName=null) {
     try {
-        return new Function('items', 'rowIndex', jsString).call(this, items, rowIndex)
+        return new Function('items', 'rowIndex', 'columnName', jsString).call(this, items, rowIndex, columnName)
     } catch(e) {
         return 'error evaluating given expression'
     }
@@ -468,7 +468,7 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
                 {#each items as item, itemIndex}
                     <tr>
                         {#each columns as column}
-                            <td style="width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : ''} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {rowStyle ? evalulateJS(rowStyle, itemIndex) : ''}">
+                            <td style="width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : ''} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {rowStyle ? evalulateJS(rowStyle, itemIndex) : ''}; {column.style ? evalulateJS(column.style, itemIndex, column.name) : ''}">
                                 {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
                                     <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
                                 {:else}
@@ -635,6 +635,26 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
             {/each}
         </div>
 
+        <div class="config-heading mt-1em">Column Styles</div>
+        <div class="config-area-font-size">
+            {#each columns as column}
+                <div>{column.label ? column.label : column.name}</div>
+                <div>
+                    <code-mirror
+                        value={column.style}
+                        on:input={e => { column.style = e.target.value; save() }}
+                        style="border: 1px solid darkgray"
+                    >
+                    </code-mirror>
+                </div>
+            {/each}
+        </div>
+        <div class="config-area-note">
+            Available variables: <code>items</code>, <code>rowIndex</code> & <code>columnName</code><br>
+            You can add conditions and return a style like:<br>
+            <code>return items[rowIndex][columnName] === 'foo' ? 'color: red' : ''</code>
+        </div>
+
         <div class="config-heading mt-1em">Row Style</div>
         <div class="config-area-font-size">
             <div>
@@ -645,6 +665,13 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
                 ></code-mirror>
             </div>
         </div>
+        <div class="config-area-note">
+            Available variables: <code>items</code> & <code>rowIndex</code><br>
+            You can add conditions and return a style like:<br>
+            <code>return items[rowIndex]['My Column Name'] === 'foo' ? 'color: red' : ''</code>
+        </div>
+
+        <div style="margin-bottom: 3rem"></div>
     {/if}
 </div>
 
@@ -726,5 +753,15 @@ table td > div[contenteditable] {
 
 .editable-table {
     margin-bottom: 7.4em;
+}
+
+.config-area-note {
+    margin-top: 0.5em;
+}
+
+.config-area-note code {
+    border: 1px solid lightgrey;
+    padding: 2px;
+    display: inline-block;
 }
 </style>
