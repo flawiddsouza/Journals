@@ -125,7 +125,7 @@ $: if(items) {
 
 function evalulateJS(jsString, rowIndex=null, columnName=null) {
     try {
-        return new Function('items', 'rowIndex', 'columnName', jsString).call(this, items, rowIndex, columnName)
+        return new Function('items', 'rowIndex', 'item', 'columnName', jsString).call(this, items, rowIndex, rowIndex !== null ? items[rowIndex] : null, columnName)
     } catch(e) {
         return 'error evaluating given expression'
     }
@@ -608,6 +608,9 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
                     </div>
                 {/each}
             </div>
+            <div class="config-area-note">
+                Available variables: <code>items</code>, <code>rowIndex</code> & <code>item</code>
+            </div>
         {/if}
 
         <div class="config-heading mt-1em">Totals</div>
@@ -650,7 +653,7 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
             {/each}
         </div>
         <div class="config-area-note">
-            Available variables: <code>items</code>, <code>rowIndex</code> & <code>columnName</code><br>
+            Available variables: <code>items</code>, <code>rowIndex</code>, <code>item</code> & <code>columnName</code><br>
             You can add conditions and return a style like:<br>
             <code>return items[rowIndex][columnName] === 'foo' ? 'color: red' : ''</code>
         </div>
@@ -666,7 +669,7 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
             </div>
         </div>
         <div class="config-area-note">
-            Available variables: <code>items</code> & <code>rowIndex</code><br>
+            Available variables: <code>items</code>, <code>rowIndex</code> & <code>item</code><br>
             You can add conditions and return a style like:<br>
             <code>return items[rowIndex]['My Column Name'] === 'foo' ? 'color: red' : ''</code>
         </div>
