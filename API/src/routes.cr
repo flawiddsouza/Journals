@@ -202,8 +202,12 @@ post "/pages" do |env|
 
   result = db.exec "INSERT INTO pages(section_id, type, name, parent_id, user_id) VALUES(?, ?, ?, ?, ?)", section_id, page_type, page_name, page_parent_id, env.auth_id
 
+  created_at = db.query_one("SELECT created_at FROM pages WHERE id = ?", result.last_insert_id, as: {
+    created_at: String
+  })["created_at"]
+
   env.response.content_type = "application/json"
-  {insertedRowId: result.last_insert_id}.to_json
+  {insertedRowId: result.last_insert_id, createdAt: created_at}.to_json
 end
 
 get "/pages/:section_id" do |env|

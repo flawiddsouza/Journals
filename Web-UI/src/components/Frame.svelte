@@ -246,7 +246,8 @@ async function addPageToActiveSection() {
         notebook_id: activeSection.notebook_id,
         view_only: false,
         password_exists: false,
-        locked: false
+        locked: false,
+        created_at: response.createdAt
     }
 
     if(addPage.parentId) {
