@@ -80,7 +80,9 @@ function getViewerJSON(xml) {
 {:else}
     <div class="page-container-drawio">
         <div class="mxgraph" style="max-width:100%; border:1px solid transparent;" data-mxgraph={getViewerJSON(pageContent)}></div>
-        <script type="text/javascript" src="https://viewer.diagrams.net/js/viewer-static.min.js"></script>
+        {#if pageContent}
+            <script type="text/javascript" src="https://viewer.diagrams.net/js/viewer-static.min.js"></script>
+        {/if}
     </div>
 {/if}
 
