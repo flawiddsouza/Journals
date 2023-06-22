@@ -951,6 +951,7 @@ import { eventStore } from '../stores.js'
                 <label class="d-b mt-0_5em">Type<br>
                     <select bind:value={addPage.type} required class="w-100p">
                         <option value="FlatPage">Flat Page</option>
+                        <option value="FlatPageV2">Flat Page v2</option>
                         <option value="Table">Table</option>
                         <option value="Spreadsheet">Spreadsheet</option>
                         <option value="DrawIO">Draw.io</option>

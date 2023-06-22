@@ -106,7 +106,7 @@ async function readFileAsDataURL(fileBlob) {
 async function exportPage() {
     let html = ''
 
-    if(activePage.type === 'FlatPage') {
+    if(activePage.type === 'FlatPage' || activePage.type === 'FlatPageV2') {
         html = document.querySelector('.page-container').innerHTML
     }
 
