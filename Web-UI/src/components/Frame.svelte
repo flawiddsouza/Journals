@@ -11,8 +11,10 @@ function toggleSidebar(sidebarElement) {
     let sidebarStyle = getComputedStyle(sidebarElement)
     if(sidebarStyle.display === 'block') {
         sidebarElement.style.display = 'none'
+        sidebarElement.parentElement.style.gridTemplateColumns = '1fr'
     } else {
         sidebarElement.style.display = 'block'
+        sidebarElement.parentElement.style.gridTemplateColumns = '15em 1fr 20em'
     }
 }
 
@@ -842,7 +844,7 @@ import { format } from 'date-fns'
 import { eventStore } from '../stores.js'
 </script>
 
-<div>
+<div style="display: grid; grid-template-rows: auto 1fr; height: 100%;">
     <nav class="journal-sidebar-hamburger" on:click={toggleSidebars}>
         <div class="pos-r">
             <div class="pos-a" style="margin-left: 1em" on:click|preventDefault|stopPropagation>
@@ -864,83 +866,85 @@ import { eventStore } from '../stores.js'
             &#9776; Menu
         </div>
     </nav>
-    <nav class="journal-left-sidebar" bind:this={leftSidebarElement} style="display: block">
-        {#each notebooks as notebook}
-            <div class="journal-sidebar-item-notebook">
-                <div class="journal-sidebar-item journal-sidebar-item-notebook-name" class:journal-sidebar-item-notebook-expanded={!notebook.expanded} on:click={e => toggleNotebookExpanded(notebook)} on:contextmenu|preventDefault={(e) => handleNotebookItemContextMenu(e, notebook)}>
-                    { notebook.name }
-                    <div class="f-r">
-                        {#if notebook.expanded}
-                            -
-                        {:else}
-                            +
-                        {/if}
+    <div style="display: grid; grid-template-columns: 15em 1fr 20em; overflow: auto;">
+        <nav class="journal-left-sidebar" bind:this={leftSidebarElement} style="display: block">
+            {#each notebooks as notebook}
+                <div class="journal-sidebar-item-notebook">
+                    <div class="journal-sidebar-item journal-sidebar-item-notebook-name" class:journal-sidebar-item-notebook-expanded={!notebook.expanded} on:click={e => toggleNotebookExpanded(notebook)} on:contextmenu|preventDefault={(e) => handleNotebookItemContextMenu(e, notebook)}>
+                        { notebook.name }
+                        <div class="f-r">
+                            {#if notebook.expanded}
+                                -
+                            {:else}
+                                +
+                            {/if}
+                        </div>
                     </div>
-                </div>
-                {#if notebook.expanded}
-                    <div>
-                        {#each notebook.sections as section}
-                            <div
-                                class="journal-sidebar-item"
-                                class:journal-sidebar-item-selected={ activeSection.id === section.id }
-                                on:click={
-                                    () => {
-                                        activeSection = section
-                                        pagesFilter = '' // reset pages filter on section change
-                                    }
-                                }
-                                on:keyup={
-                                    e => {
-                                        if(e.key === 'Enter') {
+                    {#if notebook.expanded}
+                        <div>
+                            {#each notebook.sections as section}
+                                <div
+                                    class="journal-sidebar-item"
+                                    class:journal-sidebar-item-selected={ activeSection.id === section.id }
+                                    on:click={
+                                        () => {
                                             activeSection = section
                                             pagesFilter = '' // reset pages filter on section change
                                         }
                                     }
-                                }
-                                tabindex="0"
-                                on:contextmenu|preventDefault={(e) => handleSectionItemContextMenu(e, section, notebook)}
-                            >{ section.name }</div>
-                        {/each}
-                        <div class="journal-sidebar-item" on:click={() => addSectionToNotebook(notebook)}>Add Section +</div>
-                    </div>
+                                    on:keyup={
+                                        e => {
+                                            if(e.key === 'Enter') {
+                                                activeSection = section
+                                                pagesFilter = '' // reset pages filter on section change
+                                            }
+                                        }
+                                    }
+                                    tabindex="0"
+                                    on:contextmenu|preventDefault={(e) => handleSectionItemContextMenu(e, section, notebook)}
+                                >{ section.name }</div>
+                            {/each}
+                            <div class="journal-sidebar-item" on:click={() => addSectionToNotebook(notebook)}>Add Section +</div>
+                        </div>
+                    {/if}
+                </div>
+            {/each}
+            <div class="journal-sidebar-item" on:click={addNotebook}>Add Notebook +</div>
+        </nav>
+        {#key activePage.id}
+            <Page activePage={activePage} updatePageName={updatePageName} className="journal-page-container"></Page>
+        {/key}
+        <nav class="journal-right-sidebar" bind:this={rightSidebarElement} style="display: block" use:makeDraggableContainer={'page-sidebar-item'}>
+            {#if activeSection.id !== undefined && activeSection.id !== null}
+                <div class="w-100p" style="height: 1.6em">
+                    <input type="search" placeholder="Filter..." class="pos-f" style="top: 50px; width: 20.9em; margin-left: 1px;" bind:value="{pagesFilter}">
+                </div>
+                {#if filteredPages.length > 0}
+                    <div class="journal-sidebar-item" on:click={() => {
+                        addPageToTop = true
+                        showAddPageModal = true
+                    }}>Add Page +</div>
                 {/if}
-            </div>
-        {/each}
-        <div class="journal-sidebar-item" on:click={addNotebook}>Add Notebook +</div>
-    </nav>
-    {#key activePage.id}
-        <Page activePage={activePage} updatePageName={updatePageName} className="journal-page-container"></Page>
-    {/key}
-    <nav class="journal-right-sidebar" bind:this={rightSidebarElement} style="display: block" use:makeDraggableContainer={'page-sidebar-item'}>
-        {#if activeSection.id !== undefined && activeSection.id !== null}
-            <div class="w-100p" style="height: 1.6em">
-                <input type="search" placeholder="Filter..." class="pos-f" style="top: 50px; width: 20.9em; margin-left: 1px;" bind:value="{pagesFilter}">
-            </div>
-            {#if filteredPages.length > 0}
+                {#each filteredPages as page (page.id)}
+                    <a
+                        href="{`/page/${page.id}`}"
+                        class="journal-sidebar-item page-sidebar-item"
+                        class:journal-sidebar-item-selected={ activePage.id === page.id }
+                        on:click={event => handlePagesSidebarItemClick(event, page)}
+                        on:keyup={e => e.key === 'Enter' && (activePage = page)}
+                        tabindex="0"
+                        on:contextmenu|preventDefault={(e) => handlePageItemContextMenu(e, page)}
+                        data-page-id={page.id}
+                        use:makeDraggableItem
+                    >{ page.name }</a>
+                {/each}
                 <div class="journal-sidebar-item" on:click={() => {
-                    addPageToTop = true
+                    addPageToTop = false
                     showAddPageModal = true
                 }}>Add Page +</div>
             {/if}
-            {#each filteredPages as page (page.id)}
-                <a
-                    href="{`/page/${page.id}`}"
-                    class="journal-sidebar-item page-sidebar-item"
-                    class:journal-sidebar-item-selected={ activePage.id === page.id }
-                    on:click={event => handlePagesSidebarItemClick(event, page)}
-                    on:keyup={e => e.key === 'Enter' && (activePage = page)}
-                    tabindex="0"
-                    on:contextmenu|preventDefault={(e) => handlePageItemContextMenu(e, page)}
-                    data-page-id={page.id}
-                    use:makeDraggableItem
-                >{ page.name }</a>
-            {/each}
-            <div class="journal-sidebar-item" on:click={() => {
-                addPageToTop = false
-                showAddPageModal = true
-            }}>Add Page +</div>
-        {/if}
-    </nav>
+        </nav>
+    </div>
     {#if showAddPageModal}
         <Modal on:close-modal={() => showAddPageModal = false}>
             <form on:submit|preventDefault={addPageToActiveSection}>
@@ -1177,10 +1181,6 @@ import { eventStore } from '../stores.js'
     padding-top: 0.5em;
     padding-right: 1em;
     padding-bottom: 0.6em;
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 100vw;
     border-bottom: 1px solid lightgrey;
     text-align: right;
     background-color: white;
@@ -1188,19 +1188,11 @@ import { eventStore } from '../stores.js'
 
 .journal-left-sidebar {
     display: none;
-    width: 15em;
-    position: fixed;
-    top: 0;
-    left: 0;
     background-color: wheat;
 }
 
 .journal-right-sidebar {
     display: none;
-    width: 20em;
-    position: fixed;
-    top: 0;
-    right: 0;
     background-color: wheat;
 }
 
@@ -1250,8 +1242,6 @@ import { eventStore } from '../stores.js'
 
 .journal-left-sidebar, .journal-right-sidebar, :global(.journal-page-container) {
     overflow-y: auto;
-    height: calc(100vh - 3em);
-    margin-top: 3em;
     padding-top: 1.4em;
     padding-bottom: 1.4em;
 }
@@ -1261,8 +1251,7 @@ import { eventStore } from '../stores.js'
 }
 
 :global(.journal-left-sidebar[style*="block"] + .journal-page) {
-    margin-left: 17em;
-    margin-right: 20em;
+    margin-left: 2em;
 }
 
 :global(.journal-left-sidebar[style*="none"] + .journal-page) {
