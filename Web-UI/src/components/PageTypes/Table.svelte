@@ -9,6 +9,7 @@ let items = []
 let totals = {}
 let widths = {}
 let rowStyle = ''
+let startupScript = ''
 let showInsertFileModal = false
 let insertFileModalLinkLabel = ''
 let currentTd = null
@@ -21,6 +22,7 @@ $: if(pageContentOverride) {
     totals = parsedPage.totals
     widths = parsedPage.widths
     rowStyle = parsedPage.rowStyle
+    startupScript = parsedPage.startupScript
 }
 
 $: fetchPage(pageId)
@@ -45,14 +47,22 @@ function fetchPage(pageId) {
             items: [],
             totals: {},
             widths: {},
-            rowStyle: ''
+            rowStyle: '',
+            startupScript: '',
         }
         columns = parsedResponse.columns
         dontTriggerSave = true
-        items = parsedResponse.items
         totals = parsedResponse.totals
         widths = parsedResponse.widths ? parsedResponse.widths : {}
         rowStyle = parsedResponse.rowStyle ? parsedResponse.rowStyle : ''
+        startupScript = parsedResponse.startupScript ? parsedResponse.startupScript : ''
+
+        if(columns.length > 0 && startupScript && startupScript.trim()) {
+            dontTriggerSave = false
+            evalulateStartupScript(startupScript, { rows: parsedResponse.items })
+        }
+
+        items = parsedResponse.items
 
         if(columns.length === 0) {
             configuration = true
@@ -88,7 +98,8 @@ const savePageContent = debounce(function() {
             items,
             totals,
             widths,
-            rowStyle
+            rowStyle,
+            startupScript,
         })
     })
 }, 500)
@@ -116,11 +127,24 @@ $: if(items) {
 
     rowStyle = rowStyle
 
+    startupScript = startupScript
+
     if(!dontTriggerSave) {
         savePageContent()
     }
 
     dontTriggerSave = false
+}
+
+function evalulateStartupScript(jsString, dynamicVariables) {
+    try {
+        const functionParameters = Object.keys(dynamicVariables).join(',')
+        const functionArguments = Object.values(dynamicVariables)
+        return new Function(functionParameters, jsString).apply(this, functionArguments)
+    } catch(e) {
+        alert('error evaluating startup script')
+        console.log('startup script error', e)
+    }
 }
 
 function evalulateJS(jsString, rowIndex=null, columnName=null) {
@@ -672,6 +696,38 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
             Available variables: <code>items</code>, <code>rowIndex</code> & <code>item</code><br>
             You can add conditions and return a style like:<br>
             <code>return items[rowIndex]['My Column Name'] === 'foo' ? 'color: red' : ''</code>
+        </div>
+
+        <div class="config-heading mt-1em">Startup Script</div>
+        <div class="config-area-font-size">
+            <div>
+                <code-mirror
+                    value={startupScript}
+                    on:input={(e) => startupScript = e.target.value}
+                    style="border: 1px solid darkgray"
+                ></code-mirror>
+            </div>
+        </div>
+        <div class="config-area-note">
+            Available variables: <code>rows</code><br>
+            <details>
+                <summary style="cursor: pointer; user-select: none;">Click here to see example code on how to modify the rows in the table on startup</summary>
+                <code style="white-space: pre;">{@html
+`// Modify all rows
+rows.forEach(row => {
+    row['Column 1'] = row['Column 1'] + 'foo'
+})
+
+// add a new row at the end
+rows.push({
+    'Column 1' : 'Hi'
+})
+
+// add a new row at any index
+const insertAtIndex = 1
+rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`
+                }</code>
+            </details>
         </div>
 
         <div style="margin-bottom: 3rem"></div>
