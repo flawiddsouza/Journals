@@ -58,8 +58,11 @@ function fetchPage(pageId) {
         startupScript = parsedResponse.startupScript ? parsedResponse.startupScript : ''
 
         if(columns.length > 0 && startupScript && startupScript.trim()) {
-            dontTriggerSave = false
+            const copyOfItems = JSON.stringify(parsedResponse.items)
             evalulateStartupScript(startupScript, { rows: parsedResponse.items })
+            if(copyOfItems !== JSON.stringify(parsedResponse.items)) {
+                dontTriggerSave = false
+            }
         }
 
         items = parsedResponse.items
