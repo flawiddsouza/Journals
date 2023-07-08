@@ -8,10 +8,6 @@ import copy from 'rollup-plugin-copy'
 
 const production = !process.env.ROLLUP_WATCH;
 
-const ignoreWarnings = new Set([
-	'a11y-label-has-associated-control'
-])
-
 export default [
     { input: 'main', output: 'public' },
     { input: 'main2', output: 'public2' }
@@ -34,7 +30,7 @@ export default [
                 dev: !production
             },
             onwarn(warning, handler) {
-                if(ignoreWarnings.has(warning.code)) {
+                if(warning.code.startsWith('a11y-')) {
                     return
                 }
                 handler(warning)

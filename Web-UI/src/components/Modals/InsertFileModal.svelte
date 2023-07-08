@@ -13,8 +13,50 @@ export let insertFileModalLinkLabel = ''
 
 let insertFileModalFile = null
 let insertFileModalType = 'file'
+let takeFromClipboard = false
 
-function uploadFile() {
+async function uploadFile() {
+    let clipboardItem = null
+    let clipboardItemFileName = undefined
+
+    if(takeFromClipboard) {
+        try {
+            const clipboardItems = await navigator.clipboard.read()
+            if (clipboardItems.length === 0) {
+                alert('No items found in the clipboard.')
+                return
+            } else {
+                const firstClipboardItem = clipboardItems[0]
+
+                // for some reason, even when we copy an image, the first type is text/html
+                // so we remove it from the types array
+                // we only bring it back if it's the only type available
+
+                const types = firstClipboardItem.types.filter(type => type !== 'text/html')
+                let type = null
+
+                if(types.length === 0) {
+                    type = firstClipboardItem.types[0]
+                } else {
+                    type = types[0]
+                }
+
+                if(type === 'image/png') {
+                    clipboardItemFileName = 'clipboard.png'
+                }
+
+                if(type === 'text/plain') {
+                    clipboardItemFileName = 'clipboard.txt'
+                }
+
+                clipboardItem = await firstClipboardItem.getType(type)
+            }
+        } catch(error) {
+            alert('An error occurred while reading the clipboard: ' + error.message)
+            return
+        }
+    }
+
     showInsertFileModal = false
     contentEditableDivToFocus.focus()
     restoreCursorPosition(savedCursorPosition)
@@ -32,7 +74,11 @@ function uploadFile() {
         const loader = createLoader()
 
         var data = new FormData()
-        data.append('image', insertFileModalFile[0])
+        if(takeFromClipboard) {
+            data.append('image', clipboardItem, clipboardItemFileName)
+        } else {
+            data.append('image', insertFileModalFile[0])
+        }
 
         fetch(`${baseURL}/upload-image/${pageId}`, {
             method: 'POST',
@@ -73,7 +119,13 @@ function focus(element) {
             </label>
         {:else}
             <label class="d-b mt-1em">From File<br>
-                <input type="file" bind:files={insertFileModalFile} required class="w-100p" use:focus>
+                <input type="file" bind:files={insertFileModalFile} required class="w-100p" use:focus disabled={takeFromClipboard}>
+            </label>
+            <label class="mt-1em" style="user-select: none; display: flex; align-items: center;">
+                <div>
+                    <input type="checkbox" style="margin-left: 0;" bind:checked={takeFromClipboard}>
+                </div>
+                <div>Take from clipboard instead of file</div>
             </label>
         {/if}
         <label class="d-b mt-1em">Link Label<br>
