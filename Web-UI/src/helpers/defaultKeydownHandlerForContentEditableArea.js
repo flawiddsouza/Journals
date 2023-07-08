@@ -60,7 +60,7 @@ function getSelectedNodes() {
     return []
 }
 
-export default function(e) {
+export default function(e, disableLinkHandling=false) {
     // insert date into the current cell
     if(e.altKey && e.shiftKey && e.key.toLowerCase() === 'd') {
         document.execCommand('insertHTML', false, format(new Date(), 'DD-MMM-YY'))
@@ -79,7 +79,7 @@ export default function(e) {
     }
 
     // create hyperlink from selection
-    if(e.ctrlKey && e.key.toLowerCase() === 'k') {
+    if(!disableLinkHandling && e.ctrlKey && e.key.toLowerCase() === 'k') {
         e.preventDefault()
 
         // make selected anchor links contenteditable false (copy pasted links

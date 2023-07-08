@@ -6,6 +6,7 @@ import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
 import PageGroup from './PageTypes/PageGroup.svelte'
 import { format } from 'date-fns'
+import defaultKeydownHandlerForContentEditableArea from '../helpers/defaultKeydownHandlerForContentEditableArea.js'
 
 export let activePage = null
 export let updatePageName = null
@@ -15,6 +16,8 @@ function makeContentEditableSingleLine(e) {
     if(e.key.toLowerCase() === 'enter')  {
         e.preventDefault()
     }
+
+    defaultKeydownHandlerForContentEditableArea(e, true)
 }
 </script>
 
