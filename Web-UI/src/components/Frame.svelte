@@ -177,9 +177,8 @@ async function addSectionToNotebook(notebook) {
 let savedActiveSection = localStorage.getItem('activeSection')
 let activeSection = savedActiveSection ? JSON.parse(savedActiveSection) : {}
 
-$: fetchPages(activeSection)
-
 $: if(activeSection) {
+    fetchPages()
     localStorage.setItem('activeSection', JSON.stringify(activeSection))
 }
 
@@ -196,7 +195,7 @@ $: if(activePage && activePage.id) {
     firstLoad = false
 }
 
-async function fetchPages(activeSection) {
+async function fetchPages() {
     if(!activeSection.id) {
         return
     }
@@ -310,198 +309,6 @@ function handlePageItemContextMenu(e, page) {
     pageItemContextMenu.left = e.pageX
     pageItemContextMenu.top = e.pageY
     pageItemContextMenu.page = page
-}
-
-let showMovePageModal = false
-let showMovePageModalData = null
-let showMovePageModalSelectedNotebook = null
-let showMovePageModalSelectedSectionId = null
-
-function pageMakeViewOnly() {
-    fetchPlus.put(`/pages/view-only/${activePage.id}`, {
-        viewOnly: true
-    })
-
-    pageItemContextMenu.page.view_only = true
-
-    if(activePage.id === pageItemContextMenu.page.id) {
-        activePage.view_only = true
-    }
-
-    pageItemContextMenu.page = null
-}
-
-function pageEnableEdits() {
-    fetchPlus.put(`/pages/view-only/${activePage.id}`, {
-        viewOnly: false
-    })
-
-    pageItemContextMenu.page.view_only = false
-
-    if(activePage.id === pageItemContextMenu.page.id) {
-        activePage.view_only = false
-    }
-
-    pageItemContextMenu.page = null
-}
-
-async function duplicatePage() {
-    await fetchPlus.post(`/duplicate-page/${pageItemContextMenu.page.id}`, {})
-    pageItemContextMenu.page = null
-    fetchPages(activeSection)
-}
-
-function startMovePage() {
-    showMovePageModalData = JSON.parse(JSON.stringify(pageItemContextMenu.page))
-    showMovePageModalSelectedNotebook = {
-        sections: []
-    }
-    showMovePageModalSelectedSectionId = null
-    showMovePageModal = true
-    pageItemContextMenu.page = null
-}
-
-function movePage() {
-    fetchPlus.put(`/move-page/${showMovePageModalData.id}`, {
-        sectionId: showMovePageModalSelectedSectionId
-    })
-
-    pages = pages.filter(page => page.id !== showMovePageModalData.id)
-
-    if(activePage.id === showMovePageModalData.id) {
-        activePage = {}
-    }
-
-    showMovePageModal = false
-}
-
-function deletePage() {
-    if(confirm('Are you sure you want to delete this page?')) {
-        fetchPlus.delete(`/pages/${pageItemContextMenu.page.id}`)
-        pages = pages.filter(page => page.id !== pageItemContextMenu.page.id)
-
-        if(activePage.id === pageItemContextMenu.page.id) {
-            activePage = {}
-        }
-    }
-    pageItemContextMenu.page = null
-}
-
-async function passwordProtect() {
-    let password = prompt('Password:')
-    let passwordConfirm = prompt('Password Confirm:')
-
-    if(password && passwordConfirm && password === passwordConfirm) {
-        await fetchPlus.put(`/pages/password-protect/${pageItemContextMenu.page.id}`, {
-            password
-        })
-
-        pageItemContextMenu.page.password_exists = true
-        pageItemContextMenu.page.locked = true
-
-        if(activePage.id === pageItemContextMenu.page.id) {
-            activePage.password_exists = true
-            activePage.locked = true
-        }
-    } else {
-        if(password === passwordConfirm) {
-            alert('Empty passwords given')
-        } else {
-            alert('Given passwords didn\'t match')
-        }
-    }
-
-    pageItemContextMenu.page = null
-}
-
-async function unlockPage() {
-    let password = prompt('Password:')
-
-    if(password) {
-        const response = await fetchPlus.post(`/pages/unlock/${pageItemContextMenu.page.id}`, {
-            password
-        })
-
-        if('error' in response) {
-            alert('Invalid password given')
-        } else {
-            pageItemContextMenu.page.locked = false
-
-            if(activePage.id === pageItemContextMenu.page.id) {
-                activePage.locked = false
-            }
-        }
-    } else {
-        alert('Empty password given')
-    }
-
-    pageItemContextMenu.page = null
-}
-
-async function changePagePassword() {
-    let currentPassword = prompt('Current Password:')
-
-    if(currentPassword === '') {
-        alert('Current Password required')
-        return
-    }
-
-    let newPassword = prompt('New Password:')
-
-    if(newPassword === '') {
-        alert('New Password required')
-        return
-    }
-
-    let newPasswordConfirm = prompt('Confirm New Password:')
-
-    if(newPasswordConfirm === '') {
-        alert('Confirm New Password required')
-        return
-    }
-
-    if(newPassword === newPasswordConfirm) {
-        const response = await fetchPlus.put(`/pages/change-password/${pageItemContextMenu.page.id}`, {
-            currentPassword,
-            newPassword
-        })
-
-        if('error' in response) {
-            alert('Invalid current password given')
-        } else {
-            alert('Page password changed')
-        }
-    } else {
-        alert('Given passwords didn\'t match')
-    }
-
-    pageItemContextMenu.page = null
-}
-
-async function removePagePassword() {
-    let password = prompt('Password:')
-
-    if(password) {
-        const response = await fetchPlus.post(`/pages/remove-password/${pageItemContextMenu.page.id}`, {
-            password
-        })
-
-        if('error' in response) {
-            alert('Invalid password given')
-        } else {
-            pageItemContextMenu.page.locked = false
-            pageItemContextMenu.page.password_exists = false
-
-            if(activePage.id === pageItemContextMenu.page.id) {
-                activePage.locked = false
-                activePage.password_exists = false
-            }
-        }
-    } else {
-        alert('Empty password given')
-    }
-
-    pageItemContextMenu.page = null
 }
 
 let sectionItemContextMenu = {
@@ -838,6 +645,7 @@ function handlePagesSidebarItemClick(e, page) {
 
 import { switchAccount } from '../helpers/account'
 import PageNav from './PageNav.svelte'
+import PageContextMenu from './PageContextMenu.svelte'
 import Page from './Page.svelte'
 import Modal from './Modal.svelte'
 import { format } from 'date-fns'
@@ -998,41 +806,6 @@ import { eventStore } from '../stores.js'
         </Modal>
     {/if}
 
-    {#if showMovePageModal}
-        <Modal on:close-modal={() => showMovePageModal = false}>
-            <h2 class="heading">Move Page</h2>
-            <form on:submit|preventDefault={movePage}>
-                <div>
-                    Selected Page:
-                    <div style="font-weight: bold">{ showMovePageModalData.name }</div>
-                </div>
-                <div class="mt-1em">
-                    <label>
-                        Select Target Notebook<br>
-                        <!-- svelte-ignore a11y-no-onchange -->
-                        <select class="w-100p" required bind:value={showMovePageModalSelectedNotebook} on:change={() => showMovePageModalSelectedSectionId = null}>
-                            <option></option>
-                            {#each notebooks as notebook}
-                                <option value={notebook}>{ notebook.name }</option>
-                            {/each}
-                        </select>
-                    </label>
-                </div>
-                <div class="mt-1em">
-                    <label>
-                        Select Target Section<br>
-                        <select class="w-100p" required bind:value={showMovePageModalSelectedSectionId}>
-                            <option></option>
-                            {#each showMovePageModalSelectedNotebook.sections.filter(item => item.id !== showMovePageModalData.section_id) as section}
-                                <option value={section.id} selected={showMovePageModalSelectedSectionId === section.id}>{ section.name }</option>
-                            {/each}
-                        </select>
-                    </label>
-                </div>
-                <button class="mt-1em w-100p">Move Page</button>
-            </form>
-        </Modal>
-    {/if}
     {#if showMoveSectionModal}
         <Modal on:close-modal={() => showMoveSectionModal = false}>
             <h2 class="heading">Move Section</h2>
@@ -1135,28 +908,6 @@ import { eventStore } from '../stores.js'
         </Modal>
     {/if}
 
-    {#if pageItemContextMenu.page}
-        <div class="context-menu" style="left: {pageItemContextMenu.left}px; top: {pageItemContextMenu.top}px">
-            {#if pageItemContextMenu.page.locked === false}
-                {#if pageItemContextMenu.page.view_only === false}
-                    <div on:click={pageMakeViewOnly}>Make view only</div>
-                {:else}
-                    <div on:click={pageEnableEdits}>Enable Edits</div>
-                {/if}
-                {#if pageItemContextMenu.page.password_exists === false}
-                    <div on:click={passwordProtect}>Password Protect</div>
-                {:else}
-                    <div on:click={changePagePassword}>Change Password</div>
-                    <div on:click={removePagePassword}>Remove Password</div>
-                {/if}
-                <div on:click={duplicatePage}>Duplicate page</div>
-                <div on:click={startMovePage}>Move page</div>
-                <div on:click={deletePage}>Delete page</div>
-            {:else}
-                <div on:click={unlockPage}>Unlock Page</div>
-            {/if}
-        </div>
-    {/if}
     {#if sectionItemContextMenu.section}
         <div class="context-menu" style="left: {sectionItemContextMenu.left}px; top: {sectionItemContextMenu.top}px">
             <div on:click={startMoveSection}>Move section</div>
@@ -1171,6 +922,10 @@ import { eventStore } from '../stores.js'
             <div on:click={renameNotebook}>Rename notebook</div>
             <div on:click={deleteNotebook}>Delete notebook</div>
         </div>
+    {/if}
+
+    {#if pageItemContextMenu.page || (activePage.id !== undefined && activePage.id !== null)}
+        <PageContextMenu bind:pageItemContextMenu={pageItemContextMenu} {fetchPages} bind:pages={pages} bind:activePage={activePage} {notebooks}></PageContextMenu>
     {/if}
 </div>
 
@@ -1258,47 +1013,12 @@ import { eventStore } from '../stores.js'
     padding-left: 2rem;
 }
 
-.w-100p {
-    width: 100%;
-}
-
 .mt-0_5em {
     margin-top: 0.5em;
 }
 
-.mt-1em {
-    margin-top: 1em;
-}
-
 .d-b {
     display: block;
-}
-
-h2.heading {
-    margin: 0;
-    margin-bottom: 0.5em;
-}
-
-.context-menu {
-    position: fixed;
-    background-color: white;
-    padding: 4px 0;
-    cursor: pointer;
-    box-shadow: 6px 8px 7px -11px black;
-    border: 1px solid #cccccc;
-}
-
-.context-menu > div {
-    padding: 4px 13px;
-    border-bottom: 1px solid #cccccc;
-}
-
-.context-menu > div:last-of-type {
-    border-bottom: 0;
-}
-
-.context-menu > div:hover {
-    background-color: lightgrey;
 }
 
 .mr-1em {

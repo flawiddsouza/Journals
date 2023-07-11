@@ -142,16 +142,8 @@ label {
     display: block;
 }
 
-.mt-1em {
-    margin-top: 1em;
-}
-
 .mt-0_5em {
     margin-top: 0.5em;
-}
-
-.w-100p {
-    width: 100%;
 }
 
 .ta-c {

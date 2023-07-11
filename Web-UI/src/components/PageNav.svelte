@@ -290,20 +290,7 @@ Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() 
 </Portal>
 
 <style>
-h2.heading {
-    margin: 0;
-    margin-bottom: 0.5em;
-}
-
 .oy-a {
     overflow-y: auto;
-}
-
-.w-100p {
-    width: 100%;
-}
-
-.mt-1em {
-    margin-top: 1em;
 }
 </style>

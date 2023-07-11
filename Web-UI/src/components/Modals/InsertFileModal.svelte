@@ -144,12 +144,4 @@ function focus(element) {
 .d-b {
     display: block;
 }
-
-.mt-1em {
-    margin-top: 1em;
-}
-
-.w-100p {
-    width: 100%;
-}
 </style>

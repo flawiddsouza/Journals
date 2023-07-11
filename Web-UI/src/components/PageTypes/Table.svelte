@@ -774,10 +774,6 @@ table.config-table > tbody td > input {
     font: inherit;
 }
 
-.mt-1em {
-    margin-top: 1em;
-}
-
 .config-area-font-size, table.config-table {
     font-size: 16px;
 }
