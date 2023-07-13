@@ -28,7 +28,7 @@
         "autobuild": "rollup -c -w",
         "dev": "run-p start:dev autobuild",
         "dev2": "run-p start:dev2 autobuild",
-        "start:dev": "sirv public --single --dev -p 5001",
-        "start:dev2": "sirv public2 --single --dev -p 5001"
+        "start:dev": "sirv public --single --dev -p 5001 --host",
+        "start:dev2": "sirv public2 --single --dev -p 5001 --host"
     }
 }
