@@ -75,8 +75,13 @@ function fetchPage(pageId) {
         // set focus to the last cell in the table
         setTimeout(() => {
             if(editableTable) {
-                let lastEditableTD = editableTable.querySelectorAll('tbody > tr:last-child > td > div[contenteditable]')
-                lastEditableTD = lastEditableTD[lastEditableTD.length - 1]
+                let lastEditableTD = editableTable.querySelectorAll('tbody > tr:last-child > td > div[contenteditable]:empty')
+                if(lastEditableTD.length === 0) {
+                    lastEditableTD = editableTable.querySelectorAll('tbody > tr:last-child > td > div[contenteditable]')
+                    lastEditableTD = lastEditableTD[lastEditableTD.length - 1]
+                } else {
+                    lastEditableTD = lastEditableTD[0]
+                }
                 if(lastEditableTD) {
                     lastEditableTD.focus()
                     lastEditableTD.scrollIntoView()
