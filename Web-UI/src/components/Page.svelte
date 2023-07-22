@@ -11,6 +11,19 @@ import defaultKeydownHandlerForContentEditableArea from '../helpers/defaultKeydo
 export let activePage = null
 export let updatePageName = null
 export let className = null
+export let viewOnly = null
+
+let viewOnlyComputed = null
+
+$: if(activePage) {
+    if(viewOnly === null) {
+        viewOnlyComputed = activePage.view_only
+    }
+}
+
+$: if(viewOnly !== null) {
+    viewOnlyComputed = viewOnly
+}
 
 function makeContentEditableSingleLine(e) {
     if(e.key.toLowerCase() === 'enter')  {
@@ -24,7 +37,7 @@ function makeContentEditableSingleLine(e) {
 <main class="journal-page {className}" style="display: grid; grid-template-rows: auto 1fr;">
     {#if activePage.id !== undefined && activePage.id !== null && activePage.locked === false}
         <div>
-            {#if activePage.view_only }
+            {#if viewOnlyComputed}
                 <h1 class="journal-page-title" style="margin-bottom: 0">{activePage.name}</h1>
             {:else}
                 <h1 class="journal-page-title" contenteditable on:keydown={makeContentEditableSingleLine} spellcheck="false" on:input={updatePageName} style="margin-bottom: 0">
@@ -38,39 +51,39 @@ function makeContentEditableSingleLine(e) {
                 <Table
                     bind:pageId={activePage.id}
                     style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"
-                    bind:viewOnly={activePage.view_only}
+                    bind:viewOnly={viewOnlyComputed}
                 ></Table>
             {/if}
             {#if activePage.type === 'FlatPage'}
                 <FlatPage
                     bind:pageId={activePage.id}
                     style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"
-                    bind:viewOnly={activePage.view_only}
+                    bind:viewOnly={viewOnlyComputed}
                 ></FlatPage>
             {/if}
             {#if activePage.type === 'FlatPageV2'}
                 <FlatPageV2
                     bind:pageId={activePage.id}
                     style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"
-                    bind:viewOnly={activePage.view_only}
+                    bind:viewOnly={viewOnlyComputed}
                 ></FlatPageV2>
             {/if}
             {#if activePage.type === 'Spreadsheet'}
                 <Spreadsheet
                     bind:pageId={activePage.id}
-                    bind:viewOnly={activePage.view_only}
+                    bind:viewOnly={viewOnlyComputed}
                 ></Spreadsheet>
             {/if}
             {#if activePage.type === 'DrawIO'}
                 <DrawIO
                     bind:pageId={activePage.id}
-                    bind:viewOnly={activePage.view_only}
+                    bind:viewOnly={viewOnlyComputed}
                 ></DrawIO>
             {/if}
             {#if activePage.type === 'PageGroup'}
                 <PageGroup
                     bind:pageId={activePage.id}
-                    bind:viewOnly={activePage.view_only}
+                    bind:viewOnly={viewOnlyComputed}
                     activePageId={activePage.activePageId}
                 ></PageGroup>
             {/if}

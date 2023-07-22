@@ -28,7 +28,11 @@ const updatePageName = debounce(function(e) {
 }, 500)
 
 $: if(activePage && activePage.id) {
-    document.title = activePage.name + ' | ' + ' Journals'
+    let pageTitle = activePage.name
+    if(activePage.parent_id) {
+        pageTitle += ' | ' + activePage.parent_name
+    }
+    document.title = pageTitle + ' | ' + ' Journals'
 }
 
 getPageInfo()
@@ -45,7 +49,7 @@ getPageInfo()
                 {/if}
             </div>
         </div>
-        <Page activePage={activePage} updatePageName={updatePageName} className="journal-page-container"></Page>
+        <Page activePage={activePage} updatePageName={updatePageName} viewOnly={activePage.parent_view_only} className="journal-page-container"></Page>
     </div>
 {/if}
 

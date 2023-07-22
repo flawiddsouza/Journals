@@ -375,6 +375,9 @@ get "/pages/info/:page_id" do |env|
   page_id = env.params.url["page_id"]
 
   pageType = {
+    parent_id: Int64 | Nil,
+    parent_name: String | Nil,
+    parent_view_only: Bool | Nil,
     id:   Int64,
     name: String,
     type: String,
@@ -390,6 +393,9 @@ get "/pages/info/:page_id" do |env|
   begin
     page = db.query_one("
       SELECT
+        pages.parent_id,
+        page_group.name as parent_name,
+        page_group.view_only as parent_view_only,
         pages.id,
         pages.name,
         pages.type,
@@ -401,7 +407,8 @@ get "/pages/info/:page_id" do |env|
         (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as locked,
         pages.created_at
       FROM pages
-      WHERE id = ? AND user_id = ?
+      LEFT JOIN pages as page_group ON page_group.id = pages.parent_id
+      WHERE pages.id = ? AND pages.user_id = ?
     ", page_id, env.auth_id, as: pageType)
   rescue
     env.response.content_type = "application/json"

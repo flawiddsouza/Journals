@@ -112,7 +112,7 @@ function selectPage(page) {
         <div style="margin-bottom: 1rem">
             <PageNav bind:activePage={activePage}></PageNav>
         </div>
-        <Page activePage={activePage} updatePageName={updatePageName} />
+        <Page activePage={activePage} updatePageName={updatePageName} viewOnly={viewOnly} />
     {/if}
 </div>
 
