@@ -136,7 +136,9 @@ function pageContainerMounted(element) {
     })
 
     editor.commands.focus('end')
-    pageContainer.parentElement.parentElement.scrollTop = pageContainer.parentElement.parentElement.scrollHeight
+
+    const scrollContainer = document.querySelector('main.journal-page')
+    scrollContainer.scrollTop = scrollContainer.scrollHeight
 }
 
 /*
