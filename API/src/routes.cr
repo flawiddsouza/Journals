@@ -87,11 +87,13 @@ get "/install" do
   if user_version === 0
     db.exec "ALTER TABLE pages ADD COLUMN sort_order INTEGER"
     db.exec "PRAGMA user_version = 1"
+    user_version = 1
   end
 
   if user_version === 1
     db.exec "ALTER TABLE sections ADD COLUMN sort_order INTEGER"
     db.exec "PRAGMA user_version = 2"
+    user_version = 2
   end
 
   if user_version === 2
@@ -99,11 +101,13 @@ get "/install" do
     db.exec "ALTER TABLE pages ADD COLUMN font_size_unit TEXT"
     db.exec "ALTER TABLE pages ADD COLUMN font TEXT"
     db.exec "PRAGMA user_version = 3"
+    user_version = 3
   end
 
   if user_version === 3
     db.exec "ALTER TABLE pages ADD COLUMN view_only INTEGER DEFAULT 0"
     db.exec "PRAGMA user_version = 4"
+    user_version = 4
   end
 
   if user_version === 4
@@ -122,16 +126,20 @@ get "/install" do
     db.exec "ALTER TABLE notebooks ADD COLUMN profile_id INTEGER REFERENCES profiles(id)"
 
     db.exec "PRAGMA user_version = 5"
+
+    user_version = 5
   end
 
   if user_version === 5
     db.exec "ALTER TABLE pages ADD COLUMN password TEXT"
     db.exec "PRAGMA user_version = 6"
+    user_version = 6
   end
 
   if user_version === 6
     db.exec "ALTER TABLE pages ADD COLUMN parent_id INTEGER REFERENCES pages(id)"
     db.exec "PRAGMA user_version = 7"
+    user_version = 7
   end
 
   "Installation Complete!"
