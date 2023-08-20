@@ -22,6 +22,8 @@ To build for production:
     shards build --release
     Then you can find the binary at bin/journals
     which can be run like so
+        mkdir bin/data
+        echo JWT_SECRET=your-jwt-secret > bin/.env
         KEMAL_ENV=production ./bin/journals
 
 To autostart and keep running in the background, you can use pm2:

@@ -3,6 +3,5 @@
 /bin/
 /.shards/
 *.dwarf
-/store.db*
 /.env
-/public
+/data

@@ -3,6 +3,7 @@ require "sqlite3"
 require "crypto/bcrypt"
 require "jwt"
 require "file_utils"
+require "mime"
 
 # enable cors
 require "./cors"

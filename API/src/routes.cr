@@ -2,7 +2,9 @@ get "/" do
   "Journals API"
 end
 
-db = DB.open "sqlite3://./store.db"
+data_directory = "./data"
+
+db = DB.open "sqlite3://#{data_directory}/store.db"
 db.exec("PRAGMA journal_mode = WAL")
 db.exec("PRAGMA foreign_keys = ON")
 
@@ -280,7 +282,7 @@ delete "/pages/:page_id" do |env|
   })
 
   page_uploads.each do |page_upload|
-    file_path = ::File.join [Kemal.config.public_folder, page_upload["file_path"]]
+    file_path = ::File.join [data_directory, page_upload["file_path"]]
     File.delete(file_path)
   end
 
@@ -306,7 +308,7 @@ delete "/sections/:section_id" do |env|
     })
 
     page_uploads.each do |page_upload|
-      file_path = ::File.join [Kemal.config.public_folder, page_upload["file_path"]]
+      file_path = ::File.join [data_directory, page_upload["file_path"]]
       File.delete(file_path)
     end
   end
@@ -318,7 +320,7 @@ delete "/sections/:section_id" do |env|
   {success: true}.to_json
 end
 
-def delete_notebook(db, notebook_id, auth_id)
+def delete_notebook(db, data_directory, notebook_id, auth_id)
   # start delete file_uploads for pages
   sections = db.query_all("SELECT id from sections WHERE notebook_id = ? AND user_id = ?", notebook_id, auth_id, as: {
     id: Int64
@@ -335,7 +337,7 @@ def delete_notebook(db, notebook_id, auth_id)
       })
 
       page_uploads.each do |page_upload|
-        file_path = ::File.join [Kemal.config.public_folder, page_upload["file_path"]]
+        file_path = ::File.join [data_directory, page_upload["file_path"]]
         File.delete(file_path)
       end
     end
@@ -348,7 +350,7 @@ end
 delete "/notebooks/:notebook_id" do |env|
   notebook_id = env.params.url["notebook_id"]
 
-  delete_notebook(db, notebook_id, env.auth_id)
+  delete_notebook(db, data_directory, notebook_id, env.auth_id)
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -611,11 +613,11 @@ post "/upload-image/:page_id" do|env|
     	file_extension = ""
     end
 
-    FileUtils.mkdir_p(::File.join [Kemal.config.public_folder, "uploads/images/"])
+    FileUtils.mkdir_p(::File.join [data_directory, "uploads/images/"])
 
     unix_timestamp = Time.utc.to_unix.to_s
 
-    file_path = ::File.join [Kemal.config.public_folder, "uploads/images/", unix_timestamp + "_" + File.basename(file.path) + file_extension]
+    file_path = ::File.join [data_directory, "uploads/images/", unix_timestamp + "_" + File.basename(file.path) + file_extension]
 
     File.open(file_path, "w") do |f|
       IO.copy(file, f)
@@ -695,7 +697,7 @@ delete "/page-uploads/delete/:id" do |env|
   })
 
   puts page_upload["file_path"]
-  file_path = ::File.join [Kemal.config.public_folder, page_upload["file_path"]]
+  file_path = ::File.join [data_directory, page_upload["file_path"]]
   File.delete(file_path)
 
   db.exec "DELETE FROM page_uploads WHERE id = ? AND user_id = ?", id, env.auth_id
@@ -854,7 +856,7 @@ delete "/profiles/delete/:profile_id" do |env|
   })
 
   notebooks.each do |notebook|
-    delete_notebook(db, notebook["id"], env.auth_id)
+    delete_notebook(db, data_directory, notebook["id"], env.auth_id)
   end
 
   db.exec "DELETE FROM profiles WHERE id = ? AND user_id = ?", profile_id, env.auth_id
@@ -903,4 +905,11 @@ get "/page-group/:page_id" do |env|
 
   env.response.content_type = "application/json"
   pages.to_json
+end
+
+get "/uploads/images/:file_name" do |env|
+  file_name = env.params.url["file_name"]
+
+  env.response.content_type = MIME.from_filename(file_name)
+  File.read("#{data_directory}/uploads/images/#{file_name}")
 end

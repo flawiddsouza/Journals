@@ -2,7 +2,9 @@ require "dotenv"
 
 Dotenv.load
 
-db = DB.open "sqlite3://./store.db"
+data_directory = "./data"
+
+db = DB.open "sqlite3://#{data_directory}/store.db"
 db.exec("PRAGMA journal_mode = WAL")
 db.exec("PRAGMA foreign_keys = ON")
 
@@ -86,7 +88,7 @@ end
 
 class AuthHandler < Kemal::Handler
   exclude ["/login", "/register"], "POST"
-  exclude ["/", "/install"], "GET"
+  exclude ["/", "/install", "/uploads/images/:file_name"], "GET"
   exclude ["/*"], "OPTIONS" # required for cors to work
 
   def call(env)
@@ -129,7 +131,8 @@ class AuthHandler < Kemal::Handler
       env.response << {"error": "Authentication Failed: Invalid Token"}.to_json
       return env
     else
-      DB.open "sqlite3://./store.db" do |db|
+      data_directory = "./data"
+      DB.open "sqlite3://#{data_directory}/store.db" do |db|
         env.auth_id = db.scalar("SELECT id FROM users WHERE username = ?", token_decoded[0]["username"].as_s)
       end
       return call_next(env)
