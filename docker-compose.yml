@@ -1,0 +1,28 @@
+version: '3.8'
+networks:
+  net:
+    name: dev
+    driver: bridge
+
+services:
+  journal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: journal
+    volumes:
+      - journal_vol:/app/data
+    # In case you want to mount your env file
+    # - ./API/.env:/app/.env:ro
+    # In case you want to mount locally
+    #   - .vol:/app/data
+    env_file:
+      - ./API/.env
+    networks:
+      - net
+    ports:
+      - 8080:80
+      - 9900:9900
+
+volumes:
+  journal_vol:
