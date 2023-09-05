@@ -1,13 +1,36 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
 {
-    "image": "mcr.microsoft.com/devcontainers/universal:2",
+    "name": "journal",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "args": {
+            "CRYSTAL_IMAGE_TAG": "1.9",
+            "NODE_IMAGE_TAG": "18-slim"
+        }
+    },
+    "remoteUser": "vscode",
+    // "remoteUser": "root",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
+    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
     "postCreateCommand": "bash ./.devcontainer/setup.sh",
     "customizations": {
         "vscode": {
             "extensions": [
-                "svelte.svelte-vscode",
-                "EditorConfig.EditorConfig",
-                "crystal-lang-tools.crystal-lang"
-            ]
+				"ms-azuretools.vscode-docker",
+				"EditorConfig.EditorConfig",
+				"eamodio.gitlens",
+				"crystal-lang-tools.crystal-lang",
+				"svelte.svelte-vscode"
+			]
         }
-    }
+    },
+    "mounts": [],
+	"features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+        // "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+
+    },
+    "forwardPorts": []
+    // Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 }

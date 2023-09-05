@@ -1,8 +1,9 @@
-curl -fsSL https://crystal-lang.org/install.sh | sudo bash
-
 cd API
 shards install
-cp .env.example .env
+
+if [ ! -f .env ]; then
+  cp .env.example .env
+fi
 
 cd ..
 
