@@ -1,0 +1,12 @@
+# Comman ignores
+**/.env*
+**/node_modules
+**/.gitignore
+**/LICENSE
+
+# API ignores
+/API/lib
+
+# Web-UI ignores
+/Web-UI/public
+/Web-UI/public2
