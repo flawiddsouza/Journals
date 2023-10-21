@@ -22,7 +22,11 @@ $: if(activePage) {
 }
 
 $: if(viewOnly !== null) {
-    viewOnlyComputed = viewOnly
+    if(viewOnly === false) {
+        viewOnlyComputed = activePage.view_only
+    } else {
+        viewOnlyComputed = true
+    }
 }
 
 function makeContentEditableSingleLine(e) {
