@@ -222,6 +222,13 @@ end
 
 get "/pages/:section_id" do |env|
   section_id = env.params.url["section_id"]
+  page_groups_only = env.params.query.has_key?("page_groups_only") ? env.params.query["page_groups_only"] == "true" : false
+
+  pages_groups_only_query = ""
+
+  if page_groups_only
+    pages_groups_only_query = " AND pages.type = 'PageGroup'"
+  end
 
   pages = db.query_all("
     SELECT
@@ -240,7 +247,7 @@ get "/pages/:section_id" do |env|
       sections.notebook_id
     FROM pages
     JOIN sections ON sections.id = pages.section_id
-    WHERE pages.section_id = ? AND pages.user_id = ? AND pages.parent_id IS NULL
+    WHERE pages.section_id = ? AND pages.user_id = ? AND pages.parent_id IS NULL #{pages_groups_only_query}
     ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order
   ", section_id, env.auth_id, as: {
     id:   Int64,
@@ -804,8 +811,13 @@ end
 put "/move-page/:page_id" do |env|
   page_id = env.params.url["page_id"]
   target_section_id = env.params.json["sectionId"].as(Int64)
+  target_page_group_id = env.params.json["pageGroupId"].as(Int64 | Nil)
 
-  db.exec "UPDATE pages SET section_id=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", target_section_id, page_id, env.auth_id
+  if target_page_group_id
+    db.exec "UPDATE pages SET section_id=?, parent_id=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", target_section_id, target_page_group_id, page_id, env.auth_id
+  else
+    db.exec "UPDATE pages SET section_id=?, parent_id=NULL, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", target_section_id, page_id, env.auth_id
+  end
 
   env.response.content_type = "application/json"
   {success: true}.to_json

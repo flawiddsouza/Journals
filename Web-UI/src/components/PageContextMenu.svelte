@@ -14,6 +14,8 @@ let showMovePageModal = false
 let showMovePageModalData = null
 let showMovePageModalSelectedNotebook = null
 let showMovePageModalSelectedSectionId = null
+let showMovePageModalSelectedPageGroupId = null
+let pageGroupsForShowMovePageModalSelectedSectionId = []
 
 function pageMakeViewOnly() {
     fetchPlus.put(`/pages/view-only/${pageItemContextMenu.page.id}`, {
@@ -64,8 +66,14 @@ function startMovePage() {
 }
 
 function movePage() {
+    if(showMovePageModalData.section_id === showMovePageModalSelectedSectionId && !showMovePageModalSelectedPageGroupId) {
+        alert('Page is already in this section')
+        return
+    }
+
     fetchPlus.put(`/move-page/${showMovePageModalData.id}`, {
-        sectionId: showMovePageModalSelectedSectionId
+        sectionId: showMovePageModalSelectedSectionId,
+        pageGroupId: showMovePageModalSelectedPageGroupId
     })
 
     pages = pages.filter(page => page.id !== showMovePageModalData.id)
@@ -224,6 +232,15 @@ async function removePagePassword() {
     pageItemContextMenu.page = null
 }
 
+async function fetchPageGroupsForSectionId() {
+    if(showMovePageModalSelectedSectionId) {
+        pageGroupsForShowMovePageModalSelectedSectionId = await fetchPlus.get(`/pages/${showMovePageModalSelectedSectionId}?page_groups_only=true`)
+    } else {
+        pageGroupsForShowMovePageModalSelectedSectionId = []
+    }
+}
+
+$: fetchPageGroupsForSectionId(showMovePageModalSelectedSectionId)
 </script>
 
 <Portal>
@@ -263,7 +280,7 @@ async function removePagePassword() {
                         Select Target Notebook<br>
                         <!-- svelte-ignore a11y-no-onchange -->
                         <select class="w-100p" required bind:value={showMovePageModalSelectedNotebook} on:change={() => showMovePageModalSelectedSectionId = null}>
-                            <option></option>
+                            <option disabled></option>
                             {#each notebooks as notebook}
                                 <option value={notebook}>{ notebook.name }</option>
                             {/each}
@@ -273,14 +290,33 @@ async function removePagePassword() {
                 <div class="mt-1em">
                     <label>
                         Select Target Section<br>
-                        <select class="w-100p" required bind:value={showMovePageModalSelectedSectionId}>
+                        <select class="w-100p" required bind:value={showMovePageModalSelectedSectionId} on:change={() => showMovePageModalSelectedPageGroupId = null}>
                             <option></option>
-                            {#each showMovePageModalSelectedNotebook.sections.filter(item => item.id !== showMovePageModalData.section_id) as section}
+                            {#each showMovePageModalSelectedNotebook.sections.filter(item => {
+                                if(showMovePageModalData.type !== 'PageGroup') {
+                                    return true
+                                } else {
+                                    return item.id !== showMovePageModalData.section_id
+                                }
+                            }) as section}
                                 <option value={section.id} selected={showMovePageModalSelectedSectionId === section.id}>{ section.name }</option>
                             {/each}
                         </select>
                     </label>
                 </div>
+                {#if showMovePageModalData.type !== 'PageGroup'}
+                    <div class="mt-1em">
+                        <label>
+                            Select Page Group<br>
+                            <select class="w-100p" bind:value={showMovePageModalSelectedPageGroupId}>
+                                <option></option>
+                                {#each pageGroupsForShowMovePageModalSelectedSectionId as pageGroup}
+                                    <option value={pageGroup.id} selected={showMovePageModalSelectedPageGroupId === pageGroup.id}>{ pageGroup.name }</option>
+                                {/each}
+                            </select>
+                        </label>
+                    </div>
+                {/if}
                 <button class="mt-1em w-100p">Move Page</button>
             </form>
         </Modal>
