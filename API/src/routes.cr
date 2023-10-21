@@ -746,10 +746,11 @@ end
 
 post "/duplicate-page/:page_id" do |env|
   page_id = env.params.url["page_id"]
+  page_group_id = env.params.json["pageGroupId"].as(Int64 | Nil)
 
   result = db.exec "
-    INSERT INTO pages(section_id, name, type, content, user_id, sort_order, font_size, font_size_unit, font, view_only, password)
-    SELECT section_id, name || ' (copy)' as name, type, content, user_id, -9999, font_size, font_size_unit, font, view_only, password
+    INSERT INTO pages(section_id, name, type, content, user_id, sort_order, font_size, font_size_unit, font, view_only, password, parent_id)
+    SELECT section_id, name || ' (copy)' as name, type, content, user_id, -9999, font_size, font_size_unit, font, view_only, password, parent_id
     FROM pages
     WHERE id = ? AND user_id = ?
   ", page_id, env.auth_id
@@ -764,13 +765,25 @@ post "/duplicate-page/:page_id" do |env|
     section_id: Int64
   })
 
-  pages_for_section = db.query_all("
-    SELECT id FROM pages
-    WHERE section_id = ?
-    ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order
-  ", original_page["section_id"], as: {
-    id: Int64
-  })
+  pages_for_section = Nil
+
+  if page_group_id
+    pages_for_section = db.query_all("
+      SELECT id FROM pages
+      WHERE parent_id = ?
+      ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order
+    ", page_group_id, as: {
+      id: Int64
+    })
+  else
+    pages_for_section = db.query_all("
+      SELECT id FROM pages
+      WHERE section_id = ?
+      ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order
+    ", original_page["section_id"], as: {
+      id: Int64
+    })
+  end
 
   original_page_index = pages_for_section.index { |page_for_section| page_for_section["id"] == original_page["id"] }
   duplicate_page_index = pages_for_section.index { |page_for_section| page_for_section["id"] == result.last_insert_id }

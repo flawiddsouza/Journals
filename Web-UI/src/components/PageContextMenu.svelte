@@ -4,6 +4,7 @@ export let fetchPages
 export let pages
 export let activePage
 export let notebooks
+export let pageGroupId = null
 
 import fetchPlus from '../helpers/fetchPlus.js'
 import Portal from './Portal.svelte'
@@ -43,9 +44,13 @@ function pageEnableEdits() {
 }
 
 async function duplicatePage() {
-    await fetchPlus.post(`/duplicate-page/${pageItemContextMenu.page.id}`, {})
+    await fetchPlus.post(`/duplicate-page/${pageItemContextMenu.page.id}`, { pageGroupId })
     pageItemContextMenu.page = null
-    fetchPages()
+    if(pageGroupId) {
+        fetchPages(pageGroupId)
+    } else {
+        fetchPages()
+    }
 }
 
 function startMovePage() {
@@ -78,7 +83,25 @@ function deletePage() {
         pages = pages.filter(page => page.id !== pageItemContextMenu.page.id)
 
         if(activePage.id === pageItemContextMenu.page.id) {
-            activePage = {}
+            if(pageGroupId) {
+                if(pages.length) {
+                    activePage = pages[0]
+                    fetchPlus.put(`/pages/${pageGroupId}`, {
+                        pageContent: JSON.stringify({
+                            activePageId: activePage.id
+                        })
+                    })
+                } else {
+                    activePage = {}
+                    fetchPlus.put(`/pages/${pageId}`, {
+                        pageContent: JSON.stringify({
+                            activePageId: null
+                        })
+                    })
+                }
+            } else {
+                activePage = {}
+            }
         }
     }
     pageItemContextMenu.page = null

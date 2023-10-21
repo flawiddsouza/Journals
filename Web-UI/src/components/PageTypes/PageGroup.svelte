@@ -5,6 +5,12 @@ export let activePageId = null
 
 let pages = []
 let activePage = null
+let pageItemContextMenu = {
+    left: 0,
+    top: 0,
+    page: null
+}
+let notebooks = []
 
 $: fetchPages(pageId)
 
@@ -14,6 +20,7 @@ import debounce from '../../helpers/debounce.js'
 import PageNav from '../PageNav.svelte'
 import { dragSort } from '../../actions/dragSort.js'
 import { eventStore } from '../../stores.js'
+import PageContextMenu from '../PageContextMenu.svelte'
 
 eventStore.subscribe(event => {
     if(event && event.event === 'pageAddedToPageGroup' && event.data.pageGroupId === pageId) {
@@ -92,6 +99,21 @@ function selectPage(page) {
         })
     })
 }
+
+function handleContextMenu(event, page) {
+    event.preventDefault()
+    pageItemContextMenu = {
+        page,
+        left: event.clientX,
+        top: event.clientY
+    }
+}
+
+window.addEventListener('click', e => {
+    if(!e.target.closest('.context-menu')) {
+        pageItemContextMenu.page = null
+    }
+})
 </script>
 
 <div style="display: grid; grid-template-rows: auto auto 1fr; height: 100%">
@@ -105,14 +127,27 @@ function selectPage(page) {
                 on:click|preventDefault={() => selectPage(page)}
                 class:active={ activePage && activePage.id === page.id }
                 use:dragSort={{ item: page, onSort }}
+                on:contextmenu={e => handleContextMenu(e, page)}
             >{page.name}</a>
         {/each}
     </div>
+
     {#if activePage}
         <div style="margin-bottom: 1rem">
             <PageNav bind:activePage={activePage}></PageNav>
         </div>
         <Page activePage={activePage} updatePageName={updatePageName} viewOnly={viewOnly} />
+    {/if}
+
+    {#if pageItemContextMenu.page || (activePage !== null && activePage.id !== undefined && activePage.id !== null)}
+        <PageContextMenu
+            bind:pageItemContextMenu={pageItemContextMenu}
+            {fetchPages}
+            bind:pages={pages}
+            bind:activePage={activePage}
+            {notebooks}
+            pageGroupId={pageId}
+        ></PageContextMenu>
     {/if}
 </div>
 
