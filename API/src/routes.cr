@@ -1,3 +1,5 @@
+require "./cache_helpers"
+
 get "/" do
   "Journals API"
 end
@@ -932,9 +934,28 @@ get "/page-group/:page_id" do |env|
   pages.to_json
 end
 
+error 404 do
+  "404: The page you're looking for doesn't exist"
+end
+
 get "/uploads/images/:file_name" do |env|
   file_name = env.params.url["file_name"]
 
-  env.response.content_type = MIME.from_filename(file_name)
-  File.read("#{data_directory}/uploads/images/#{file_name}")
+  file_path = "#{data_directory}/uploads/images/#{file_name}"
+
+  if File.exists?(file_path)
+    env.response.content_type = MIME.from_filename(file_name)
+
+    # add caching to speed up loading of uploaded images / files
+    last_modified = modification_time(file_path)
+    add_cache_headers(env.response.headers, last_modified)
+
+    if cache_request?(env, last_modified)
+      env.response.status_code = 304
+    else
+      File.read(file_path)
+    end
+  else
+    env.response.status_code = 404
+  end
 end

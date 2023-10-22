@@ -15,9 +15,5 @@ add_handler AuthHandler.new
 # routes
 require "./routes"
 
-static_headers do |response, filepath, filestat|
-  response.headers.add("Access-Control-Allow-Origin", "*")
-end
-
 Kemal.config.port = 9900
 Kemal.run
