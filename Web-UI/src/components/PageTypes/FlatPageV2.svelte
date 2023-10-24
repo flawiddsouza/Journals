@@ -80,10 +80,7 @@ function handlePaste(event) {
             if(confirm(`Do you want to convert ${links.length} links to clickable links?`)) {
                 event.preventDefault()
                 const html = text.replace(linksRegex, '<a href="$1" target="_blank" contenteditable="false">$1</a>')
-                // wrap each line break line with a div, as it would do if we had pasted the plain text directly
-                .split(/\r?\n/)
-                .map(line => `<div>${line}</div>`)
-                .join('')
+                .replaceAll('\n', '<br>')
                 document.execCommand('insertHTML', false, html)
             }
         }
