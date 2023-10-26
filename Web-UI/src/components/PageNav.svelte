@@ -184,7 +184,7 @@ async function exportPage() {
 }
 </script>
 
-Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> {#if activePage.type !== 'Spreadsheet' && activePage.type !== 'DrawIO'} | <a href="#view-page-styles" on:click|preventDefault|stopPropagation={() => activePage.id ? startShowPageStylesModal() : null}>Styles</a> | <a href="#export" on:click|preventDefault|stopPropagation={() => activePage.id ? exportPage() : null}>Export</a> {/if} ]
+Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> {#if activePage.type !== 'Spreadsheet' && activePage.type !== 'DrawIO'} | <a href="#view-page-styles" on:click|preventDefault|stopPropagation={() => activePage.id ? startShowPageStylesModal() : null}>Styles</a> | <a href="#export" on:click|preventDefault|stopPropagation={() => activePage.id ? exportPage() : null}>Export</a> {/if} {#if activePage.parent_id !== undefined} | <a href={'/page/' + activePage.parent_id} target="_blank">Open Page Group</a> {/if} ]
 
 <Portal>
     {#if showPageHistoryModal}
