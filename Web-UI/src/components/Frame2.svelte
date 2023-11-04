@@ -42,13 +42,13 @@ getPageInfo()
     <div style="display: grid; place-items: center; height: 100vh; font-size: 2rem;">404 Page Not Found</div>
 {:else}
     <div style="display: grid; grid-template-rows: auto 1fr; height: 100vh;">
-        <div class="page-header">
-            <div style="margin-left: 2em">
-                {#if activePage.locked === false && activePage.type !== 'PageGroup'}
+        {#if activePage.locked === false && activePage.type !== 'PageGroup'}
+            <div class="page-header">
+                <div style="margin-left: 2em">
                     <PageNav bind:activePage={activePage}></PageNav>
-                {/if}
+                </div>
             </div>
-        </div>
+        {/if}
         <Page activePage={activePage} updatePageName={updatePageName} viewOnly={activePage.parent_view_only} className="journal-page-container"></Page>
     </div>
 {/if}
