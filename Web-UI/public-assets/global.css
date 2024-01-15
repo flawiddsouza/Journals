@@ -51,3 +51,9 @@ h2.heading {
     margin: 0;
     margin-bottom: 0.5em;
 }
+
+@media only screen and (max-width: 1000px) {
+    .hide-on-small-screen {
+        display: none;
+    }
+}

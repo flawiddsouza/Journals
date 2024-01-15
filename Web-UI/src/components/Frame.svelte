@@ -668,8 +668,10 @@ import { eventStore } from '../stores.js'
                     <PageNav bind:activePage={activePage} activeSection={activeSection}></PageNav>
                 {/if}
             </div>
-            <a href="#add-account" on:click|preventDefault|stopPropagation={switchAccount} class="mr-1em">Switch Account</a>
-            <a href="#change-password" on:click|preventDefault|stopPropagation={() => showChangePasswordModal = true} class="mr-1em">Change Password</a>
+            <span class="hide-on-small-screen">
+                <a href="#add-account" on:click|preventDefault|stopPropagation={switchAccount} class="mr-1em">Switch Account</a>
+                <a href="#change-password" on:click|preventDefault|stopPropagation={() => showChangePasswordModal = true} class="mr-1em">Change Password</a>
+            </span>
             <a href="#logout" on:click|preventDefault|stopPropagation={logout} class="mr-1em">Logout</a>
             &#9776; Menu
         </div>
