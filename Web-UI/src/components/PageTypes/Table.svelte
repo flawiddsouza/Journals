@@ -524,10 +524,10 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
                             </td>
                         {/each}
                         {#if pageContentOverride === undefined && viewOnly === false}
-                        <td style="border: 0; padding-left: 1rem; white-space: nowrap;">
-                            <button style="border: 1px solid grey; background: transparent;" on:click={() => insertRow(itemIndex, true)}>↑</button>
-                            <button style="border: 1px solid grey; background: transparent;" on:click={() => insertRow(itemIndex, false)}>↓</button>
-                            <button style="border: 1px solid grey; background: transparent;" on:click={() => {
+                        <td class="table-actions">
+                            <button on:click={() => insertRow(itemIndex, true)}>↑</button>
+                            <button on:click={() => insertRow(itemIndex, false)}>↓</button>
+                            <button on:click={() => {
                                 if(!confirm('Are you sure you want to delete this row?')) {
                                     return
                                 }
@@ -849,5 +849,17 @@ table td > div[contenteditable] {
     border: 1px solid lightgrey;
     padding: 2px;
     display: inline-block;
+}
+
+td.table-actions {
+    border: 0;
+    padding-left: 1rem;
+    white-space: nowrap;
+    opacity: 0.5;
+}
+
+td.table-actions button {
+    border: 1px solid grey;
+    background: transparent;
 }
 </style>
