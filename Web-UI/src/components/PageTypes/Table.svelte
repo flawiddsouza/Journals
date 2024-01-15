@@ -201,65 +201,76 @@ function getSelectionTextInfo(el) {
     return { atStart: atStart, atEnd: atEnd }
 }
 
+function insertRow(rowIndex, insertAbove) {
+    let insertObj = {}
+    columns.forEach(column => {
+        insertObj[column.name] = ''
+    })
+
+    if(!insertAbove) {
+        items.splice(rowIndex + 1, 0, insertObj)
+    } else { // insert row above if ctrl + shift + enter
+        items.splice(rowIndex, 0, insertObj)
+    }
+    items = items
+
+    // move focus to the first focusable cell of the inserted row, if shift key is not pressed
+    if(!insertAbove) {
+        setTimeout(() => {
+            let rows = document.querySelector('.editable-table tbody').querySelectorAll('tr')
+            let bottomRow = rows[rowIndex + 1]
+            if(typeof bottomRow !== 'undefined') {
+                let bottomCell = bottomRow.querySelector('div[contenteditable]')
+                bottomCell.focus()
+            }
+        }, 0)
+    }
+}
+
+function deleteRow(rowIndex) {
+    if(items.length === 1) {
+        undoStackForRemoveRow.push({ index: 0, item: JSON.parse(JSON.stringify(items[0])) }) // save undo
+
+        columns.forEach(column => {
+            items[0][column.name] = ''
+        })
+
+        return
+    }
+
+    undoStackForRemoveRow.push({ index: rowIndex, item: items[rowIndex] }) // save undo
+
+    items.splice(rowIndex, 1)
+    items = items
+
+    // move focus to the first focusable cell of the row before the removed row
+    let tbody = document.querySelector('.editable-table tbody')
+    if(!tbody) { return }
+    let rows = tbody.querySelectorAll('tr')
+    let bottomRow = rows[rowIndex - 1]
+    if(typeof bottomRow !== 'undefined') {
+        let bottomCell = bottomRow.querySelector('div[contenteditable]')
+        bottomCell.focus()
+    }
+}
+
 function handleKeysInTD(e, itemIndex, itemColumn) {
     defaultKeydownHandlerForContentEditableArea(e)
     saveCursorPosition()
 
-    // insert row below
+    // insert row
     if(e.ctrlKey && e.key === 'Enter')  {
-        let insertObj = {}
-        columns.forEach(column => {
-            insertObj[column.name] = ''
-        })
-
-        if(e.shiftKey === false) {
-            items.splice(itemIndex + 1, 0, insertObj)
-        } else { // insert row above if ctrl + shift + enter
-            items.splice(itemIndex, 0, insertObj)
-        }
-        items = items
-
-        // move focus to the first focusable cell of the inserted row, if shift key is not pressed
-        if(e.shiftKey === false) {
-            setTimeout(() => {
-                let rows = e.target.closest('tbody').querySelectorAll('tr')
-                let bottomRow = rows[itemIndex + 1]
-                if(typeof bottomRow !== 'undefined') {
-                    let bottomCell = bottomRow.querySelector('div[contenteditable]')
-                    bottomCell.focus()
-                }
-            }, 0)
+        if(e.shiftKey) {
+            insertRow(itemIndex, true)
+        } else {
+            insertRow(itemIndex, false)
         }
     }
 
     // remove current row
     if(e.ctrlKey && e.key.toLowerCase() === 'delete') {
         e.preventDefault()
-
-        if(items.length === 1) {
-            undoStackForRemoveRow.push({ index: 0, item: JSON.parse(JSON.stringify(items[0])) }) // save undo
-
-            columns.forEach(column => {
-                items[0][column.name] = ''
-            })
-
-            return
-        }
-
-        undoStackForRemoveRow.push({ index: itemIndex, item: items[itemIndex] }) // save undo
-
-        items.splice(itemIndex, 1)
-        items = items
-
-        // move focus to the first focusable cell of the row before the removed row
-        let tbody = e.target.closest('tbody')
-        if(!tbody) { return }
-        let rows = tbody.querySelectorAll('tr')
-        let bottomRow = rows[itemIndex - 1]
-        if(typeof bottomRow !== 'undefined') {
-            let bottomCell = bottomRow.querySelector('div[contenteditable]')
-            bottomCell.focus()
-        }
+        deleteRow(itemIndex)
     }
 
     // move to upper cell
@@ -512,6 +523,18 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
                                 {/if}
                             </td>
                         {/each}
+                        {#if pageContentOverride === undefined && viewOnly === false}
+                        <td style="border: 0; padding-left: 1rem; white-space: nowrap;">
+                            <button style="border: 1px solid grey; background: transparent;" on:click={() => insertRow(itemIndex, true)}>↑</button>
+                            <button style="border: 1px solid grey; background: transparent;" on:click={() => insertRow(itemIndex, false)}>↓</button>
+                            <button style="border: 1px solid grey; background: transparent;" on:click={() => {
+                                if(!confirm('Are you sure you want to delete this row?')) {
+                                    return
+                                }
+                                deleteRow(itemIndex)
+                            }}>x</button>
+                        </td>
+                        {/if}
                     </tr>
                 {/each}
             </tbody>
