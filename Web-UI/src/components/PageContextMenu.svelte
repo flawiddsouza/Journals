@@ -17,6 +17,11 @@ let showMovePageModalSelectedSectionId = null
 let showMovePageModalSelectedPageGroupId = null
 let pageGroupsForShowMovePageModalSelectedSectionId = []
 
+function openPageNewTab() {
+    window.open(`/page/${pageItemContextMenu.page.id}`)
+    pageItemContextMenu.page = null
+}
+
 function pageMakeViewOnly() {
     fetchPlus.put(`/pages/view-only/${pageItemContextMenu.page.id}`, {
         viewOnly: true
@@ -247,6 +252,7 @@ $: fetchPageGroupsForSectionId(showMovePageModalSelectedSectionId)
     {#if pageItemContextMenu.page}
         <div class="context-menu" style="left: {pageItemContextMenu.left}px; top: {pageItemContextMenu.top}px">
             {#if pageItemContextMenu.page.locked === false}
+                <div on:click={openPageNewTab}>Open page in a new tab</div>
                 {#if pageItemContextMenu.page.view_only === false}
                     <div on:click={pageMakeViewOnly}>Make view only</div>
                 {:else}
