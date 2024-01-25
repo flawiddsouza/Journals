@@ -944,7 +944,11 @@ get "/uploads/images/:file_name" do |env|
   file_path = "#{data_directory}/uploads/images/#{file_name}"
 
   if File.exists?(file_path)
-    env.response.content_type = MIME.from_filename(file_name)
+    begin
+      env.response.content_type = MIME.from_filename(file_name)
+    rescue exception
+      env.response.content_type = "application/octet-stream"
+    end
 
     # add caching to speed up loading of uploaded images / files
     last_modified = modification_time(file_path)
