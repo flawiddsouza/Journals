@@ -490,6 +490,39 @@ function saveCursorPosition() {
     savedCursorPosition = window.getSelection().getRangeAt(0)
 }
 
+function copyConfiguration() {
+    let copyText = JSON.stringify({
+        columns,
+        totals,
+        widths,
+        rowStyle,
+        startupScript,
+    })
+    navigator.clipboard.writeText(copyText).then(() => {
+        alert('Configuration copied to clipboard')
+    })
+}
+
+async function pasteConfiguration() {
+    const clipboardText = await navigator.clipboard.readText()
+    if(!confirm('Are you sure you want to paste configuration? This will overwrite the current configuration.')) {
+        return
+    }
+    try {
+        let parsedClipboardText = JSON.parse(clipboardText)
+        columns = parsedClipboardText.columns
+        if(items.length === 0) {
+            items.push({})
+        }
+        totals = parsedClipboardText.totals
+        widths = parsedClipboardText.widths
+        rowStyle = parsedClipboardText.rowStyle
+        startupScript = parsedClipboardText.startupScript
+    } catch(e) {
+        alert('Invalid configuration')
+    }
+}
+
 import 'code-mirror-custom-element'
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
 </script>
@@ -551,7 +584,11 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
             {/if}
         </table>
     {:else}
-        <div class="config" on:click={() => configuration = false}>Exit Configuration</div>
+        <div class="config-holder">
+            <div on:click={() => configuration = false}>Exit Configuration</div>
+            <div on:click={copyConfiguration} style="margin-top: 0.5rem">Copy Configuration</div>
+            <div on:click={pasteConfiguration} style="margin-top: 0.25rem">Paste Configuration</div>
+        </div>
 
         <div class="config-heading">Columns</div>
         <form on:submit|preventDefault={addColumn}>
@@ -778,6 +815,17 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`
 <style>
 .pos-r {
     position: relative;
+}
+
+.config-holder {
+    position: absolute;
+    right: 24px;
+    top: -47px;
+}
+
+.config-holder > div {
+    cursor: pointer;
+    color: blue;
 }
 
 .config {
