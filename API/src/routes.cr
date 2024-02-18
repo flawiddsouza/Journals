@@ -963,3 +963,35 @@ get "/uploads/images/:file_name" do |env|
     env.response.status_code = 404
   end
 end
+
+post "/pages/search" do |env|
+  query = env.params.json["query"].as(String)
+
+  pages = db.query_all("
+    SELECT
+      pages.id,
+      pages.name,
+      pages.section_id,
+      sections.notebook_id,
+      sections.name as section_name,
+      notebooks.name as notebook_name,
+      notebooks.profile_id
+    FROM pages
+    JOIN sections ON sections.id = pages.section_id
+    JOIN notebooks ON notebooks.id = sections.notebook_id
+    WHERE pages.user_id = ? AND pages.name LIKE ?
+    ORDER BY pages.name
+    LIMIT 5
+  ", env.auth_id, "%#{query}%", as: {
+    id:   Int64,
+    name: String,
+    section_id: Int64,
+    notebook_id: Int64,
+    section_name: String,
+    notebook_name: String,
+    profile_id: Int64 | Nil
+  })
+
+  env.response.content_type = "application/json"
+  pages.to_json
+end

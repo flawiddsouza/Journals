@@ -1,6 +1,7 @@
 <script>
 import LoginRegister from './components/LoginRegister.svelte'
 import Frame from './components/Frame.svelte'
+import Search from './components/Search.svelte'
 
 import { token } from './stores.js'
 </script>
@@ -9,4 +10,5 @@ import { token } from './stores.js'
     <LoginRegister></LoginRegister>
 {:else}
     <Frame></Frame>
+    <Search></Search>
 {/if}
