@@ -79,8 +79,15 @@ function handlePaste(event) {
         if (links && links.length > 0) {
             if(confirm(`Do you want to convert ${links.length} links to clickable links?`)) {
                 event.preventDefault()
-                const html = text.replace(linksRegex, '<a href="$1" target="_blank" contenteditable="false">$1</a>')
-                .replaceAll('\n', '<br>')
+
+                let html = text.split('\n').map(line => {
+                    return line.replace(linksRegex, '<a href="$1" target="_blank" contenteditable="false">$1</a>')
+                }).join('<br>')
+
+                if (text.endsWith('\n')) {
+                    html += '<br>'
+                }
+
                 document.execCommand('insertHTML', false, html)
             }
         }
