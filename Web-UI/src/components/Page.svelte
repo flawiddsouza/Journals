@@ -2,6 +2,7 @@
 import Table from './PageTypes/Table.svelte'
 import FlatPage from './PageTypes/FlatPage.svelte'
 import FlatPageV2 from './PageTypes/FlatPageV2.svelte'
+import RichText from './PageTypes/RichText.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
 import PageGroup from './PageTypes/PageGroup.svelte'
@@ -71,6 +72,13 @@ function makeContentEditableSingleLine(e) {
                     style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"
                     bind:viewOnly={viewOnlyComputed}
                 ></FlatPageV2>
+            {/if}
+            {#if activePage.type === 'RichText'}
+                <RichText
+                    bind:pageId={activePage.id}
+                    style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                    bind:viewOnly={viewOnlyComputed}
+                ></RichText>
             {/if}
             {#if activePage.type === 'Spreadsheet'}
                 <Spreadsheet
