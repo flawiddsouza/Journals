@@ -50,12 +50,12 @@ import editorjsNestedChecklist from '@calumk/editorjs-nested-checklist'
 import AttachesTool from '@editorjs/attaches'
 import ImageTool from '@editorjs/image'
 import Underline from '@editorjs/underline'
-import Marker from '@editorjs/marker'
 import Undo from 'editorjs-undo'
 import InlineCode from '@editorjs/inline-code'
 import DragDrop from 'editorjs-drag-drop'
 import Strikethrough from '@sotaproject/strikethrough'
 import ToggleBlock from 'editorjs-toggle-block'
+import ColorPlugin from 'editorjs-text-color-plugin'
 import { baseURL } from '../../../config.js'
 
 let editor
@@ -123,15 +123,29 @@ function pageContainerMounted(element) {
                 class: Underline,
                 shortcut: 'CMD+U',
             },
-            Marker: {
-                class: Marker,
-                shortcut: 'CMD+SHIFT+M',
-            },
             inlineCode: InlineCode,
             strikethrough: Strikethrough,
             toggle: {
                 class: ToggleBlock,
                 inlineToolbar: true,
+            },
+            Color: {
+                class: ColorPlugin,
+                config: {
+                    colorCollections: ['#EC7878','#9C27B0','#673AB7','#3F51B5','#0070FF','#03A9F4','#00BCD4','#4CAF50','#8BC34A','#CDDC39', '#FFF'],
+                    defaultColor: '#FF1300',
+                    type: 'text',
+                    customPicker: true,
+                }
+            },
+            Marker: {
+                class: ColorPlugin,
+                config: {
+                    colorCollections: ['#EC7878','#9C27B0','#673AB7','#3F51B5','#0070FF','#03A9F4','#00BCD4','#4CAF50','#8BC34A','#CDDC39', '#FFF'],
+                    defaultColor: '#FFBF00',
+                    type: 'marker',
+                    customPicker: true,
+                }
             },
         },
         minHeight: '100%',
@@ -169,7 +183,7 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
 
 {#if pageContentOverride === undefined && viewOnly === false}
     {#if loaded === false}
-        <div class="page-container" style="{style}">Loading...</div>
+        <div class="page-container loading" style="{style}">Loading...</div>
     {:else}
         <div class="page-container" spellcheck="false" style="{style}" use:pageContainerMounted></div>
     {/if}
@@ -192,6 +206,10 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
     height: 100%;
 }
 
+.page-container.loading {
+    margin: 0 4.5rem;
+}
+
 .page-container.view-only {
     padding-bottom: 5.4em;
 }
@@ -208,7 +226,7 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
     margin: 0 4rem;
 }
 
-.page-container :global(.codex-editor > .codex-editor__redactor > .ce-block > .ce-block__content) {
+.page-container :global(.codex-editor > .codex-editor__redactor > .ce-block .ce-block__content) {
     margin: 0 4.5rem;
 }
 </style>
