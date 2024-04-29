@@ -56,6 +56,7 @@ import DragDrop from 'editorjs-drag-drop'
 import Strikethrough from '@sotaproject/strikethrough'
 import ToggleBlock from 'editorjs-toggle-block'
 import ColorPlugin from 'editorjs-text-color-plugin'
+import Header from '@editorjs/header';
 import { baseURL } from '../../../config.js'
 
 let editor
@@ -146,6 +147,10 @@ function pageContainerMounted(element) {
                     type: 'marker',
                     customPicker: true,
                 }
+            },
+            header: {
+                class: Header,
+                inlineToolbar: true,
             },
         },
         minHeight: '100%',
