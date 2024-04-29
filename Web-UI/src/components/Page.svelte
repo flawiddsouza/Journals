@@ -41,7 +41,7 @@ function makeContentEditableSingleLine(e) {
 
 <main class="journal-page {className}" style="display: grid; grid-template-rows: auto 1fr;">
     {#if activePage.id !== undefined && activePage.id !== null && activePage.locked === false}
-        <div>
+        <div style="{activePage.type === 'RichText' ? 'margin-left: 4.5rem;' : ''}">
             {#if viewOnlyComputed}
                 <h1 class="journal-page-title" style="margin-bottom: 0">{activePage.name}</h1>
             {:else}
