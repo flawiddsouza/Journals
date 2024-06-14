@@ -87,7 +87,11 @@ onMount(() => {
                         href="{`/page/${result.id}`}"
                         on:click={navigate}
                     >
-                        <div>{result.name}</div>
+                        {#if result.parent_id}
+                            <div>{result.parent_name} > {result.name}</div>
+                        {:else}
+                            <div>{result.name}</div>
+                        {/if}
                         <div style="color: darkgrey;">{result.notebook_name} > {result.section_name}</div>
                     </a>
                 {/each}

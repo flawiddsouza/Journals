@@ -975,21 +975,26 @@ post "/pages/search" do |env|
       sections.notebook_id,
       sections.name as section_name,
       notebooks.name as notebook_name,
-      notebooks.profile_id
+      notebooks.profile_id,
+      pages.parent_id,
+      page_group.name as parent_name
     FROM pages
     JOIN sections ON sections.id = pages.section_id
     JOIN notebooks ON notebooks.id = sections.notebook_id
+    LEFT JOIN pages AS page_group ON page_group.id = pages.parent_id
     WHERE pages.user_id = ? AND pages.name LIKE ?
     ORDER BY pages.name
     LIMIT 5
   ", env.auth_id, "%#{query}%", as: {
-    id:   Int64,
+    id: Int64,
     name: String,
     section_id: Int64,
     notebook_id: Int64,
     section_name: String,
     notebook_name: String,
-    profile_id: Int64 | Nil
+    profile_id: Int64 | Nil,
+    parent_id: Int64 | Nil,
+    parent_name: String | Nil
   })
 
   env.response.content_type = "application/json"
