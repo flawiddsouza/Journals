@@ -984,7 +984,7 @@ post "/pages/search" do |env|
     LEFT JOIN pages AS page_group ON page_group.id = pages.parent_id
     WHERE pages.user_id = ? AND pages.name LIKE ?
     ORDER BY pages.name
-    LIMIT 5
+    LIMIT 10
   ", env.auth_id, "%#{query}%", as: {
     id: Int64,
     name: String,
