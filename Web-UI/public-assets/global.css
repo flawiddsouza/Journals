@@ -24,6 +24,7 @@ body {
     cursor: pointer;
     box-shadow: 6px 8px 7px -11px black;
     border: 1px solid #cccccc;
+    z-index: 1;
 }
 
 .context-menu > div {
