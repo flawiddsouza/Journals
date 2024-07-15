@@ -80,6 +80,7 @@ function switchAccount() {
                 <label class="mt-0_5em">Login Duration:<br>
                     <select bind:value={loginDuration} class="w-100p">
                         <option>30 Minutes</option>
+                        <option>9 Hours</option>
                         <option>Permanent</option>
                     </select>
                 </label>
