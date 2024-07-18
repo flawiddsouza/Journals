@@ -7,6 +7,7 @@ import fetchPlus from '../helpers/fetchPlus.js'
 let activePageId = document.location.pathname.split('/').slice(-1)[0]
 let activePage = {}
 let pageNotFound = false
+let gridTemplateRowsMainDiv = `grid-template-rows: 1fr`
 
 async function getPageInfo() {
     if(!activePageId) {
@@ -16,6 +17,11 @@ async function getPageInfo() {
 
     try {
         activePage = await fetchPlus.get(`/pages/info/${activePageId}`)
+        if(activePage.locked === false && activePage.type !== 'PageGroup') {
+            gridTemplateRowsMainDiv = `grid-template-rows: auto 1fr`
+        } else {
+            gridTemplateRowsMainDiv = `grid-template-rows: 1fr`
+        }
     } catch {
         pageNotFound = true
     }
@@ -39,9 +45,9 @@ getPageInfo()
 </script>
 
 {#if pageNotFound}
-    <div style="display: grid; place-items: center; height: 100vh; font-size: 2rem;">404 Page Not Found</div>
+    <div style="display: grid; place-items: center; height: 100svh; font-size: 2rem;">404 Page Not Found</div>
 {:else}
-    <div style="display: grid; grid-template-rows: auto 1fr; height: 100vh;">
+    <div style="display: grid; height: 100svh; {gridTemplateRowsMainDiv}">
         {#if activePage.locked === false && activePage.type !== 'PageGroup'}
             <div class="page-header">
                 <div style="margin-left: 2em">
