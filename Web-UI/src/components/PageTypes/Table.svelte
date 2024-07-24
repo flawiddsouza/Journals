@@ -575,7 +575,7 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
                 <tr>
                     {#each columns as column}
                         {#if totals.hasOwnProperty(column.name)}
-                            <th style="{column.wrap === 'No' ? 'white-space: nowrap;' : ''}">{@html evalulateJS(totals[column.name]) }</th>
+                            <th style="{column.wrap === 'No' ? 'white-space: nowrap;' : ''}">{@html evalulateJS(totals[column.name], null, column.name) }</th>
                         {:else}
                             <th></th>
                         {/if}
@@ -718,6 +718,9 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
                     </code-mirror>
                 </div>
             {/each}
+        </div>
+        <div class="config-area-note">
+            Available variables: <code>items</code> & <code>columnName</code>
         </div>
 
         <div class="config-heading mt-1em">Column Widths</div>
