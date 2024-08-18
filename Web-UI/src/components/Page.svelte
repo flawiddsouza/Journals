@@ -94,6 +94,7 @@ function makeContentEditableSingleLine(e) {
             {/if}
             {#if activePage.type === 'PageGroup'}
                 <PageGroup
+                    bind:pageGroupPage={activePage}
                     bind:pageId={activePage.id}
                     bind:viewOnly={viewOnlyComputed}
                     activePageId={activePage.activePageId}

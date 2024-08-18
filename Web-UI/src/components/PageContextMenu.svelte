@@ -106,7 +106,7 @@ function deletePage() {
                     })
                 } else {
                     activePage = {}
-                    fetchPlus.put(`/pages/${pageId}`, {
+                    fetchPlus.put(`/pages/${pageGroupId}`, {
                         pageContent: JSON.stringify({
                             activePageId: null
                         })

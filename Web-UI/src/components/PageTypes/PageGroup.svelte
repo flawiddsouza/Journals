@@ -1,4 +1,5 @@
 <script>
+export let pageGroupPage = null
 export let pageId = null
 export let viewOnly = false
 export let activePageId = null
@@ -11,6 +12,7 @@ let pageItemContextMenu = {
     page: null
 }
 let notebooks = []
+let showAddPageModal = false
 
 $: fetchPages(pageId)
 
@@ -21,6 +23,7 @@ import PageNav from '../PageNav.svelte'
 import { dragSort } from '../../actions/dragSort.js'
 import { eventStore } from '../../stores.js'
 import PageContextMenu from '../PageContextMenu.svelte'
+import AddPageModal from '../Modals/AddPageModal.svelte'
 
 eventStore.subscribe(event => {
     if(event && event.event === 'pageAddedToPageGroup' && event.data.pageGroupId === pageId) {
@@ -114,11 +117,25 @@ window.addEventListener('click', e => {
         pageItemContextMenu.page = null
     }
 })
+
+function setPages(updatedPages) {
+    pages = updatedPages
+}
+
+function setActivePage(updatedActivePage) {
+    activePage = updatedActivePage
+}
+
+function handleShowAddPageModal() {
+    showAddPageModal = true
+}
 </script>
 
 <div style="display: grid; grid-template-rows: auto auto 1fr; height: 100%">
     {#if pages.length === 0}
-        There are no pages in this page group.
+        <div>
+            There are no pages in this page group. <button on:click={handleShowAddPageModal} style="margin-left: 0.5rem;">Add Page +</button>
+        </div>
     {/if}
     <div class="page-group-tabs">
         {#each pages as page}
@@ -130,9 +147,12 @@ window.addEventListener('click', e => {
                 on:contextmenu={e => handleContextMenu(e, page)}
             >{page.name}</a>
         {/each}
+        {#if pages.length > 0}
+            <button on:click={handleShowAddPageModal} style="margin-left: 0.5rem;">+</button>
+        {/if}
     </div>
 
-    {#if activePage}
+    {#if activePage && pages.length > 0}
         <div style="margin-bottom: 1rem">
             <PageNav bind:activePage={activePage}></PageNav>
         </div>
@@ -148,6 +168,19 @@ window.addEventListener('click', e => {
             {notebooks}
             pageGroupId={pageId}
         ></PageContextMenu>
+    {/if}
+
+    {#if showAddPageModal}
+        <AddPageModal
+            sectionId="{pageGroupPage.section_id}"
+            notebookId="{pageGroupPage.notebook_id}"
+            pages="{pages}"
+            pageGroupId="{pageId}"
+            setPages={setPages}
+            setActivePage={setActivePage}
+            activePage={activePage}
+            onClose={() => showAddPageModal = false}
+        />
     {/if}
 </div>
 
@@ -166,7 +199,7 @@ window.addEventListener('click', e => {
     cursor: pointer;
 }
 
-.page-group-tabs > a:not(:last-child) {
+.page-group-tabs > a:not(:last-of-type) {
     border-right: 0;
 }
 

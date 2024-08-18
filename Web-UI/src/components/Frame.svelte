@@ -220,83 +220,13 @@ async function fetchPages() {
 
 let showAddPageModal = false
 let addPageToTop = false
-let addPage = {
-    name: '',
-    type: 'FlatPage'
+
+function setPages(updatedPages) {
+    pages = updatedPages
 }
 
-async function addPageToActiveSection() {
-    showAddPageModal = false
-
-    let pageName = addPage.name
-    let pageType = addPage.type
-    let pageParentId = addPage.type !== 'PageGroup' ? Number(addPage.parentId ?? null) : null
-
-    const response = await fetchPlus.post('/pages', {
-        sectionId: activeSection.id,
-        pageName,
-        pageType,
-        pageParentId: pageParentId !== 0 ? pageParentId : null
-    })
-
-    let pageObj = {
-        id: response.insertedRowId,
-        name: pageName,
-        type: pageType,
-        section_id: activeSection.id,
-        notebook_id: activeSection.notebook_id,
-        view_only: false,
-        password_exists: false,
-        locked: false,
-        created_at: response.createdAt
-    }
-
-    if(addPage.parentId) {
-        if(addPage.parentId !== activePage.id) {
-            activePage = pages.find(page => page.id === addPage.parentId)
-            activePage.activePageId = response.insertedRowId
-        } else {
-            eventStore.set({
-                event: 'pageAddedToPageGroup',
-                data: {
-                    pageGroupId: addPage.parentId
-                }
-            })
-        }
-
-        addPage = {
-            name: '',
-            type: 'FlatPage'
-        }
-
-        return
-    }
-
-    if(addPageToTop) {
-        pages.unshift(pageObj)
-    } else {
-        pages.push(pageObj)
-    }
-
-    pages = pages
-
-    // set sort order {
-    let pageIdsWithSortOrder = pages.map((page, index) => {
-        return {
-            pageId: String(page.id),
-            sortOrder: index + 1
-        }
-    })
-
-    fetchPlus.post('/pages/sort-order/update', pageIdsWithSortOrder)
-    // }
-
-    activePage = pageObj
-
-    addPage = {
-        name: '',
-        type: 'FlatPage'
-    }
+function setActivePage(updatedActivePage) {
+    activePage = updatedActivePage
 }
 
 let pageItemContextMenu = {
@@ -625,16 +555,6 @@ function makeDraggableItem(element) {
     element.addEventListener('dragstart', e => dragstart(e))
 }
 
-function handleAddPageInput(e) {
-    // insert current date at cursor
-    if(e.altKey && e.shiftKey && e.key.toLowerCase() === 'd') {
-        const el = e.target
-        const textToInsert = format(new Date(), 'DD-MMM-YY')
-        el.setRangeText(textToInsert, el.selectionStart, el.selectionEnd, 'end')
-        el.dispatchEvent(new Event('input')) // trigger the input event, so the data binding gets updated by svelte
-    }
-}
-
 function handlePagesSidebarItemClick(e, page) {
     if(e.ctrlKey) {
         return
@@ -648,8 +568,7 @@ import PageNav from './PageNav.svelte'
 import PageContextMenu from './PageContextMenu.svelte'
 import Page from './Page.svelte'
 import Modal from './Modal.svelte'
-import { format } from 'date-fns'
-import { eventStore } from '../stores.js'
+import AddPageModal from './Modals/AddPageModal.svelte'
 </script>
 
 <div style="display: grid; grid-template-rows: auto 1fr; height: 100%;">
@@ -756,38 +675,16 @@ import { eventStore } from '../stores.js'
         </nav>
     </div>
     {#if showAddPageModal}
-        <Modal on:close-modal={() => showAddPageModal = false}>
-            <form on:submit|preventDefault={addPageToActiveSection}>
-                <h2 class="heading">Add Page</h2>
-                <label>Name<br>
-                    <input type="text" bind:value={addPage.name} required class="w-100p" use:focus on:keydown={handleAddPageInput}>
-                </label>
-                <label class="d-b mt-0_5em">Type<br>
-                    <select bind:value={addPage.type} required class="w-100p">
-                        <option value="FlatPage">Flat Page</option>
-                        <option value="FlatPageV2">Flat Page v2</option>
-                        <option value="RichText">Rich Text</option>
-                        <option value="Table">Table</option>
-                        <option value="Spreadsheet">Spreadsheet</option>
-                        <option value="DrawIO">Draw.io</option>
-                        <option value="PageGroup">Page Group</option>
-                    </select>
-                </label>
-                {#if addPage.type !== 'PageGroup'}
-                    <label class="d-b mt-0_5em">Page Group<br>
-                        <select bind:value={addPage.parentId} class="w-100p">
-                            <option value="">No Page Group</option>
-                            {#each pages as page (page.id)}
-                                {#if page.type === 'PageGroup'}
-                                    <option value={page.id}>{page.name}</option>
-                                {/if}
-                            {/each}
-                        </select>
-                    </label>
-                {/if}
-                <button class="w-100p mt-1em">Add</button>
-            </form>
-        </Modal>
+        <AddPageModal
+            sectionId="{activeSection.id}"
+            notebookId="{activeSection.notebook_id}"
+            pages="{pages}"
+            setPages={setPages}
+            setActivePage={setActivePage}
+            activePage={activePage}
+            addPageToTop={addPageToTop}
+            onClose={() => showAddPageModal = false}
+        />
     {/if}
     {#if showChangePasswordModal}
         <Modal on:close-modal={() => showChangePasswordModal = false}>
