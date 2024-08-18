@@ -406,7 +406,9 @@ get "/pages/info/:page_id" do |env|
     view_only: Bool,
     password_exists: Bool,
     locked: Bool,
-    created_at: String
+    created_at: String,
+    section_id: Int64,
+    notebook_id: Int64
   }
 
   begin
@@ -424,9 +426,12 @@ get "/pages/info/:page_id" do |env|
         pages.view_only,
         (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as password_exists,
         (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as locked,
-        pages.created_at
+        pages.created_at,
+        pages.section_id,
+        sections.notebook_id
       FROM pages
       LEFT JOIN pages as page_group ON page_group.id = pages.parent_id
+      JOIN sections ON sections.id = pages.section_id
       WHERE pages.id = ? AND pages.user_id = ?
     ", page_id, env.auth_id, as: pageType)
   rescue
