@@ -9,6 +9,7 @@ import PageGroup from './PageTypes/PageGroup.svelte'
 import { format } from 'date-fns'
 import defaultKeydownHandlerForContentEditableArea from '../helpers/defaultKeydownHandlerForContentEditableArea.js'
 
+export let notebooks = []
 export let activePage = null
 export let updatePageName = null
 export let className = null
@@ -94,6 +95,7 @@ function makeContentEditableSingleLine(e) {
             {/if}
             {#if activePage.type === 'PageGroup'}
                 <PageGroup
+                    {notebooks}
                     bind:pageGroupPage={activePage}
                     bind:pageId={activePage.id}
                     bind:viewOnly={viewOnlyComputed}

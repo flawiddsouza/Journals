@@ -4,6 +4,7 @@ import PageNav from './PageNav.svelte'
 import debounce from '../helpers/debounce.js'
 import fetchPlus from '../helpers/fetchPlus.js'
 
+let notebooks = []
 let activePageId = document.location.pathname.split('/').slice(-1)[0]
 let activePage = {}
 let pageNotFound = false
@@ -55,7 +56,13 @@ getPageInfo()
                 </div>
             </div>
         {/if}
-        <Page activePage={activePage} updatePageName={updatePageName} viewOnly={activePage.parent_view_only} className="journal-page-container"></Page>
+        <Page
+            {notebooks}
+            activePage={activePage}
+            updatePageName={updatePageName}
+            viewOnly={activePage.parent_view_only}
+            className="journal-page-container"
+        ></Page>
     </div>
 {/if}
 

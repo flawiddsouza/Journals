@@ -9,6 +9,7 @@ export let pageGroupId = null
 import fetchPlus from '../helpers/fetchPlus.js'
 import Portal from './Portal.svelte'
 import Modal from './Modal.svelte'
+import { eventStore } from '../stores.js'
 
 let showMovePageModal = false
 let showMovePageModalData = null
@@ -70,18 +71,53 @@ function startMovePage() {
     pageItemContextMenu.page = null
 }
 
-function movePage() {
-    if(showMovePageModalData.section_id === showMovePageModalSelectedSectionId && !showMovePageModalSelectedPageGroupId) {
-        alert('Page is already in this section')
+async function movePage() {
+    const existingPageGroupId = showMovePageModalData.parent_id ? showMovePageModalData.parent_id : null
+    const pageGroupId = showMovePageModalSelectedPageGroupId ? Number(showMovePageModalSelectedPageGroupId) : null
+    const sectionId = Number(showMovePageModalSelectedSectionId)
+
+    if(showMovePageModalData.section_id === sectionId && existingPageGroupId === pageGroupId) {
+        alert('Page is already in this section / page group')
         return
     }
 
-    fetchPlus.put(`/move-page/${showMovePageModalData.id}`, {
-        sectionId: showMovePageModalSelectedSectionId,
-        pageGroupId: showMovePageModalSelectedPageGroupId
+    await fetchPlus.put(`/move-page/${showMovePageModalData.id}`, {
+        sectionId,
+        pageGroupId
     })
 
     pages = pages.filter(page => page.id !== showMovePageModalData.id)
+
+    if(pageGroupId) {
+        eventStore.set({
+            event: 'pageAddedToPageGroup',
+            data: {
+                pageGroupId
+            }
+        })
+    } else {
+        eventStore.set({
+            event: 'pageMovedToSection',
+            data: {
+                sectionId
+            }
+        })
+
+        if (existingPageGroupId) {
+            await fetchPlus.put(`/pages/${existingPageGroupId}`, {
+                pageContent: JSON.stringify({
+                    activePageId: null
+                })
+            })
+
+            eventStore.set({
+                event: 'pageRemovedFromPageGroup',
+                data: {
+                    pageGroupId: existingPageGroupId
+                }
+            })
+        }
+    }
 
     if(activePage.id === showMovePageModalData.id) {
         activePage = {}

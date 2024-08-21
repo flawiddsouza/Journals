@@ -1,4 +1,5 @@
 <script>
+export let notebooks = []
 export let pageGroupPage = null
 export let pageId = null
 export let viewOnly = false
@@ -11,7 +12,6 @@ let pageItemContextMenu = {
     top: 0,
     page: null
 }
-let notebooks = []
 let showAddPageModal = false
 
 $: fetchPages(pageId)
@@ -31,6 +31,10 @@ eventStore.subscribe(event => {
             pages = response
             selectPage(pages[pages.length - 1]) // set last page as active page as it has been just added
         })
+    }
+
+    if(event && event.event === 'pageRemovedFromPageGroup' && event.data.pageGroupId === pageId) {
+        fetchPages(pageId)
     }
 })
 

@@ -1,4 +1,6 @@
 <script>
+import { eventStore } from '../stores.js'
+
 let pages = []
 let pagesFilter = ''
 
@@ -563,6 +565,12 @@ function handlePagesSidebarItemClick(e, page) {
     activePage = page
 }
 
+eventStore.subscribe(event => {
+    if(event && event.event === 'pageMovedToSection' && event.data.sectionId === activeSection.id) {
+        fetchPages()
+    }
+})
+
 import { switchAccount } from '../helpers/account'
 import PageNav from './PageNav.svelte'
 import PageContextMenu from './PageContextMenu.svelte'
@@ -641,7 +649,12 @@ import AddPageModal from './Modals/AddPageModal.svelte'
             <div class="journal-sidebar-item" on:click={addNotebook}>Add Notebook +</div>
         </nav>
         {#key activePage.id}
-            <Page activePage={activePage} updatePageName={updatePageName} className="journal-page-container"></Page>
+            <Page
+                {notebooks}
+                activePage={activePage}
+                updatePageName={updatePageName}
+                className="journal-page-container"
+            ></Page>
         {/key}
         <nav class="journal-right-sidebar" bind:this={rightSidebarElement} style="display: block" use:makeDraggableContainer={'page-sidebar-item'}>
             {#if activeSection.id !== undefined && activeSection.id !== null}
@@ -825,7 +838,13 @@ import AddPageModal from './Modals/AddPageModal.svelte'
     {/if}
 
     {#if pageItemContextMenu.page || (activePage.id !== undefined && activePage.id !== null)}
-        <PageContextMenu bind:pageItemContextMenu={pageItemContextMenu} {fetchPages} bind:pages={pages} bind:activePage={activePage} {notebooks}></PageContextMenu>
+        <PageContextMenu
+            bind:pageItemContextMenu={pageItemContextMenu}
+            {fetchPages}
+            bind:pages={pages}
+            bind:activePage={activePage}
+            {notebooks}
+        ></PageContextMenu>
     {/if}
 </div>
 

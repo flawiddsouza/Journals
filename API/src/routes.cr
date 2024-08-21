@@ -902,6 +902,7 @@ get "/page-group/:page_id" do |env|
 
   pages = db.query_all("
     SELECT
+      pages.parent_id,
       pages.id,
       pages.name,
       pages.type,
@@ -920,6 +921,7 @@ get "/page-group/:page_id" do |env|
     WHERE pages.parent_id = ? AND pages.user_id = ?
     ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order
   ", page_id, env.auth_id, as: {
+    parent_id: Int64,
     id:   Int64,
     name: String,
     type: String,
