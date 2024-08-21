@@ -39,7 +39,7 @@ function makeContentEditableSingleLine(e) {
 }
 </script>
 
-<main class="journal-page {className}" style="display: grid; grid-template-rows: auto 1fr;">
+<main class="journal-page {className}" style="display: grid; grid-template-rows: auto 1fr; overflow: auto;">
     {#if activePage.id !== undefined && activePage.id !== null && activePage.locked === false}
         <div style="{activePage.type === 'RichText' ? 'margin-left: 4.5rem;' : ''}">
             {#if viewOnlyComputed}
@@ -116,5 +116,6 @@ h1.journal-page-title {
 .journal-page-entries {
     margin-top: 0.7em;
     margin-right: 1em;
+    overflow: auto;
 }
 </style>

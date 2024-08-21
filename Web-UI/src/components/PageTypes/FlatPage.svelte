@@ -31,8 +31,9 @@ function fetchPage(pageId) {
                     try {
                         document.getSelection().collapseToEnd()
                     } catch(e) {}
-                    const scrollContainer = document.querySelector('main.journal-page')
-                    scrollContainer.scrollTop = scrollContainer.scrollHeight
+                    const scrollContainer = document.querySelector('main.journal-page > .journal-page-entries')
+                    const paddingBottom = 5.4 * parseFloat(getComputedStyle(scrollContainer).fontSize)
+                    scrollContainer.scrollTop = scrollContainer.scrollHeight + paddingBottom
                 })
             }
         })
@@ -150,7 +151,7 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
         <div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={onInput} bind:this={pageContainer} on:paste={handlePaste} style="{style}"></div>
     {/if}
 {:else}
-    <div class="page-container" style="{style}">{@html pageContent}</div>
+    <div class="page-container view-only" style="{style}">{@html pageContent}</div>
 {/if}
 
 {#if showInsertFileModal}
@@ -168,6 +169,16 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
     outline: 0;
     height: 100%;
     word-break: break-word;
-    padding-bottom: 5.4em;
+}
+
+.page-container::after {
+    content: '';
+    display: block;
+    height: 5.4em;
+    cursor: text;
+}
+
+.page-container.view-only::after {
+    cursor: default;
 }
 </style>
