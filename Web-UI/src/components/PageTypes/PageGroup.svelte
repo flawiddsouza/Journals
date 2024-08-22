@@ -138,7 +138,10 @@ function handleShowAddPageModal() {
 <div style="display: grid; grid-template-rows: auto auto 1fr; height: 100%">
     {#if pages.length === 0}
         <div>
-            There are no pages in this page group. <button on:click={handleShowAddPageModal} style="margin-left: 0.5rem;">Add Page +</button>
+            There are no pages in this page group.
+            {#if !viewOnly}
+                <button on:click={handleShowAddPageModal} style="margin-left: 0.5rem;">Add Page +</button>
+            {/if}
         </div>
     {/if}
     <div class="page-group-tabs">
@@ -151,7 +154,7 @@ function handleShowAddPageModal() {
                 on:contextmenu={e => handleContextMenu(e, page)}
             >{page.name}</a>
         {/each}
-        {#if pages.length > 0}
+        {#if pages.length > 0 && !viewOnly}
             <button on:click={handleShowAddPageModal} style="margin-left: 0.5rem;">+</button>
         {/if}
     </div>
