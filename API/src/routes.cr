@@ -977,20 +977,19 @@ post "/pages/search" do |env|
   pages = db.query_all("
     SELECT
       pages.id,
-      pages.name,
+      CASE WHEN pages.parent_id IS NOT NULL THEN page_group.name || ' > ' || pages.name ELSE pages.name END as name,
       pages.section_id,
       sections.notebook_id,
       sections.name as section_name,
       notebooks.name as notebook_name,
-      notebooks.profile_id,
-      pages.parent_id,
-      page_group.name as parent_name
+      notebooks.profile_id
     FROM pages
     JOIN sections ON sections.id = pages.section_id
     JOIN notebooks ON notebooks.id = sections.notebook_id
     LEFT JOIN pages AS page_group ON page_group.id = pages.parent_id
-    WHERE pages.user_id = ? AND pages.name LIKE ?
-    ORDER BY pages.name
+    WHERE pages.user_id = ?
+    AND CASE WHEN pages.parent_id IS NOT NULL THEN page_group.name || ' > ' || pages.name ELSE pages.name END LIKE ?
+    ORDER BY name
     LIMIT 10
   ", env.auth_id, "%#{query}%", as: {
     id: Int64,
@@ -999,9 +998,7 @@ post "/pages/search" do |env|
     notebook_id: Int64,
     section_name: String,
     notebook_name: String,
-    profile_id: Int64 | Nil,
-    parent_id: Int64 | Nil,
-    parent_name: String | Nil
+    profile_id: Int64 | Nil
   })
 
   env.response.content_type = "application/json"
