@@ -182,10 +182,65 @@ async function exportPage() {
     a.click()
     a.remove()
 }
+function generatePageLinks() {
+    const links = []
+
+    if (activePage.id) {
+        links.push({
+            href: '#view-page-history',
+            text: 'History',
+            onClick: () => (showPageHistoryModal = true),
+        })
+
+        links.push({
+            href: '#view-page-uploads',
+            text: 'Uploads',
+            onClick: () => (showPageUploadsModal = true),
+        })
+
+        if (activePage.type !== 'Spreadsheet' && activePage.type !== 'DrawIO') {
+            links.push({
+                href: '#view-page-styles',
+                text: 'Styles',
+                onClick: () => startShowPageStylesModal(),
+            })
+
+            links.push({
+                href: '#export',
+                text: 'Export',
+                onClick: () => exportPage(),
+            })
+        }
+
+        if (activePage.parent_id !== undefined && activePage.parent_id !== null) {
+            links.push({
+                type: 'link',
+                href: `/page/${activePage.parent_id}`,
+                text: 'Open Page Group',
+                target: '_blank',
+            })
+        }
+    }
+
+    return links
+}
+
+function isLastLink(index, array) {
+    return index === array.length - 1;
+}
 </script>
 
 <span class="hide-on-small-screen">
-Page [ <a href="#view-page-history" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageHistoryModal = true : null}>History</a> | <a href="#view-page-uploads" on:click|preventDefault|stopPropagation={() => activePage.id ? showPageUploadsModal = true : null}>Uploads</a> {#if activePage.type !== 'Spreadsheet' && activePage.type !== 'DrawIO'} | <a href="#view-page-styles" on:click|preventDefault|stopPropagation={() => activePage.id ? startShowPageStylesModal() : null}>Styles</a> | <a href="#export" on:click|preventDefault|stopPropagation={() => activePage.id ? exportPage() : null}>Export</a> {/if} {#if activePage.parent_id !== undefined && activePage.parent_id !== null} | <a href={'/page/' + activePage.parent_id} target="_blank">Open Page Group</a> {/if} ]
+    Page [
+        {#each generatePageLinks() as { type, href, text, onClick, target }, pageIndex}
+            {#if type === 'link'}
+                <a href={href} target={target}>{text}</a>
+            {:else}
+                <a href={href} on:click|preventDefault|stopPropagation={onClick}>{text}</a>
+            {/if}
+            {#if !isLastLink(pageIndex, generatePageLinks())}|&nbsp;{/if}
+        {/each}
+    ]
 </span>
 
 <Portal>
