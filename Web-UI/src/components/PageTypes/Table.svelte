@@ -525,6 +525,13 @@ async function pasteConfiguration() {
 
 import 'code-mirror-custom-element'
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
+import { eventStore } from '../../stores.js'
+
+eventStore.subscribe(event => {
+    if(event && event.event === 'configureTable') {
+        configuration = true
+    }
+})
 </script>
 
 <div class="pos-r">
@@ -823,7 +830,7 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`
 .config-holder {
     position: absolute;
     right: 24px;
-    top: -47px;
+    top: 0;
 }
 
 .config-holder > div {
@@ -834,7 +841,7 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`
 .config {
     position: absolute;
     right: 24px;
-    top: -47px;
+    top: 0;
     cursor: pointer;
     color: blue;
 }

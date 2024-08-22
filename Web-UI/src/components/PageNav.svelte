@@ -10,6 +10,7 @@ import Table from './PageTypes/Table.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
 import { format } from 'date-fns'
+import { eventStore } from '../stores.js'
 
 let showPageHistoryModal = false
 let showPageUploadsModal = false
@@ -182,6 +183,14 @@ async function exportPage() {
     a.click()
     a.remove()
 }
+
+function configureTable() {
+    eventStore.set({
+        event: 'configureTable',
+        data: {}
+    })
+}
+
 function generatePageLinks() {
     const links = []
 
@@ -205,6 +214,14 @@ function generatePageLinks() {
                 onClick: () => startShowPageStylesModal(),
             })
 
+            if (activePage.type === 'Table' && activePage.view_only === false) {
+                links.push({
+                    href: '#configure-table',
+                    text: 'Configure Table',
+                    onClick: () => configureTable(),
+                })
+            }
+
             links.push({
                 href: '#export',
                 text: 'Export',
@@ -225,6 +242,12 @@ function generatePageLinks() {
     return links
 }
 
+let pageLinks = generatePageLinks()
+
+$: if(activePage) {
+    pageLinks = generatePageLinks()
+}
+
 function isLastLink(index, array) {
     return index === array.length - 1;
 }
@@ -232,13 +255,13 @@ function isLastLink(index, array) {
 
 <span class="hide-on-small-screen">
     Page [
-        {#each generatePageLinks() as { type, href, text, onClick, target }, pageIndex}
+        {#each pageLinks as { type, href, text, onClick, target }, pageIndex}
             {#if type === 'link'}
                 <a href={href} target={target}>{text}</a>
             {:else}
                 <a href={href} on:click|preventDefault|stopPropagation={onClick}>{text}</a>
             {/if}
-            {#if !isLastLink(pageIndex, generatePageLinks())}|&nbsp;{/if}
+            {#if !isLastLink(pageIndex, pageLinks)}|&nbsp;{/if}
         {/each}
     ]
 </span>
