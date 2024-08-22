@@ -921,18 +921,18 @@ td.table-actions button {
     background: transparent;
 }
 
-.editable-table > thead th {
+:global(.editable-table) > thead th {
     position: sticky;
     top: 0;
     background-color: white;
     z-index: 1;
 }
 
-.editable-table > tbody:nth-of-type(1) tr:nth-of-type(1) td {
+:global(.editable-table) > tbody:nth-of-type(1) tr:nth-of-type(1) td {
     border-top: none !important;
 }
 
-.editable-table > thead th {
+:global(.editable-table) > thead th {
     border-top: none !important;
     border-bottom: none !important;
     box-shadow: inset 0 1px 0 grey,
