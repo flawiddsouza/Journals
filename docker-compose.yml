@@ -21,7 +21,7 @@ services:
     networks:
       - net
     ports:
-      - 8080:80
+      - 9902:80
       - 9900:9900
 
 volumes:
