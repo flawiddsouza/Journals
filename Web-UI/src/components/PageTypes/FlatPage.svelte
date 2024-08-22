@@ -31,7 +31,15 @@ function fetchPage(pageId) {
                     try {
                         document.getSelection().collapseToEnd()
                     } catch(e) {}
-                    const scrollContainer = document.querySelector('main.journal-page > .journal-page-entries')
+
+                    const scrollContainerParent = document.querySelector('main.journal-page > .journal-page-entries')
+
+                    let scrollContainer = scrollContainerParent?.querySelector('div > main.journal-page > .journal-page-entries')
+
+                    if(!scrollContainer) {
+                        scrollContainer = scrollContainerParent
+                    }
+
                     const paddingBottom = 5.4 * parseFloat(getComputedStyle(scrollContainer).fontSize)
                     scrollContainer.scrollTop = scrollContainer.scrollHeight + paddingBottom
                 })
