@@ -937,6 +937,5 @@ td.table-actions button {
     border-bottom: none !important;
     box-shadow: inset 0 1px 0 grey,
                 inset 0 -1px 0 grey;
-    padding: 2px 0;
 }
 </style>
