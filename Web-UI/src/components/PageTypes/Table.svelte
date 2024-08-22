@@ -913,4 +913,23 @@ td.table-actions button {
     border: 1px solid grey;
     background: transparent;
 }
+
+.editable-table > thead th {
+    position: sticky;
+    top: 0;
+    background-color: white;
+    z-index: 1;
+}
+
+.editable-table > tbody:nth-of-type(1) tr:nth-of-type(1) td {
+    border-top: none !important;
+}
+
+.editable-table > thead th {
+    border-top: none !important;
+    border-bottom: none !important;
+    box-shadow: inset 0 1px 0 grey,
+                inset 0 -1px 0 grey;
+    padding: 2px 0;
+}
 </style>
