@@ -551,7 +551,7 @@ eventStore.subscribe(event => {
                 {#each items as item, itemIndex}
                     <tr>
                         {#each columns as column}
-                            <td style="width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : ''} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {rowStyle ? evalulateJS(rowStyle, itemIndex) : ''}; {column.style ? evalulateJS(column.style, itemIndex, column.name) : ''}">
+                            <td style="width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {rowStyle ? evalulateJS(rowStyle, itemIndex) : ''}; {column.style ? evalulateJS(column.style, itemIndex, column.name) : ''}">
                                 {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
                                     <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
                                 {:else}
