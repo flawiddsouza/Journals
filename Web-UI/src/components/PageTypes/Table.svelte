@@ -155,10 +155,11 @@ function evalulateStartupScript(jsString, dynamicVariables) {
     }
 }
 
-function evalulateJS(jsString, rowIndex=null, columnName=null) {
+function evalulateJS(source, jsString, rowIndex=null, columnName=null) {
     try {
         return new Function('items', 'rowIndex', 'item', 'columnName', jsString).call(this, items, rowIndex, rowIndex !== null ? items[rowIndex] : null, columnName)
     } catch(e) {
+        console.error(`${source}:`, e)
         return 'error evaluating given expression'
     }
 }
@@ -551,12 +552,12 @@ eventStore.subscribe(event => {
                 {#each items as item, itemIndex}
                     <tr>
                         {#each columns as column}
-                            <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {rowStyle ? evalulateJS(rowStyle, itemIndex) : ''}; {column.style ? evalulateJS(column.style, itemIndex, column.name) : ''}">
+                            <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {rowStyle ? evalulateJS('Row Style', rowStyle, itemIndex) : ''}; {column.style ? evalulateJS('Column Style', column.style, itemIndex, column.name) : ''}">
                                 {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
                                     <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
                                 {:else}
                                     {#if column.type === 'Computed'}
-                                        <div>{@html column.expression ? evalulateJS(column.expression, itemIndex, item[column.name]) : '' }</div>
+                                        <div>{@html column.expression ? evalulateJS('Computed Column', column.expression, itemIndex, item[column.name]) : '' }</div>
                                     {:else}
                                         <div>{@html item[column.name] || '<span style="visibility: hidden">cat</span>'}</div>
                                     {/if}
@@ -582,7 +583,7 @@ eventStore.subscribe(event => {
                 <tr>
                     {#each columns as column}
                         {#if totals.hasOwnProperty(column.name)}
-                            <th style="{column.wrap === 'No' ? 'white-space: nowrap;' : ''}">{@html evalulateJS(totals[column.name], null, column.name) }</th>
+                            <th style="{column.wrap === 'No' ? 'white-space: nowrap;' : ''}">{@html evalulateJS('Totals', totals[column.name], null, column.name) }</th>
                         {:else}
                             <th></th>
                         {/if}
