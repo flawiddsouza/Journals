@@ -543,6 +543,24 @@ eventStore.subscribe(event => {
         configuration = true
     }
 })
+
+import { createVirtualizer } from '@tanstack/svelte-virtual';
+
+let virtualListEl;
+let virtualItemEls = [];
+
+$: virtualizer = createVirtualizer({
+    count: items.length,
+    getScrollElement: () => virtualListEl,
+    estimateSize: () => 45,
+});
+
+$: virtualItems = $virtualizer.getVirtualItems();
+
+$: {
+    if (virtualItemEls.length)
+        virtualItemEls.forEach((el) => $virtualizer.measureElement(el));
+}
 </script>
 
 <div class="pos-r">
@@ -550,57 +568,63 @@ eventStore.subscribe(event => {
         {#if pageContentOverride === undefined && viewOnly === false}
             <div class="config" on:click={() => configuration = true}>Configure Table</div>
         {/if}
-        <table on:paste={handlePaste} on:keydown={e => handleUndoStacks(e)} class="editable-table" bind:this={editableTable} style="{style}">
-            <thead>
-                <tr>
-                    {#each columns as column}
-                        <th style="{column.wrap === 'No' ? 'white-space: nowrap;' : ''}">{column.label}<span class="v-h">{column.label === '' ? column.name : ''}</span></th>
-                    {/each}
-                </tr>
-            </thead>
-            <tbody>
-                {#each items as item, itemIndex}
+        <div class="list scroll-container" bind:this={virtualListEl}>
+            <table on:paste={handlePaste} on:keydown={e => handleUndoStacks(e)} class="editable-table" style="{style}">
+                <thead>
                     <tr>
                         {#each columns as column}
-                            <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {rowStyle ? evalulateJS('Row Style', rowStyle, itemIndex) : ''}; {column.style ? evalulateJS('Column Style', column.style, itemIndex, column.name) : ''}">
-                                {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
-                                    <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
-                                {:else}
-                                    {#if column.type === 'Computed'}
-                                        <div>{@html column.expression ? evalulateJS('Computed Column', column.expression, itemIndex, item[column.name]) : '' }</div>
-                                    {:else}
-                                        <div>{@html item[column.name] || '<span style="visibility: hidden">cat</span>'}</div>
-                                    {/if}
-                                {/if}
-                            </td>
+                            <th style="{column.wrap === 'No' ? 'white-space: nowrap;' : ''}">{column.label}<span class="v-h">{column.label === '' ? column.name : ''}</span></th>
                         {/each}
-                        {#if pageContentOverride === undefined && viewOnly === false}
-                        <td class="table-actions">
-                            <button on:click={() => insertRow(itemIndex, true)}>↑</button>
-                            <button on:click={() => insertRow(itemIndex, false)}>↓</button>
-                            <button on:click={() => {
-                                if(!confirm('Are you sure you want to delete this row?')) {
-                                    return
-                                }
-                                deleteRow(itemIndex)
-                            }}>x</button>
-                        </td>
-                        {/if}
                     </tr>
-                {/each}
-            </tbody>
-            {#if Object.keys(totals).length > 0}
-                <tr>
-                    {#each columns as column}
-                        {#if totals.hasOwnProperty(column.name)}
-                            <th style="{column.wrap === 'No' ? 'white-space: nowrap;' : ''}">{@html evalulateJS('Totals', totals[column.name], null, column.name) }</th>
-                        {:else}
-                            <th></th>
-                        {/if}
-                    {/each}
-                </tr>
-            {/if}
-        </table>
+                </thead>
+                <tbody>
+                    <div style="position: relative; height: {$virtualizer.getTotalSize()}px; width: 100%;">
+                        <div style="position: absolute; top: 0; left: 0; width: 100%; transform: translateY({virtualItems[0] ? virtualItems[0].start : 0}px);">
+                            {#each virtualItems as row, idx (row.index)}
+                                <tr bind:this={virtualItemEls[idx]} data-index={row.index}>
+                                    {#each columns as column}
+                                        <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {rowStyle ? evalulateJS('Row Style', rowStyle, row.index) : ''}; {column.style ? evalulateJS('Column Style', column.style, row.index, column.name) : ''}">
+                                            {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
+                                                <div contenteditable spellcheck="false" bind:innerHTML={items[row.index][column.name]} on:keydown={(e) => handleKeysInTD(e, row.index, column.name)}></div>
+                                            {:else}
+                                                {#if column.type === 'Computed'}
+                                                    <div>{@html column.expression ? evalulateJS('Computed Column', column.expression, row.index, items[row.index][column.name]) : '' }</div>
+                                                {:else}
+                                                    <div>{@html items[row.index][column.name] || '<span style="visibility: hidden">cat</span>'}</div>
+                                                {/if}
+                                            {/if}
+                                        </td>
+                                    {/each}
+                                    {#if pageContentOverride === undefined && viewOnly === false}
+                                    <td class="table-actions">
+                                        <button on:click={() => insertRow(row.index, true)}>↑</button>
+                                        <button on:click={() => insertRow(row.index, false)}>↓</button>
+                                        <button on:click={() => {
+                                            if(!confirm('Are you sure you want to delete this row?')) {
+                                                return
+                                            }
+                                            deleteRow(row.index)
+                                        }}>x</button>
+                                    </td>
+                                    {/if}
+                                </tr>
+                            {/each}
+                        </div>
+                    </div>
+                </tbody>
+                {#if Object.keys(totals).length > 0}
+                    <tr>
+                        {#each columns as column}
+                            {#if totals.hasOwnProperty(column.name)}
+                                <th style="{column.wrap === 'No' ? 'white-space: nowrap;' : ''}">{@html evalulateJS('Totals', totals[column.name], null, column.name) }</th>
+                            {:else}
+                                <th></th>
+                            {/if}
+                        {/each}
+                    </tr>
+                {/if}
+            </table>
+        </div>
     {:else}
         <div class="config-holder">
             <div on:click={() => configuration = false}>Exit Configuration</div>
@@ -848,6 +872,13 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`
 {/if}
 
 <style>
+.scroll-container {
+    height: 400px;
+    width: 100%;
+    overflow-y: auto;
+    contain: 'strict';
+}
+
 .pos-r {
     position: relative;
 }

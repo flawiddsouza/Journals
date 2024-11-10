@@ -23,6 +23,7 @@
         "@editorjs/table": "^2.3.0",
         "@editorjs/underline": "^1.1.0",
         "@sotaproject/strikethrough": "^1.0.1",
+        "@tanstack/svelte-virtual": "^3.10.9",
         "@tiptap/core": "^2.0.3",
         "@tiptap/html": "^2.0.3",
         "@tiptap/pm": "^2.0.3",
