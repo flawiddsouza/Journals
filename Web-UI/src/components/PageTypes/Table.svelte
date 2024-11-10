@@ -15,6 +15,38 @@ let showInsertFileModal = false
 let insertFileModalLinkLabel = ''
 let currentTd = null
 let savedCursorPosition = null
+let computedRowStyles = []
+let computedColumnStyles = []
+
+function computeRowStyle(rowIndex) {
+    if (!rowStyle) return ''
+    return evalulateJS('Row Style', rowStyle, rowIndex)
+}
+
+function computeAllRowStyles() {
+    computedRowStyles = items.map((_, index) => computeRowStyle(index))
+}
+
+function recomputeRowStyle(rowIndex) {
+    computedRowStyles[rowIndex] = computeRowStyle(rowIndex)
+    computedRowStyles = computedRowStyles
+}
+
+function computeColumnStyle(rowIndex, columnIndex, columnName) {
+    if (!columns[columnIndex].style) return ''
+    return evalulateJS('Column Style', columns[columnIndex].style, rowIndex, columnName)
+}
+
+function computeAllColumnStyles() {
+    computedColumnStyles = items.map((_, rowIndex) =>
+        columns.map((column, columnIndex) => computeColumnStyle(rowIndex, columnIndex, column.name))
+    )
+}
+
+function recomputeColumnStyle(rowIndex) {
+    computedColumnStyles[rowIndex] = columns.map((column, columnIndex) => computeColumnStyle(rowIndex, columnIndex, column.name))
+    computedColumnStyles = computedColumnStyles
+}
 
 $: if(pageContentOverride) {
     let parsedPage = JSON.parse(pageContentOverride)
@@ -70,6 +102,9 @@ function fetchPage(pageId) {
         }
 
         items = parsedResponse.items
+
+        computeAllRowStyles()
+        computeAllColumnStyles()
 
         if(columns.length === 0) {
             configuration = true
@@ -163,6 +198,7 @@ function evalulateStartupScript(jsString, dynamicVariables) {
 }
 
 function evalulateJS(source, jsString, rowIndex=null, columnName=null) {
+    console.log('evaluating', source)
     try {
         const customFunctionsCode = customFunctions ? customFunctions + '\n' : ''
         return new Function('items', 'rowIndex', 'item', 'columnName', customFunctionsCode + jsString).call(this, items, rowIndex, rowIndex !== null ? items[rowIndex] : null, columnName)
@@ -223,6 +259,9 @@ function insertRow(rowIndex, insertAbove) {
     }
     items = items
 
+    computeAllRowStyles()
+    computeAllColumnStyles()
+
     // move focus to the first focusable cell of the inserted row, if shift key is not pressed
     if(!insertAbove) {
         setTimeout(() => {
@@ -244,6 +283,8 @@ function deleteRow(rowIndex) {
             items[0][column.name] = ''
         })
 
+        computeAllRowStyles()
+        computeAllColumnStyles()
         return
     }
 
@@ -261,6 +302,9 @@ function deleteRow(rowIndex) {
         let bottomCell = bottomRow.querySelector('div[contenteditable]')
         bottomCell.focus()
     }
+
+    computeAllRowStyles()
+    computeAllColumnStyles()
 }
 
 function handleKeysInTD(e, itemIndex, itemColumn) {
@@ -561,10 +605,10 @@ eventStore.subscribe(event => {
             <tbody>
                 {#each items as item, itemIndex}
                     <tr>
-                        {#each columns as column}
-                            <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {rowStyle ? evalulateJS('Row Style', rowStyle, itemIndex) : ''}; {column.style ? evalulateJS('Column Style', column.style, itemIndex, column.name) : ''}">
+                        {#each columns as column, columnIndex}
+                            <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {computedRowStyles[itemIndex]}; {computedColumnStyles[itemIndex][columnIndex]}">
                                 {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
-                                    <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}></div>
+                                    <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)} on:input={() => { recomputeRowStyle(itemIndex); recomputeColumnStyle(itemIndex); }}></div>
                                 {:else}
                                     {#if column.type === 'Computed'}
                                         <div>{@html column.expression ? evalulateJS('Computed Column', column.expression, itemIndex, item[column.name]) : '' }</div>
