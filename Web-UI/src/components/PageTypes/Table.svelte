@@ -10,6 +10,7 @@ let totals = {}
 let widths = {}
 let rowStyle = ''
 let startupScript = ''
+let customFunctions = ''
 let showInsertFileModal = false
 let insertFileModalLinkLabel = ''
 let currentTd = null
@@ -23,6 +24,7 @@ $: if(pageContentOverride) {
     widths = parsedPage.widths
     rowStyle = parsedPage.rowStyle
     startupScript = parsedPage.startupScript
+    customFunctions = parsedPage.customFunctions
 }
 
 $: fetchPage(pageId)
@@ -49,6 +51,7 @@ function fetchPage(pageId) {
             widths: {},
             rowStyle: '',
             startupScript: '',
+            customFunctions: '',
         }
         columns = parsedResponse.columns
         dontTriggerSave = true
@@ -56,6 +59,7 @@ function fetchPage(pageId) {
         widths = parsedResponse.widths ? parsedResponse.widths : {}
         rowStyle = parsedResponse.rowStyle ? parsedResponse.rowStyle : ''
         startupScript = parsedResponse.startupScript ? parsedResponse.startupScript : ''
+        customFunctions = parsedResponse.customFunctions ? parsedResponse.customFunctions : ''
 
         if(columns.length > 0 && startupScript && startupScript.trim()) {
             const copyOfItems = JSON.stringify(parsedResponse.items)
@@ -108,6 +112,7 @@ const savePageContent = debounce(function() {
             widths,
             rowStyle,
             startupScript,
+            customFunctions,
         })
     })
 }, 500)
@@ -137,6 +142,8 @@ $: if(items) {
 
     startupScript = startupScript
 
+    customFunctions = customFunctions
+
     if(!dontTriggerSave) {
         savePageContent()
     }
@@ -157,7 +164,8 @@ function evalulateStartupScript(jsString, dynamicVariables) {
 
 function evalulateJS(source, jsString, rowIndex=null, columnName=null) {
     try {
-        return new Function('items', 'rowIndex', 'item', 'columnName', jsString).call(this, items, rowIndex, rowIndex !== null ? items[rowIndex] : null, columnName)
+        const customFunctionsCode = customFunctions ? customFunctions + '\n' : ''
+        return new Function('items', 'rowIndex', 'item', 'columnName', customFunctionsCode + jsString).call(this, items, rowIndex, rowIndex !== null ? items[rowIndex] : null, columnName)
     } catch(e) {
         console.error(`${source}:`, e)
         return 'error evaluating given expression'
@@ -498,6 +506,7 @@ function copyConfiguration() {
         widths,
         rowStyle,
         startupScript,
+        customFunctions,
     })
     navigator.clipboard.writeText(copyText).then(() => {
         alert('Configuration copied to clipboard')
@@ -519,6 +528,7 @@ async function pasteConfiguration() {
         widths = parsedClipboardText.widths
         rowStyle = parsedClipboardText.rowStyle
         startupScript = parsedClipboardText.startupScript
+        customFunctions = parsedClipboardText.customFunctions
     } catch(e) {
         alert('Invalid configuration')
     }
@@ -807,6 +817,20 @@ const insertAtIndex = 1
 rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`
                 }</code>
             </details>
+        </div>
+
+        <div class="config-heading mt-1em">Custom Functions</div>
+        <div class="config-area-font-size">
+            <div>
+                <code-mirror
+                    value={customFunctions}
+                    on:input={(e) => customFunctions = e.target.value}
+                    style="border: 1px solid darkgray"
+                ></code-mirror>
+            </div>
+        </div>
+        <div class="config-area-note">
+            Define custom functions here that can be used in any evaluated JS code.
         </div>
 
         <div style="margin-bottom: 3rem"></div>
