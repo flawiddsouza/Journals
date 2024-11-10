@@ -17,6 +17,7 @@ let currentTd = null
 let savedCursorPosition = null
 let computedRowStyles = []
 let computedColumnStyles = []
+let computedColumnValues = []
 
 function computeRowStyle(rowIndex) {
     if (!rowStyle) return ''
@@ -46,6 +47,27 @@ function computeAllColumnStyles() {
 function recomputeColumnStyle(rowIndex) {
     computedColumnStyles[rowIndex] = columns.map((column, columnIndex) => computeColumnStyle(rowIndex, columnIndex, column.name))
     computedColumnStyles = computedColumnStyles
+}
+
+function computeComputedColumn(rowIndex, columnIndex) {
+    const column = columns[columnIndex]
+    if (!column.expression) return ''
+    return evalulateJS('Computed Column', column.expression, rowIndex, column.name)
+}
+
+function computeAllComputedColumns() {
+    computedColumnValues = items.map((_, rowIndex) =>
+        columns.map((column, columnIndex) =>
+            column.type === 'Computed' ? computeComputedColumn(rowIndex, columnIndex) : null
+        )
+    )
+}
+
+function recomputeComputedColumn(rowIndex) {
+    computedColumnValues[rowIndex] = columns.map((column, columnIndex) =>
+        column.type === 'Computed' ? computeComputedColumn(rowIndex, columnIndex) : null
+    )
+    computedColumnValues = computedColumnValues
 }
 
 $: if(pageContentOverride) {
@@ -105,6 +127,7 @@ function fetchPage(pageId) {
 
         computeAllRowStyles()
         computeAllColumnStyles()
+        computeAllComputedColumns()
 
         if(columns.length === 0) {
             configuration = true
@@ -261,6 +284,7 @@ function insertRow(rowIndex, insertAbove) {
 
     computeAllRowStyles()
     computeAllColumnStyles()
+    computeAllComputedColumns()
 
     // move focus to the first focusable cell of the inserted row, if shift key is not pressed
     if(!insertAbove) {
@@ -285,6 +309,7 @@ function deleteRow(rowIndex) {
 
         computeAllRowStyles()
         computeAllColumnStyles()
+        computeAllComputedColumns()
         return
     }
 
@@ -305,6 +330,7 @@ function deleteRow(rowIndex) {
 
     computeAllRowStyles()
     computeAllColumnStyles()
+    computeAllComputedColumns()
 }
 
 function handleKeysInTD(e, itemIndex, itemColumn) {
@@ -608,10 +634,10 @@ eventStore.subscribe(event => {
                         {#each columns as column, columnIndex}
                             <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {computedRowStyles[itemIndex]}; {computedColumnStyles[itemIndex][columnIndex]}">
                                 {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
-                                    <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)} on:input={() => { recomputeRowStyle(itemIndex); recomputeColumnStyle(itemIndex); }}></div>
+                                    <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)} on:input={() => { recomputeRowStyle(itemIndex); recomputeColumnStyle(itemIndex); recomputeComputedColumn(itemIndex); }}></div>
                                 {:else}
                                     {#if column.type === 'Computed'}
-                                        <div>{@html column.expression ? evalulateJS('Computed Column', column.expression, itemIndex, item[column.name]) : '' }</div>
+                                        <div>{@html computedColumnValues[itemIndex][columnIndex]}</div>
                                     {:else}
                                         <div>{@html item[column.name] || '<span style="visibility: hidden">cat</span>'}</div>
                                     {/if}
