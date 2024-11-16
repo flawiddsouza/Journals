@@ -19,6 +19,14 @@ let computedRowStyles = []
 let computedColumnStyles = []
 let computedColumnValues = []
 
+let autocompleteData = {
+    show: false,
+    suggestions: [],
+    position: { top: 0, left: 0 },
+    itemIndex: null,
+    columnName: null
+};
+
 function computeRowStyle(rowIndex) {
     if (!rowStyle) return ''
     return evalulateJS('Row Style', rowStyle, rowIndex)
@@ -400,6 +408,22 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
         insertFileModalLinkLabel = window.getSelection().toString() // prefill selected text, so that you can convert selected text to a link to an upload file
         showInsertFileModal = true
     }
+
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        autocompleteData.show = false;
+    }
+}
+
+function handleBlur(event) {
+    // Check if the new focus is within the suggestions list
+    setTimeout(() => {
+        const activeElement = document.activeElement;
+        if (activeElement && activeElement.closest('.suggestions')) {
+            return;
+        }
+        autocompleteData.show = false;
+    }, 0);
 }
 
 function handleUndoStacks(e) {
@@ -436,7 +460,8 @@ let column = {
     label: '',
     wrap: '',
     align: '',
-    type: ''
+    type: '',
+    autocomplete: ''
 }
 
 $: if(showAddColumn) {
@@ -445,7 +470,8 @@ $: if(showAddColumn) {
         label: '',
         wrap: '',
         align: '',
-        type: ''
+        type: '',
+        autocomplete: ''
     }
     cancelEditColumn()
 }
@@ -473,7 +499,8 @@ function addColumn() {
         label: '',
         wrap: '',
         align: '',
-        type: ''
+        type: '',
+        autocomplete: ''
     }
     showAddColumn = false
 }
@@ -535,6 +562,7 @@ function updateColumn() {
     columnToEditReference.wrap = columnToEditCopy.wrap
     columnToEditReference.align = columnToEditCopy.align
     columnToEditReference.type = columnToEditCopy.type
+    columnToEditReference.autocomplete = columnToEditCopy.autocomplete
     items = items // save
     columnToEditCopy = null
     columnToEditReference = null
@@ -604,9 +632,76 @@ async function pasteConfiguration() {
     }
 }
 
+$: columnSuggestions = {}
+$: {
+    columns.forEach(col => {
+        if (col.autocomplete === 'Yes') {
+            columnSuggestions[col.name] = [...new Set(items.map(item => item[col.name]).filter(v => v))]
+        }
+    })
+}
+
+function handleInputInTD(e, itemIndex, columnName) {
+    const column = columns.find(col => col.name === columnName);
+    if (column && column.autocomplete === 'Yes') {
+        const value = e.target.textContent;
+        const allSuggestions = columnSuggestions[columnName];
+        const filteredSuggestions = allSuggestions.filter(suggestion =>
+            suggestion.toLowerCase().includes(value.toLowerCase()) && suggestion !== value
+        );
+
+        if (filteredSuggestions.length > 0) {
+            autocompleteData.show = true;
+            autocompleteData.suggestions = filteredSuggestions;
+            autocompleteData.position = getSuggestionPosition(e.target);
+            autocompleteData.itemIndex = itemIndex;
+            autocompleteData.columnName = columnName;
+        } else {
+            autocompleteData.show = false;
+        }
+    } else {
+        autocompleteData.show = false;
+    }
+
+    recomputeRowStyle(itemIndex);
+    recomputeColumnStyle(itemIndex);
+    recomputeComputedColumn(itemIndex);
+}
+
+function getSuggestionPosition(element) {
+    const rect = element.getBoundingClientRect();
+    return {
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX
+    };
+}
+
+function handleSelectSuggestion(event) {
+    const suggestion = event.detail.suggestion;
+    const { itemIndex, columnName } = autocompleteData;
+    if (itemIndex !== null && columnName) {
+        items[itemIndex][columnName] = suggestion;
+        items = items; // Trigger reactivity
+
+        autocompleteData.show = false;
+
+        // Update the cell content and focus
+        const cell = editableTable.querySelector(
+            `tbody tr:nth-child(${itemIndex + 1}) td:nth-child(${columns.findIndex(col => col.name === columnName) + 1}) div[contenteditable]`
+        );
+        if (cell) {
+            cell.textContent = suggestion;
+            cell.focus();
+            // Place cursor at the end
+            document.getSelection().collapse(cell, 1);
+        }
+    }
+}
+
 import 'code-mirror-custom-element'
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
 import { eventStore } from '../../stores.js'
+import Autocomplete from '../Autocomplete.svelte'
 
 eventStore.subscribe(event => {
     if(event && event.event === 'configureTable') {
@@ -634,7 +729,14 @@ eventStore.subscribe(event => {
                         {#each columns as column, columnIndex}
                             <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {computedRowStyles[itemIndex]}; {computedColumnStyles[itemIndex][columnIndex]}">
                                 {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
-                                    <div contenteditable spellcheck="false" bind:innerHTML={item[column.name]} on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)} on:input={() => { recomputeRowStyle(itemIndex); recomputeColumnStyle(itemIndex); recomputeComputedColumn(itemIndex); }}></div>
+                                    <div
+                                        contenteditable
+                                        spellcheck="false"
+                                        bind:innerHTML={item[column.name]}
+                                        on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}
+                                        on:input={(e) => handleInputInTD(e, itemIndex, column.name)}
+                                        on:blur={handleBlur}
+                                    ></div>
                                 {:else}
                                     {#if column.type === 'Computed'}
                                         <div>{@html computedColumnValues[itemIndex][columnIndex]}</div>
@@ -688,6 +790,7 @@ eventStore.subscribe(event => {
                         <th>Wrap</th>
                         <th>Align</th>
                         <th>Type</th>
+                        <th>Autocomplete</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -716,6 +819,12 @@ eventStore.subscribe(event => {
                                     </select>
                                 </td>
                                 <td>
+                                    <select bind:value={columnToEditCopy.autocomplete}>
+                                        <option value="">No</option>
+                                        <option>Yes</option>
+                                    </select>
+                                </td>
+                                <td>
                                     <button type="button" on:click={updateColumn}>Update</button>
                                 </td>
                                 <td>
@@ -729,6 +838,7 @@ eventStore.subscribe(event => {
                                 <td>{column.wrap || 'Yes'}</td>
                                 <td>{column.align || 'Left'}</td>
                                 <td>{column.type || 'Input'}</td>
+                                <td>{column.autocomplete || 'No'}</td>
                                 <td><button type="button" on:click={() => moveUp(index)}>Move Up</button></td>
                                 <td><button type="button" on:click={() => moveDown(index)}>Move Down</button></td>
                                 <td><button type="button" on:click={() => startEditColumn(column)}>Edit</button></td>
@@ -757,6 +867,12 @@ eventStore.subscribe(event => {
                                 <select bind:value={column.type}>
                                     <option value="">Input</option>
                                     <option>Computed</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select bind:value={column.autocomplete}>
+                                    <option value="">No</option>
+                                    <option>Yes</option>
                                 </select>
                             </td>
                             <td>
@@ -916,6 +1032,13 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`
         bind:showInsertFileModal={showInsertFileModal}
     ></InsertFileModal>
 {/if}
+
+<Autocomplete
+    bind:show={autocompleteData.show}
+    suggestions={autocompleteData.suggestions}
+    position={autocompleteData.position}
+    on:select={handleSelectSuggestion}
+/>
 
 <style>
 .pos-r {
