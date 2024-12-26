@@ -87,6 +87,10 @@ $: if(pageContentOverride) {
     rowStyle = parsedPage.rowStyle
     startupScript = parsedPage.startupScript
     customFunctions = parsedPage.customFunctions
+
+    computeAllRowStyles()
+    computeAllColumnStyles()
+    computeAllComputedColumns()
 }
 
 $: fetchPage(pageId)
