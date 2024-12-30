@@ -66,6 +66,11 @@ export default function(e, disableLinkHandling=false) {
         document.execCommand('insertHTML', false, format(new Date(), 'DD-MMM-YY'))
     }
 
+    // insert date into the current cell (for macOS)
+    if(e.metaKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+        document.execCommand('insertHTML', false, format(new Date(), 'DD-MMM-YY'))
+    }
+
     // insert time into the current cell
     if(e.key === 'F11') {
         e.preventDefault()
