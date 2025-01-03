@@ -207,7 +207,11 @@ function getPageContentHTML() {
         }
     })
 
-    return generateHTML(pageContentCopy, extensions)
+    const generatedHTML = generateHTML(pageContentCopy, extensions)
+
+    globalThis.generatedHTML = generatedHTML
+
+    return generateHTML
 }
 
 $: pageContentParsed = pageContent ? getPageContentHTML() : ''
@@ -254,5 +258,10 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
     height: 100%;
     padding-bottom: 5.4em;
     outline: none;
+}
+
+.page-container > :global(.ProseMirror :where(ul, ol)) {
+    padding-left: 1rem;
+    margin: 0;
 }
 </style>

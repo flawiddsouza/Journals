@@ -107,8 +107,12 @@ async function readFileAsDataURL(fileBlob) {
 async function exportPage() {
     let html = ''
 
-    if(activePage.type === 'FlatPage' || activePage.type === 'FlatPageV2') {
+    if(activePage.type === 'FlatPage') {
         html = document.querySelector('.page-container').innerHTML
+    }
+
+    if(activePage.type === 'FlatPageV2') {
+        html = globalThis.generatedHTML
     }
 
     if(activePage.type === 'Table') {
@@ -157,6 +161,11 @@ async function exportPage() {
             body {
                 margin-left: 2em;
                 margin-top: 1em;
+            }
+
+            :where(ul, ol) {
+                padding-left: 1rem;
+                margin: 0;
             }
             </style>
         </head>
