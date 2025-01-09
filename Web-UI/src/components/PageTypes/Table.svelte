@@ -364,6 +364,19 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
         deleteRow(itemIndex)
     }
 
+    // handle autocomplete navigation
+    if (autocompleteData.show) {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            const suggestions = document.querySelectorAll('.suggestions li')
+            if (suggestions.length > 0) {
+                globalThis.cellFocus = document.activeElement
+                suggestions[0].focus()
+            }
+            return
+        }
+    }
+
     // move to upper cell
     if(e.key === 'ArrowUp') {
         if(getSelectionTextInfo(e.target.closest('td')).atStart === false && e.ctrlKey === false) {
