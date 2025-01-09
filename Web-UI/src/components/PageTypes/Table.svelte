@@ -653,7 +653,7 @@ $: columnSuggestions = {}
 $: {
     columns.forEach(col => {
         if (col.autocomplete === 'Yes') {
-            columnSuggestions[col.name] = [...new Set(items.map(item => item[col.name]).filter(v => v))]
+            columnSuggestions[col.name] = [...new Set(items.map(item => item[col.name]).filter(v => v))].filter(item => item !== '<br>')
         }
     })
 }
