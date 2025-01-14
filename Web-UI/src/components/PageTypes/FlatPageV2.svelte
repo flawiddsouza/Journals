@@ -276,6 +276,7 @@ import { Fragment, Node, Slice } from '@tiptap/pm/model'
     height: 100%;
     padding-bottom: 5.4em;
     outline: none;
+    overflow: auto;
 }
 
 .page-container > :global(.ProseMirror :where(ul, ol)) {
