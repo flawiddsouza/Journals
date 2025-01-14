@@ -163,7 +163,9 @@ function handleShowAddPageModal() {
         <div style="margin-bottom: 1rem">
             <PageNav bind:activePage={activePage}></PageNav>
         </div>
-        <Page activePage={activePage} updatePageName={updatePageName} viewOnly={viewOnly} />
+        {#key activePage.id}
+            <Page activePage={activePage} updatePageName={updatePageName} viewOnly={viewOnly} />
+        {/key}
     {/if}
 
     {#if pageItemContextMenu.page || (activePage !== null && activePage.id !== undefined && activePage.id !== null)}
