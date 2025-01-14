@@ -136,7 +136,24 @@ function pageContainerMounted(element) {
         onUpdate() {
             pageContent = editor.getJSON()
             savePageContent()
-        }
+        },
+        editorProps: {
+            // From: https://github.com/bluesky-social/social-app/pull/6658/files
+            clipboardTextParser(text, context) {
+                const blocks = text.split(/(?:\r\n?|\n)/)
+                const nodes = blocks.map(line => {
+                    return Node.fromJSON(
+                    context.doc.type.schema,
+                    line.length > 0
+                        ? {type: 'paragraph', content: [{type: 'text', text: line}]}
+                        : {type: 'paragraph', content: []},
+                    )
+                })
+
+                const fragment = Fragment.fromArray(nodes)
+                return Slice.maxOpen(fragment)
+            },
+        },
     })
 
     editor.commands.focus('end')
@@ -223,6 +240,7 @@ onDestroy(() => {
 })
 
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
+import { Fragment, Node, Slice } from '@tiptap/pm/model'
 </script>
 
 {#if pageContentOverride === undefined && viewOnly === false}
