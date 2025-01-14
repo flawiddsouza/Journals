@@ -158,7 +158,14 @@ function pageContainerMounted(element) {
 
     editor.commands.focus('end')
 
-    const scrollContainer = document.querySelector('main.journal-page')
+    const scrollContainerParent = document.querySelector('main.journal-page > .journal-page-entries .ProseMirror')
+
+    let scrollContainer = scrollContainerParent?.querySelector('div > main.journal-page > .journal-page-entries .ProseMirror')
+
+    if(!scrollContainer) {
+        scrollContainer = scrollContainerParent
+    }
+
     scrollContainer.scrollTop = scrollContainer.scrollHeight
 }
 
