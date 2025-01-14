@@ -499,6 +499,11 @@ function addColumn() {
         alert('You can\'t use an existing column name')
         return
     }
+
+    if (column.label === '') {
+        column.label = column.name
+    }
+
     columns.push(column)
     columns = columns
     if(items.length === 0) {
@@ -866,7 +871,7 @@ eventStore.subscribe(event => {
                     {#if showAddColumn}
                         <tr>
                             <td><input type="text" bind:value={column.name} required use:focus></td>
-                            <td><input type="text" bind:value={column.label}></td>
+                            <td><input type="text" bind:value={column.label} placeholder="Keep blank to be = name"></td>
                             <td>
                                 <select bind:value={column.wrap}>
                                     <option value="">Yes</option>
