@@ -199,6 +199,11 @@ $: if(items) {
         if(totals[columnName] === '') {
             delete totals[columnName]
         }
+
+        // remove totals for columns that are not present in the table
+        if(!columns.some(column => column.name === columnName)) {
+            delete totals[columnName]
+        }
     })
 
     widths = widths
