@@ -127,7 +127,7 @@ function fetchPage(pageId) {
         startupScript = parsedResponse.startupScript ? parsedResponse.startupScript : ''
         customFunctions = parsedResponse.customFunctions ? parsedResponse.customFunctions : ''
 
-        if(columns.length > 0 && startupScript && startupScript.trim()) {
+        if(!viewOnly && columns.length > 0 && startupScript && startupScript.trim()) {
             const copyOfItems = JSON.stringify(parsedResponse.items)
             evalulateStartupScript(startupScript, { rows: parsedResponse.items })
             if(copyOfItems !== JSON.stringify(parsedResponse.items)) {
