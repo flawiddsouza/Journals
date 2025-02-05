@@ -108,6 +108,8 @@ import { generateHTML } from '@tiptap/html'
 const extensions = [
     StarterKit.configure({
         paragraph: false,
+        horizontalRule: false,
+        blockquote: false,
     }),
     // From: https://github.com/ueberdosis/tiptap/issues/291#issuecomment-867346201
     Paragraph.extend({
