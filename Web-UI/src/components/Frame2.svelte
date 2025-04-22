@@ -74,6 +74,10 @@ getPageInfo()
     padding-top: 1.4em;
 }
 
+:global(.journal-page-container.PageType-RichText) {
+    padding-left: 0;
+}
+
 .page-header {
     user-select: none;
     font-size: 1.2em;

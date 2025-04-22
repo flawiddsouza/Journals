@@ -40,7 +40,7 @@ function makeContentEditableSingleLine(e) {
 }
 </script>
 
-<main class="journal-page {className}" style="display: grid; grid-template-rows: auto 1fr; overflow: auto;">
+<main class="journal-page {className} {`PageType-${activePage.type}`}" style="display: grid; grid-template-rows: auto 1fr; overflow: auto;">
     {#if activePage.id !== undefined && activePage.id !== null && activePage.locked === false}
         <div style="{activePage.type === 'RichText' ? 'margin-left: 4.5rem;' : ''}">
             {#if viewOnlyComputed}

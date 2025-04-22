@@ -924,11 +924,11 @@ import AddPageModal from './Modals/AddPageModal.svelte'
     padding-bottom: 0;
 }
 
-:global(.journal-left-sidebar[style*="block"] + .journal-page) {
+:global(.journal-left-sidebar[style*="block"] + .journal-page:not(.PageType-RichText)) {
     margin-left: 2em;
 }
 
-:global(.journal-left-sidebar[style*="none"] + .journal-page) {
+:global(.journal-left-sidebar[style*="none"] + .journal-page:not(.PageType-RichText)) {
     padding-left: 2rem;
 }
 
