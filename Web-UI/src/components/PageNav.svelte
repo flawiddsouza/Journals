@@ -115,6 +115,10 @@ async function exportPage() {
         html = globalThis.generatedHTML
     }
 
+    if(activePage.type === 'RichText') {
+        html = globalThis.generatedHTML
+    }
+
     if(activePage.type === 'Table') {
         html = document.querySelector('.editable-table').outerHTML
     }

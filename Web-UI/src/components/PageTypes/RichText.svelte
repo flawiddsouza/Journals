@@ -55,7 +55,10 @@ import Strikethrough from '@sotaproject/strikethrough'
 import ToggleBlock from 'editorjs-toggle-block'
 import ColorPlugin from 'editorjs-text-color-plugin'
 import Header from '@editorjs/header';
+import edjsHTML from 'editorjs-html'
 import { baseURL } from '../../../config.js'
+
+const edjsParser = edjsHTML()
 
 let editor
 
@@ -162,7 +165,11 @@ function pageContainerMounted(element) {
 function getPageContentHTML() {
     const pageContentCopy = JSON.parse(JSON.stringify(pageContent))
 
-    return pageContentCopy.content
+    const parsedPageContent = edjsParser.parse(pageContentCopy)
+
+    globalThis.generatedHTML = parsedPageContent
+
+    return parsedPageContent
 }
 
 $: pageContentParsed = pageContent ? getPageContentHTML() : ''
@@ -183,7 +190,7 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
         <div class="page-container" spellcheck="false" style="{style}" use:pageContainerMounted></div>
     {/if}
 {:else}
-    <div class="page-container view-only" style="{style}">{@html pageContentParsed}</div>
+    <div class="page-container view-only" style="{style}; margin-left: 4.5rem;">{@html pageContentParsed}</div>
 {/if}
 
 {#if showInsertFileModal}
@@ -207,6 +214,11 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
 
 .page-container.view-only {
     padding-bottom: 5.4em;
+}
+
+.page-container.view-only > :global(:where(ul, ol)) {
+    padding-left: 1rem;
+    margin: 0;
 }
 
 .page-container :global(.codex-editor) {
