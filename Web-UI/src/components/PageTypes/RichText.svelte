@@ -43,10 +43,8 @@ let savedCursorPosition = null
 import { onDestroy } from 'svelte'
 import EditorJS from '@editorjs/editorjs'
 import Table from '@editorjs/table'
-import NestedList from '@editorjs/nested-list'
+import EditorjsList from '@editorjs/list'
 import editorJsCodeCup from '@calumk/editorjs-codecup'
-import Checklist from '@editorjs/checklist'
-import editorjsNestedChecklist from '@calumk/editorjs-nested-checklist'
 import AttachesTool from '@editorjs/attaches'
 import ImageTool from '@editorjs/image'
 import Underline from '@editorjs/underline'
@@ -92,18 +90,10 @@ function pageContainerMounted(element) {
                 inlineToolbar: true,
             },
             list: {
-                class: NestedList,
+                class: EditorjsList,
                 inlineToolbar: true,
             },
             code: editorJsCodeCup,
-            checklist: {
-                class: Checklist,
-                inlineToolbar: true,
-            },
-            nestedchecklist : {
-                class: editorjsNestedChecklist,
-                inlineToolbar: true,
-            },
             attaches: {
                 class: AttachesTool,
                 config: {
