@@ -34,6 +34,7 @@
         "editorjs-undo": "^2.0.28",
         "less": "^3.11.3",
         "rollup-plugin-postcss": "^3.1.2",
+        "svelte-dnd-action": "^0.9.61",
         "x-data-spreadsheet": "^1.1.9"
     },
     "scripts": {

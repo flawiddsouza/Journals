@@ -123,6 +123,7 @@ function handleAddPageInput(e) {
                 <option value="Table">Table</option>
                 <option value="Spreadsheet">Spreadsheet</option>
                 <option value="DrawIO">Draw.io</option>
+                <option value="Kanban">Kanban</option>
                 {#if !pageGroupId}
                     <option value="PageGroup">Page Group</option>
                 {/if}
