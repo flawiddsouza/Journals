@@ -25,7 +25,7 @@ function handleKeydown(event) {
         event.preventDefault();
         const activeElement = document.activeElement;
         if (activeElement && activeElement.tagName === 'LI') {
-            selectSuggestion(activeElement.textContent);
+            selectSuggestion(activeElement.textContent.trim());
         }
     } else if (event.key === 'Escape') {
         event.preventDefault();

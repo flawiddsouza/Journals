@@ -717,6 +717,11 @@ function handleSelectSuggestion(event) {
         items[itemIndex][columnName] = suggestion;
         items = items; // Trigger reactivity
 
+        // console.log({
+        //     autocompleteData,
+        //     'Accepted Suggestion': suggestion
+        // })
+
         autocompleteData.show = false;
 
         // Update the cell content and focus
