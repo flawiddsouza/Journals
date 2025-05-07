@@ -659,35 +659,18 @@ async function pasteConfiguration() {
     }
 }
 
-function getTopLevelTextAndDivNodes(parent) {
-    const result = []
-    parent.childNodes.forEach(node => {
-    // Check if the node is a text node (nodeType 3) and has non-empty text
-    if (node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '') {
-        result.push(node)
-    }
-    // Check if the node is a DIV element
-    if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'DIV') {
-        result.push(node)
-    }
-    })
-    return result
-}
-
 $: columnSuggestions = {}
 $: {
     columns.forEach(col => {
         if (col.autocomplete === 'Yes') {
-            const completions = items.map(item => item[col.name])
+            columnSuggestions[col.name] = [...new Set(items.map(item => item[col.name])
                 .filter(v => v)
-                .flatMap(item => {
+                .map(item => {
                     const tempDiv = document.createElement('div')
                     tempDiv.innerHTML = item.trim()
-                    const nodes = getTopLevelTextAndDivNodes(tempDiv)
-                    return nodes.map(item => item.textContent.trim())
-                })
-
-            columnSuggestions[col.name] = [...new Set(completions)].filter(item => item !== '')
+                    return tempDiv.textContent || ''
+                }))
+            ].filter(item => item !== '')
         }
     })
 }
@@ -695,39 +678,18 @@ $: {
 function handleInputInTD(e, itemIndex, columnName) {
     const column = columns.find(col => col.name === columnName);
     if (column && column.autocomplete === 'Yes') {
-        // Get the current cursor position and text
-        const selection = window.getSelection();
-        if (!selection.rangeCount) return;
+        const value = e.target.textContent;
+        const allSuggestions = columnSuggestions[columnName];
+        const filteredSuggestions = allSuggestions.filter(suggestion =>
+            suggestion.toLowerCase().includes(value.toLowerCase()) && suggestion !== value
+        );
 
-        const range = selection.getRangeAt(0);
-        const currentNode = range.startContainer;
-
-        // If we're in a text node, get the text content up to the cursor
-        let currentWordBeforeCursor = "";
-        if (currentNode.nodeType === Node.TEXT_NODE) {
-            const textBeforeCursor = currentNode.textContent.substring(0, range.startOffset);
-            // Find the last space or beginning of text
-            const lastSpaceIndex = textBeforeCursor.lastIndexOf(' ');
-            currentWordBeforeCursor = textBeforeCursor.substring(lastSpaceIndex + 1);
-        }
-
-        if (currentWordBeforeCursor.length > 0) {
-            const allSuggestions = columnSuggestions[columnName];
-            const filteredSuggestions = allSuggestions.filter(suggestion =>
-                suggestion.toLowerCase().includes(currentWordBeforeCursor.toLowerCase()) &&
-                suggestion.toLowerCase() !== currentWordBeforeCursor.toLowerCase()
-            );
-
-            if (filteredSuggestions.length > 0) {
-                autocompleteData.show = true;
-                autocompleteData.suggestions = filteredSuggestions;
-                autocompleteData.position = getSuggestionPosition(e.target);
-                autocompleteData.itemIndex = itemIndex;
-                autocompleteData.columnName = columnName;
-                autocompleteData.currentWordBeforeCursor = currentWordBeforeCursor;
-            } else {
-                autocompleteData.show = false;
-            }
+        if (filteredSuggestions.length > 0) {
+            autocompleteData.show = true;
+            autocompleteData.suggestions = filteredSuggestions;
+            autocompleteData.position = getSuggestionPosition(e.target);
+            autocompleteData.itemIndex = itemIndex;
+            autocompleteData.columnName = columnName;
         } else {
             autocompleteData.show = false;
         }
@@ -750,58 +712,23 @@ function getSuggestionPosition(element) {
 
 function handleSelectSuggestion(event) {
     const suggestion = event.detail.suggestion;
-    const { itemIndex, columnName, currentWordBeforeCursor } = autocompleteData;
-
+    const { itemIndex, columnName } = autocompleteData;
     if (itemIndex !== null && columnName) {
-        // Store the current HTML content
+        items[itemIndex][columnName] = suggestion;
+        items = items; // Trigger reactivity
+
+        autocompleteData.show = false;
+
+        // Update the cell content and focus
         const cell = editableTable.querySelector(
             `tbody tr:nth-child(${itemIndex + 1}) td:nth-child(${columns.findIndex(col => col.name === columnName) + 1}) div[contenteditable]`
         );
-
         if (cell) {
-            // Get the current selection
-            const selection = window.getSelection();
-            const range = selection.getRangeAt(0);
-
-            // If we're in a text node
-            if (range.startContainer.nodeType === Node.TEXT_NODE) {
-                const textNode = range.startContainer;
-                const cursorPosition = range.startOffset;
-
-                // Find the start of the current word
-                const textBeforeCursor = textNode.textContent.substring(0, cursorPosition);
-                const lastSpaceIndex = textBeforeCursor.lastIndexOf(' ');
-                const lastNewlineIndex = textBeforeCursor.lastIndexOf('\n');
-                const wordStartIndex = Math.max(lastSpaceIndex, lastNewlineIndex) + 1;
-
-                // Replace the current word with the suggestion
-                const beforeWord = textNode.textContent.substring(0, wordStartIndex);
-                const afterWord = textNode.textContent.substring(cursorPosition);
-                textNode.textContent = beforeWord + suggestion + afterWord;
-
-                // Set the cursor position after the inserted suggestion
-                const newPosition = wordStartIndex + suggestion.length;
-                const newRange = document.createRange();
-                newRange.setStart(textNode, newPosition);
-                newRange.setEnd(textNode, newPosition);
-                selection.removeAllRanges();
-                selection.addRange(newRange);
-
-                // Update the item data
-                items[itemIndex][columnName] = cell.innerHTML;
-                items = items; // Trigger reactivity
-            } else {
-                // Fallback to the original implementation
-                cell.textContent = suggestion;
-                items[itemIndex][columnName] = suggestion;
-                items = items; // Trigger reactivity
-                cell.focus();
-                // Place cursor at the end
-                document.getSelection().collapse(cell, 1);
-            }
+            cell.textContent = suggestion;
+            cell.focus();
+            // Place cursor at the end
+            document.getSelection().collapse(cell, 1);
         }
-
-        autocompleteData.show = false;
     }
 }
 
