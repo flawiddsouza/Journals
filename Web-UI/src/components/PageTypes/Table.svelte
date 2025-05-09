@@ -737,6 +737,18 @@ function handleSelectSuggestion(event) {
     }
 }
 
+function getColumnValue(type, value) {
+    if (type === '') {
+        return value
+    }
+
+    if (type === 'Input (Plain Text)') {
+        return value.split('\n').join('<br>')
+    }
+
+    alert('Invalid column type')
+}
+
 import 'code-mirror-custom-element'
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
 import { eventStore } from '../../stores.js'
@@ -768,19 +780,30 @@ eventStore.subscribe(event => {
                         {#each columns as column, columnIndex}
                             <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {computedRowStyles[itemIndex]}; {computedColumnStyles[itemIndex] ? computedColumnStyles[itemIndex][columnIndex] : ''}">
                                 {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
-                                    <div
-                                        contenteditable
-                                        spellcheck="false"
-                                        bind:innerHTML={item[column.name]}
-                                        on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}
-                                        on:input={(e) => handleInputInTD(e, itemIndex, column.name)}
-                                        on:blur={handleBlur}
-                                    ></div>
+                                    {#if column.type === ''}
+                                        <div
+                                            contenteditable
+                                            spellcheck="false"
+                                            bind:innerHTML={item[column.name]}
+                                            on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}
+                                            on:input={(e) => handleInputInTD(e, itemIndex, column.name)}
+                                            on:blur={handleBlur}
+                                        ></div>
+                                    {:else}
+                                        <div
+                                            contenteditable="plaintext-only"
+                                            spellcheck="false"
+                                            bind:innerHTML={item[column.name]}
+                                            on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}
+                                            on:input={(e) => handleInputInTD(e, itemIndex, column.name)}
+                                            on:blur={handleBlur}
+                                        ></div>
+                                    {/if}
                                 {:else}
                                     {#if column.type === 'Computed'}
                                         <div>{@html computedColumnValues[itemIndex][columnIndex]}</div>
                                     {:else}
-                                        <div>{@html item[column.name] || '<span style="visibility: hidden">cat</span>'}</div>
+                                        <div>{@html getColumnValue(column.type, item[column.name]) || '<span style="visibility: hidden">cat</span>'}</div>
                                     {/if}
                                 {/if}
                             </td>
@@ -854,6 +877,7 @@ eventStore.subscribe(event => {
                                 <td>
                                     <select bind:value={columnToEditCopy.type}>
                                         <option value="">Input</option>
+                                        <option>Input (Plain Text)</option>
                                         <option>Computed</option>
                                     </select>
                                 </td>
