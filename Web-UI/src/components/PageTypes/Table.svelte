@@ -780,7 +780,7 @@ eventStore.subscribe(event => {
                         {#each columns as column, columnIndex}
                             <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {computedRowStyles[itemIndex]}; {computedColumnStyles[itemIndex] ? computedColumnStyles[itemIndex][columnIndex] : ''}">
                                 {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
-                                    {#if column.type === ''}
+                                    {#if column.type === '' || column.type === undefined}
                                         <div
                                             contenteditable
                                             spellcheck="false"
