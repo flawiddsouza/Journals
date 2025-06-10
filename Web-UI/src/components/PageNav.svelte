@@ -3,6 +3,7 @@ export let activePage = null
 export let activeSection = null
 
 import fetchPlus from '../helpers/fetchPlus.js'
+import { slugify } from '../helpers/string.js'
 import Modal from './Modal.svelte'
 import Portal from './Portal.svelte'
 import FlatPage from './PageTypes/FlatPage.svelte'
@@ -86,10 +87,6 @@ function deleteImage(pageUploadsItemId) {
             fetchPageUploads(activePage)
         })
     }
-}
-
-function slugify(string) {
-    return string.toLowerCase().replace(/[^\w ]+/g,'').replace(/ +/g,'-')
 }
 
 const htmlParser = new DOMParser()

@@ -1,5 +1,6 @@
 <script>
 import { eventStore } from '../stores.js'
+import { slugify } from '../helpers/string.js'
 
 let pages = []
 let pagesFilter = ''
@@ -38,10 +39,6 @@ let profiles = [
 
 function clearDocumentLocationHash() {
     history.replaceState(null, null, ' ')
-}
-
-function slugify(string) {
-    return string.toLowerCase().replace(/[^\w ]+/g,'').replace(/ +/g,'-')
 }
 
 function setSelectedProfileFromLocationHash() {
