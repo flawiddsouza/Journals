@@ -738,7 +738,7 @@ function handleSelectSuggestion(event) {
 }
 
 function getColumnValue(type, value) {
-    if (type === '') {
+    if (type === undefined || type === '') {
         return value
     }
 
