@@ -11,9 +11,11 @@ let widths = {}
 let rowStyle = ''
 let startupScript = ''
 let customFunctions = ''
+let note = ''
 let showInsertFileModal = false
 let insertFileModalLinkLabel = ''
 let currentTd = null
+let noteContainer = null
 let savedCursorPosition = null
 let computedRowStyles = []
 let computedColumnStyles = []
@@ -87,6 +89,7 @@ $: if(pageContentOverride) {
     rowStyle = parsedPage.rowStyle
     startupScript = parsedPage.startupScript
     customFunctions = parsedPage.customFunctions
+    note = parsedPage.note || ''
 
     computeAllRowStyles()
     computeAllColumnStyles()
@@ -118,6 +121,7 @@ function fetchPage(pageId) {
             rowStyle: '',
             startupScript: '',
             customFunctions: '',
+            note: '',
         }
         columns = parsedResponse.columns
         dontTriggerSave = true
@@ -126,6 +130,7 @@ function fetchPage(pageId) {
         rowStyle = parsedResponse.rowStyle ? parsedResponse.rowStyle : ''
         startupScript = parsedResponse.startupScript ? parsedResponse.startupScript : ''
         customFunctions = parsedResponse.customFunctions ? parsedResponse.customFunctions : ''
+        note = parsedResponse.note ? parsedResponse.note : ''
 
         if(!viewOnly && columns.length > 0 && startupScript && startupScript.trim()) {
             const copyOfItems = JSON.stringify(parsedResponse.items)
@@ -183,6 +188,7 @@ const savePageContent = debounce(function() {
             rowStyle,
             startupScript,
             customFunctions,
+            note,
         })
     })
 }, 500)
@@ -218,6 +224,8 @@ $: if(items) {
     startupScript = startupScript
 
     customFunctions = customFunctions
+
+    note = note
 
     if(!dontTriggerSave) {
         savePageContent()
@@ -624,6 +632,76 @@ function saveCursorPosition() {
     savedCursorPosition = window.getSelection().getRangeAt(0)
 }
 
+function handleKeysInNote(e) {
+    defaultKeydownHandlerForContentEditableArea(e)
+    saveCursorPosition()
+
+    if(e.ctrlKey && e.key.toLowerCase() === 'i') {
+        e.preventDefault()
+        currentTd = noteContainer
+        insertFileModalLinkLabel = window.getSelection().toString()
+        showInsertFileModal = true
+    }
+
+    // add 4 spaces when pressing tab instead of its default behavior
+    if(e.key === 'Tab') {
+        e.preventDefault()
+        document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;')
+    }
+}
+
+function handleNotePaste(event) {
+    var items = (event.clipboardData  || event.originalEvent.clipboardData).items
+    // find pasted image among pasted items
+    var blob = null
+    for(var i = 0; i < items.length; i++) {
+        if(items[i].type.indexOf('image') === 0) {
+            blob = items[i].getAsFile()
+        }
+    }
+    // load image if there is a pasted image
+    if(blob !== null) {
+        event.preventDefault()
+
+        document.execCommand('insertHTML', false, `<img class="upload-image-loader" style="max-width: 100%" src="/images/loader-rainbow-dog.gif">`)
+
+        var data = new FormData()
+        data.append('image', blob)
+
+        fetch(`${baseURL}/upload-image/${pageId}`, {
+            method: 'POST',
+            body: data,
+            headers: { 'Token': localStorage.getItem('token') }
+        }).then(response => response.json()).then(response => {
+            document.querySelector('.upload-image-loader').remove()
+            document.execCommand('insertHTML', false, `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`)
+        })
+    }
+
+    // on a plain text paste, detect links, show confirmation and if yes, convert the
+    // detected links to links before the pasted text is inserted into the page
+    if(event.clipboardData.types.includes('text/plain')) {
+        const text = event.clipboardData.getData('text/plain')
+        const linksRegex = /(https?:\/\/[^\s]+)/g
+        const links = text.match(linksRegex)
+        if (links && links.length > 0) {
+            if(confirm(`Do you want to convert ${links.length} links to clickable links?`)) {
+                event.preventDefault()
+
+                let html = text.split('\n').map(line => {
+                    return line.replace(linksRegex, '<a href="$1" target="_blank" contenteditable="false">$1</a>')
+                }).join('<br>')
+
+                if (text.endsWith('\n')) {
+                    html += '<br>'
+                }
+
+                document.execCommand('insertHTML', false, html)
+            }
+        }
+    }
+}
+
 function copyConfiguration() {
     let copyText = JSON.stringify({
         columns,
@@ -632,6 +710,7 @@ function copyConfiguration() {
         rowStyle,
         startupScript,
         customFunctions,
+        note,
     })
     navigator.clipboard.writeText(copyText).then(() => {
         alert('Configuration copied to clipboard')
@@ -654,6 +733,7 @@ async function pasteConfiguration() {
         rowStyle = parsedClipboardText.rowStyle
         startupScript = parsedClipboardText.startupScript
         customFunctions = parsedClipboardText.customFunctions
+        note = parsedClipboardText.note || ''
     } catch(e) {
         alert('Invalid configuration')
     }
@@ -753,6 +833,7 @@ import 'code-mirror-custom-element'
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
 import { eventStore } from '../../stores.js'
 import Autocomplete from '../Autocomplete.svelte'
+import { baseURL } from '../../../config.js'
 
 eventStore.subscribe(event => {
     if(event && event.event === 'configureTable') {
@@ -766,7 +847,7 @@ eventStore.subscribe(event => {
         {#if pageContentOverride === undefined && viewOnly === false}
             <div class="config" on:click={() => configuration = true}>Configure Table</div>
         {/if}
-        <table on:paste={handlePaste} on:keydown={e => handleUndoStacks(e)} class="editable-table" bind:this={editableTable} style="{style}">
+        <table on:paste={handlePaste} on:keydown={e => handleUndoStacks(e)} class="editable-table {note && note.trim() ? 'has-note' : ''}" bind:this={editableTable} style="{style}">
             <thead>
                 <tr>
                     {#each columns as column}
@@ -835,6 +916,11 @@ eventStore.subscribe(event => {
                 </tr>
             {/if}
         </table>
+        {#if note && note.trim()}
+            <div class="table-note" style="margin-top: 1em;">
+                {@html note}
+            </div>
+        {/if}
     {:else}
         <div class="config-holder">
             <div on:click={() => configuration = false}>Exit Configuration</div>
@@ -1082,6 +1168,23 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`
             Define custom functions here that can be used in any evaluated JS code.
         </div>
 
+        <div class="config-heading mt-1em">Note</div>
+        <div class="config-area-font-size">
+            <div
+                contenteditable
+                bind:innerHTML={note}
+                bind:this={noteContainer}
+                on:input={() => note = note}
+                on:keydown={handleKeysInNote}
+                on:paste={handleNotePaste}
+                spellcheck="false"
+                style="border: 1px solid darkgray; padding: 5px; min-height: 100px; outline: none;"
+            ></div>
+        </div>
+        <div class="config-area-note">
+            Add an HTML note that will be displayed below the table.
+        </div>
+
         <div style="margin-bottom: 3rem"></div>
     {/if}
 </div>
@@ -1177,6 +1280,14 @@ table td > div[contenteditable] {
 }
 
 .editable-table {
+    margin-bottom: 7.4em;
+}
+
+.editable-table.has-note {
+    margin-bottom: 0;
+}
+
+.table-note {
     margin-bottom: 7.4em;
 }
 
