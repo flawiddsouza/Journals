@@ -17,6 +17,7 @@ let showAddPageModal = false
 $: fetchPages(pageId)
 
 import fetchPlus from '../../helpers/fetchPlus.js'
+import * as encryptionManager from '../../helpers/encryptionManager.js'
 import Page from '../Page.svelte'
 import debounce from '../../helpers/debounce.js'
 import PageNav from '../PageNav.svelte'

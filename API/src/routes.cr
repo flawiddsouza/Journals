@@ -242,7 +242,7 @@ get "/pages/:section_id" do |env|
       pages.font,
       pages.view_only,
       (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as password_exists,
-      (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as locked,
+      (CASE WHEN pages.password = 'encrypted' THEN true ELSE false END) as locked,
       pages.sort_order,
       pages.section_id,
       pages.created_at,
@@ -425,7 +425,7 @@ get "/pages/info/:page_id" do |env|
         pages.font,
         pages.view_only,
         (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as password_exists,
-        (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as locked,
+        (CASE WHEN pages.password = 'encrypted' THEN true ELSE false END) as locked,
         pages.created_at,
         pages.section_id,
         sections.notebook_id
@@ -497,10 +497,10 @@ end
 put "/pages/password-protect/:page_id" do |env|
   page_id = env.params.url["page_id"]
 
-  password = env.params.json["password"].as(String)
-  hashed_password = Crypto::Bcrypt::Password.create(password).to_s
+  encrypted_content = env.params.json["encryptedContent"].as(String)
 
-  db.exec "UPDATE pages SET password=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", hashed_password, page_id, env.auth_id
+  # Store encrypted content and mark page as protected
+  db.exec "UPDATE pages SET content=?, password='encrypted', updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", encrypted_content, page_id, env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -509,56 +509,40 @@ end
 post "/pages/unlock/:page_id" do |env|
   page_id = env.params.url["page_id"]
 
-  password = env.params.json["password"].as(String)
-
-  hashed_current_password = db.scalar("SELECT password FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(String)
-  stored_password = Crypto::Bcrypt::Password.new(hashed_current_password)
+  # For client-side encryption, we just verify the page exists and is protected
+  page_password = db.scalar("SELECT password FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(String | Nil)
 
   env.response.content_type = "application/json"
 
-  if stored_password.verify(password)
+  if page_password == "encrypted"
     {success: true}.to_json
   else
-    {error: "Invalid Password"}.to_json
+    {error: "Page is not protected"}.to_json
   end
 end
 
 put "/pages/change-password/:page_id" do |env|
   page_id = env.params.url["page_id"]
 
-  current_password = env.params.json["currentPassword"].as(String)
-  new_password = env.params.json["newPassword"].as(String)
+  new_encrypted_content = env.params.json["newEncryptedContent"].as(String)
 
-  hashed_current_password = db.scalar("SELECT password FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(String)
-  stored_password = Crypto::Bcrypt::Password.new(hashed_current_password)
+  # Replace with new encrypted content
+  db.exec "UPDATE pages SET content=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", new_encrypted_content, page_id, env.auth_id
 
   env.response.content_type = "application/json"
-
-  if stored_password.verify(current_password)
-    hashed_new_password = Crypto::Bcrypt::Password.create(new_password).to_s
-    db.exec "UPDATE pages SET password=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", hashed_new_password, page_id, env.auth_id
-    {success: true}.to_json
-  else
-    {error: "Invalid Password"}.to_json
-  end
+  {success: true}.to_json
 end
 
 post "/pages/remove-password/:page_id" do |env|
   page_id = env.params.url["page_id"]
 
-  password = env.params.json["password"].as(String)
+  decrypted_content = env.params.json["decryptedContent"].as(String)
 
-  hashed_current_password = db.scalar("SELECT password FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(String)
-  stored_password = Crypto::Bcrypt::Password.new(hashed_current_password)
+  # Replace encrypted content with decrypted content and remove protection
+  db.exec "UPDATE pages SET content=?, password=null, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", decrypted_content, page_id, env.auth_id
 
   env.response.content_type = "application/json"
-
-  if stored_password.verify(password)
-    db.exec "UPDATE pages SET password=null, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", page_id, env.auth_id
-    {success: true}.to_json
-  else
-    {error: "Invalid Password"}.to_json
-  end
+  {success: true}.to_json
 end
 
 put "/sections/name/:section_id" do |env|
@@ -911,7 +895,7 @@ get "/page-group/:page_id" do |env|
       pages.font,
       pages.view_only,
       (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as password_exists,
-      (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as locked,
+      (CASE WHEN pages.password = 'encrypted' THEN true ELSE false END) as locked,
       pages.sort_order,
       pages.section_id,
       pages.created_at,

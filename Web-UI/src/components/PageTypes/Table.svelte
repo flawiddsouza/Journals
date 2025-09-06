@@ -96,6 +96,7 @@ $: if(pageContentOverride) {
 $: fetchPage(pageId)
 
 import fetchPlus from '../../helpers/fetchPlus.js'
+import * as encryptionManager from '../../helpers/encryptionManager.js'
 
 let editableTable = null
 
@@ -110,7 +111,19 @@ function fetchPage(pageId) {
     undoStackForRemoveRow = [] // reset undo stack
     // end of reset variables on page change
     fetchPlus.get(`/pages/content/${pageId}`).then(response => {
-        let parsedResponse = response.content ? JSON.parse(response.content) : {
+        // Check if we have a decrypted version in session
+        const decryptedContent = encryptionManager.getPageContent(pageId.toString())
+
+        let contentToUse
+        if (decryptedContent !== null) {
+            // Use decrypted content from session
+            contentToUse = decryptedContent
+        } else {
+            // Use content as-is (either unprotected or encrypted)
+            contentToUse = response.content
+        }
+
+        let parsedResponse = contentToUse ? JSON.parse(contentToUse) : {
             columns: [],
             items: [],
             totals: {},
@@ -170,12 +183,13 @@ function fetchPage(pageId) {
 
 import debounce from '../../helpers/debounce.js'
 
-const savePageContent = debounce(function() {
+const savePageContent = debounce(async function() {
     if(pageId === null) {
         return
     }
-    fetchPlus.put(`/pages/${pageId}`, {
-        pageContent: JSON.stringify({
+
+    try {
+        const contentString = JSON.stringify({
             columns,
             items,
             totals,
@@ -184,7 +198,24 @@ const savePageContent = debounce(function() {
             startupScript,
             customFunctions,
         })
-    })
+
+        // Check if page is encrypted and we have the key
+        if (encryptionManager.hasPageKey(pageId.toString())) {
+            // Save encrypted content
+            const result = await encryptionManager.saveEncryptedContent(pageId.toString(), contentString)
+            if (!result.success) {
+                alert(result.error || 'Page Save Failed')
+            }
+        } else {
+            // Save unencrypted content normally
+            await fetchPlus.put(`/pages/${pageId}`, {
+                pageContent: contentString
+            })
+        }
+    } catch (error) {
+        console.error('Save error:', error)
+        alert('Page Save Failed')
+    }
 }, 500)
 
 let dontTriggerSave = true

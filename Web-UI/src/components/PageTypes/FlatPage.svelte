@@ -13,6 +13,7 @@ $: if(pageContentOverride !== undefined) {
 $: fetchPage(pageId)
 
 import fetchPlus from '../../helpers/fetchPlus.js'
+import * as encryptionManager from '../../helpers/encryptionManager.js'
 let pageContainer
 
 import { tick } from 'svelte'
@@ -22,7 +23,17 @@ let loaded = false
 function fetchPage(pageId) {
     if(pageId) {
         fetchPlus.get(`/pages/content/${pageId}`).then(response => {
-            pageContent = response.content
+            // Check if we have a decrypted version in session
+            const decryptedContent = encryptionManager.getPageContent(pageId.toString())
+
+            if (decryptedContent !== null) {
+                // Use decrypted content from session
+                pageContent = decryptedContent
+            } else {
+                // Use content as-is (either unprotected or encrypted)
+                pageContent = response.content || ''
+            }
+
             loaded = true
             if(!viewOnly) {
                 tick().then(() => {
@@ -50,12 +61,25 @@ function fetchPage(pageId) {
 
 import debounce from '../../helpers/debounce.js'
 
-const savePageContent = debounce(function() {
-    fetchPlus.put(`/pages/${pageId}`, {
-        pageContent
-    }).catch(() => {
+const savePageContent = debounce(async function() {
+    try {
+        // Check if page is encrypted and we have the key
+        if (encryptionManager.hasPageKey(pageId.toString())) {
+            // Save encrypted content
+            const result = await encryptionManager.saveEncryptedContent(pageId.toString(), pageContent)
+            if (!result.success) {
+                alert(result.error || 'Page Save Failed')
+            }
+        } else {
+            // Save unencrypted content normally
+            await fetchPlus.put(`/pages/${pageId}`, {
+                pageContent
+            })
+        }
+    } catch (error) {
+        console.error('Save error:', error)
         alert('Page Save Failed')
-    })
+    }
 }, 500)
 
 import defaultKeydownHandlerForContentEditableArea from '../../helpers/defaultKeydownHandlerForContentEditableArea.js'

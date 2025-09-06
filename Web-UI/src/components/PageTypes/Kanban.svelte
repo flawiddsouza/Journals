@@ -5,6 +5,7 @@ export let pageContentOverride = undefined
 export let style = ''
 
 import fetchPlus from '../../helpers/fetchPlus.js'
+import * as encryptionManager from '../../helpers/encryptionManager.js'
 import { dndzone } from 'svelte-dnd-action'
 import { flip } from 'svelte/animate'
 import debounce from '../../helpers/debounce.js'
@@ -103,7 +104,19 @@ function fetchPage(pageId) {
     if(pageId) {
         fetchPlus.get(`/pages/content/${pageId}`).then(response => {
             try {
-                pageContent = response.content ? JSON.parse(response.content) : { boards: defaultBoards() }
+                // Check if we have a decrypted version in session
+                const decryptedContent = encryptionManager.getPageContent(pageId.toString())
+
+                let contentToUse
+                if (decryptedContent !== null) {
+                    // Use decrypted content from session
+                    contentToUse = decryptedContent
+                } else {
+                    // Use content as-is (either unprotected or encrypted)
+                    contentToUse = response.content
+                }
+
+                pageContent = contentToUse ? JSON.parse(contentToUse) : { boards: defaultBoards() }
                 boards = pageContent.boards || defaultBoards()
             } catch (e) {
                 console.error('Error parsing page content', e)
@@ -118,18 +131,33 @@ function fetchPage(pageId) {
     }
 }
 
-const savePageContent = debounce(function() {
+const savePageContent = debounce(async function() {
     if(pageId === null) {
         return
     }
 
-    fetchPlus.put(`/pages/${pageId}`, {
-        pageContent: JSON.stringify({
+    try {
+        const contentString = JSON.stringify({
             boards
         })
-    }).catch(() => {
+
+        // Check if page is encrypted and we have the key
+        if (encryptionManager.hasPageKey(pageId.toString())) {
+            // Save encrypted content
+            const result = await encryptionManager.saveEncryptedContent(pageId.toString(), contentString)
+            if (!result.success) {
+                alert(result.error || 'Page Save Failed')
+            }
+        } else {
+            // Save unencrypted content normally
+            await fetchPlus.put(`/pages/${pageId}`, {
+                pageContent: contentString
+            })
+        }
+    } catch (error) {
+        console.error('Save error:', error)
         alert('Page Save Failed')
-    })
+    }
 }, 500)
 
 function handleAddCard(boardId) {

@@ -9,7 +9,10 @@ export let pageGroupId = null
 import fetchPlus from '../helpers/fetchPlus.js'
 import Portal from './Portal.svelte'
 import Modal from './Modal.svelte'
+import PasswordModal from './PasswordModal.svelte'
+import ChangePasswordModal from './ChangePasswordModal.svelte'
 import { eventStore } from '../stores.js'
+import * as encryptionManager from '../helpers/encryptionManager.js'
 
 let showMovePageModal = false
 let showMovePageModalData = null
@@ -17,6 +20,18 @@ let showMovePageModalSelectedNotebook = null
 let showMovePageModalSelectedSectionId = null
 let showMovePageModalSelectedPageGroupId = null
 let pageGroupsForShowMovePageModalSelectedSectionId = []
+
+// Password modal states
+let showPasswordModal = false
+let showChangePasswordModal = false
+let passwordModalConfig = {
+    title: 'Enter Password',
+    passwordLabel: 'Password:',
+    confirmLabel: 'Confirm Password:',
+    showConfirm: false,
+    onSubmit: null,
+    onCancel: null
+}
 
 function openPageNewTab() {
     window.open(`/page/${pageItemContextMenu.page.id}`)
@@ -157,120 +172,172 @@ function deletePage() {
 }
 
 async function passwordProtect() {
-    let password = prompt('Password:')
-    let passwordConfirm = prompt('Password Confirm:')
+    // Capture page reference before opening modal to avoid null reference issues
+    const currentPage = pageItemContextMenu.page
 
-    if(password && passwordConfirm && password === passwordConfirm) {
-        await fetchPlus.put(`/pages/password-protect/${pageItemContextMenu.page.id}`, {
-            password
-        })
+    passwordModalConfig = {
+        title: 'Protect Page',
+        passwordLabel: 'Password:',
+        confirmLabel: 'Confirm Password:',
+        showConfirm: true,
+        onSubmit: async (password) => {
+            try {
+                // Get current page content (unencrypted)
+                const contentResponse = await fetchPlus.get(`/pages/content/${currentPage.id}`)
+                const currentContent = contentResponse.content || ''
 
-        pageItemContextMenu.page.password_exists = true
-        pageItemContextMenu.page.locked = true
+                // Encrypt and protect the page
+                const result = await encryptionManager.protectPage(
+                    currentPage.id.toString(),
+                    currentContent,
+                    password
+                )
 
-        if(activePage.id === pageItemContextMenu.page.id) {
-            activePage.password_exists = true
-            activePage.locked = true
-        }
-    } else {
-        if(password === passwordConfirm) {
-            alert('Empty passwords given')
-        } else {
-            alert('Given passwords didn\'t match')
+                if (result.success) {
+                    currentPage.password_exists = true
+                    currentPage.locked = true
+
+                    if(activePage.id === currentPage.id) {
+                        activePage.password_exists = true
+                        activePage.locked = true
+                    }
+
+                    alert('Page protected successfully')
+                } else {
+                    alert(result.error || 'Failed to protect page')
+                }
+            } catch (error) {
+                console.error('Protection error:', error)
+                alert('Failed to protect page')
+            }
+
+            pageItemContextMenu.page = null
+        },
+        onCancel: () => {
+            pageItemContextMenu.page = null
         }
     }
-
-    pageItemContextMenu.page = null
+    showPasswordModal = true
 }
 
 async function unlockPage() {
-    let password = prompt('Password:')
+    // Capture page reference before opening modal to avoid null reference issues
+    const currentPage = pageItemContextMenu.page
 
-    if(password) {
-        const response = await fetchPlus.post(`/pages/unlock/${pageItemContextMenu.page.id}`, {
-            password
-        })
+    passwordModalConfig = {
+        title: 'Unlock Page',
+        passwordLabel: 'Password:',
+        confirmLabel: '',
+        showConfirm: false,
+        onSubmit: async (password) => {
+            // Get encrypted content from server
+            const contentResponse = await fetchPlus.get(`/pages/content/${currentPage.id}`)
 
-        if('error' in response) {
-            alert('Invalid password given')
-        } else {
-            pageItemContextMenu.page.locked = false
+            // Try to decrypt with the provided password
+            const result = await encryptionManager.unlockPage(
+                currentPage.id.toString(),
+                password,
+                contentResponse.content
+            )
 
-            if(activePage.id === pageItemContextMenu.page.id) {
-                activePage.locked = false
+            if (result.success) {
+                currentPage.locked = false
+
+                if(activePage.id === currentPage.id) {
+                    activePage.locked = false
+                }
+
+                alert('Page unlocked successfully')
+            } else {
+                alert(result.error || 'Invalid password')
             }
-        }
-    } else {
-        alert('Empty password given')
-    }
 
-    pageItemContextMenu.page = null
+            pageItemContextMenu.page = null
+        },
+        onCancel: () => {
+            pageItemContextMenu.page = null
+        }
+    }
+    showPasswordModal = true
 }
 
 async function changePagePassword() {
-    let currentPassword = prompt('Current Password:')
+    // Capture page reference before opening modal to avoid null reference issues
+    const currentPage = pageItemContextMenu.page
+    showChangePasswordModal = true
 
-    if(currentPassword === '') {
-        alert('Current Password required')
-        return
-    }
+    // Store current page for the handler
+    window.currentPageForPasswordChange = currentPage
+}
 
-    let newPassword = prompt('New Password:')
+async function handleChangePassword(currentPassword, newPassword) {
+    const currentPage = window.currentPageForPasswordChange
 
-    if(newPassword === '') {
-        alert('New Password required')
-        return
-    }
+    // Get encrypted content from server
+    const contentResponse = await fetchPlus.get(`/pages/content/${currentPage.id}`)
 
-    let newPasswordConfirm = prompt('Confirm New Password:')
+    const result = await encryptionManager.changePagePassword(
+        currentPage.id.toString(),
+        currentPassword,
+        newPassword,
+        contentResponse.content
+    )
 
-    if(newPasswordConfirm === '') {
-        alert('Confirm New Password required')
-        return
-    }
-
-    if(newPassword === newPasswordConfirm) {
-        const response = await fetchPlus.put(`/pages/change-password/${pageItemContextMenu.page.id}`, {
-            currentPassword,
-            newPassword
-        })
-
-        if('error' in response) {
-            alert('Invalid current password given')
-        } else {
-            alert('Page password changed')
-        }
+    if (result.success) {
+        alert('Page password changed successfully')
     } else {
-        alert('Given passwords didn\'t match')
+        alert(result.error || 'Failed to change password')
     }
 
     pageItemContextMenu.page = null
+    delete window.currentPageForPasswordChange
+}
+
+function handleChangePasswordCancel() {
+    pageItemContextMenu.page = null
+    delete window.currentPageForPasswordChange
 }
 
 async function removePagePassword() {
-    let password = prompt('Password:')
+    // Capture page reference before opening modal to avoid null reference issues
+    const currentPage = pageItemContextMenu.page
 
-    if(password) {
-        const response = await fetchPlus.post(`/pages/remove-password/${pageItemContextMenu.page.id}`, {
-            password
-        })
+    passwordModalConfig = {
+        title: 'Remove Password Protection',
+        passwordLabel: 'Password:',
+        confirmLabel: '',
+        showConfirm: false,
+        onSubmit: async (password) => {
+            // Get encrypted content from server
+            const contentResponse = await fetchPlus.get(`/pages/content/${currentPage.id}`)
 
-        if('error' in response) {
-            alert('Invalid password given')
-        } else {
-            pageItemContextMenu.page.locked = false
-            pageItemContextMenu.page.password_exists = false
+            const result = await encryptionManager.removePasswordProtection(
+                currentPage.id.toString(),
+                password,
+                contentResponse.content
+            )
 
-            if(activePage.id === pageItemContextMenu.page.id) {
-                activePage.locked = false
-                activePage.password_exists = false
+            if (result.success) {
+                currentPage.locked = false
+                currentPage.password_exists = false
+
+                if(activePage.id === currentPage.id) {
+                    activePage.locked = false
+                    activePage.password_exists = false
+                }
+
+                alert('Password protection removed successfully')
+            } else {
+                alert(result.error || 'Failed to remove password protection')
             }
-        }
-    } else {
-        alert('Empty password given')
-    }
 
-    pageItemContextMenu.page = null
+            pageItemContextMenu.page = null
+        },
+        onCancel: () => {
+            pageItemContextMenu.page = null
+        }
+    }
+    showPasswordModal = true
 }
 
 async function fetchPageGroupsForSectionId() {
@@ -363,4 +430,20 @@ $: fetchPageGroupsForSectionId(showMovePageModalSelectedSectionId)
             </form>
         </Modal>
     {/if}
+
+    <PasswordModal
+        bind:isOpen={showPasswordModal}
+        title={passwordModalConfig.title}
+        passwordLabel={passwordModalConfig.passwordLabel}
+        confirmLabel={passwordModalConfig.confirmLabel}
+        showConfirm={passwordModalConfig.showConfirm}
+        onSubmit={passwordModalConfig.onSubmit}
+        onCancel={passwordModalConfig.onCancel}
+    />
+
+    <ChangePasswordModal
+        bind:isOpen={showChangePasswordModal}
+        onSubmit={handleChangePassword}
+        onCancel={handleChangePasswordCancel}
+    />
 </Portal>
