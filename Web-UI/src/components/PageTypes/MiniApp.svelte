@@ -11,12 +11,38 @@ import { onMount, tick } from 'svelte'
 import { eventStore } from '../../stores.js'
 
 import 'code-mirror-custom-element'
+import AIChatPanel from '../../components/AIChatPanel.svelte'
 
 let iframe
 let configuration = false
 let showHelp = false
 let autoBuild = true
 let contentReady = false
+let aiOpen = false
+// Keys to force-refresh editors on external updates (AI/apply or fetch)
+let htmlKey = 0
+let cssKey = 0
+let jsKey = 0
+
+// System prompt for AIChatPanel to make it MiniApp-aware and reusable
+const aiSystemPrompt = `You are an assistant that generates or edits small, self-contained web mini apps for a sandboxed iframe editor.
+
+Environment:
+- Code runs inside an iframe. The editor injects CSS, HTML, then wraps JS inside an async IIFE: (async () => { /* your JS */ })().
+- Persistent storage is available via a global async object Journals with methods: getItem(key), setItem(key, value), removeItem(key), clear(), keys(). All return Promises.
+- Storage semantics: getItem/setItem accept and return JSON-serializable values via structured clone over postMessage. Do NOT JSON.stringify or JSON.parse; pass plain objects/arrays/primitives. Avoid functions, symbols, DOM nodes, and BigInt. Dates will be stored as strings.
+- No imports, no build tools, no external network resources. Use only vanilla HTML/CSS/JS.
+
+ Output format (strict):
+ - Reply with fenced code blocks labeled exactly: html, css, javascript. Example: \`\`\`html ...\`\`\`.
+ - When editing existing code, return ONLY the blocks that need changes; omit blocks that are unchanged. For any block you include, provide the FULL updated content of that block (not a diff or patch). Keep explanations very brief, after the code.
+ - JS should attach event listeners with addEventListener and can use await directly (it will be wrapped in an async IIFE).
+
+Constraints:
+- Keep code minimal, accessible, and self-contained.
+- Prefer semantic HTML and keyboard-friendly controls.
+- Use Journals for any state that should persist across reloads.
+- Do not use external CDNs, images, or libraries.`
 
 let files = {
         html: `<div id="app">
@@ -77,6 +103,8 @@ function fetchPage(id) {
             kv = parsed.kv || {}
         }
         contentReady = true
+        // External content load -> refresh editors
+        htmlKey++; cssKey++; jsKey++
         buildAndRun()
     })
 }
@@ -94,6 +122,17 @@ const savePageContent = debounce(async function () {
 function handleEditorInput(kind, e) {
     files = { ...files, [kind]: e.target.value }
     if (autoBuild) buildAndRunDebounced()
+    savePageContent()
+}
+
+function handleAIApply(e) {
+    const delta = e.detail || {}
+    files = { ...files, ...delta }
+    // Only refresh editors for blocks that changed
+    if ('html' in delta) htmlKey++
+    if ('css' in delta) cssKey++
+    if ('js' in delta) jsKey++
+    buildAndRun()
     savePageContent()
 }
 
@@ -201,7 +240,7 @@ onMount(() => {
 <div class="pos-r miniapp-root">
     {#if !configuration}
         <div class="miniapp-preview">
-            <iframe title="Mini App" sandbox="allow-scripts" bind:this={iframe}></iframe>
+            <iframe title="Mini App" sandbox="allow-scripts allow-modals allow-downloads allow-forms" bind:this={iframe}></iframe>
         </div>
     {:else}
         <div class="miniapp">
@@ -209,6 +248,7 @@ onMount(() => {
                 <label class="autobuild-toggle"><input type="checkbox" bind:checked={autoBuild} on:change={() => { if (autoBuild) buildAndRun() }} /> Auto build</label>
                 <button on:click={buildAndRun} disabled={autoBuild} title={autoBuild ? 'Disable Auto build to use Run' : 'Run the mini app'}>Run</button>
                 <button on:click={clearData}>Clear Data</button>
+                <button on:click={() => aiOpen = true}>AI Chat</button>
                 <div class="spacer"></div>
                 <button class="linklike" title="Show Mini App API help" on:click={() => showHelp = !showHelp}>Mini App API</button>
             </div>
@@ -261,7 +301,7 @@ await Journals.clear()</code></pre>
                             </tbody>
                         </table>
                         <p class="miniapp-help-note">
-                            Notes: Storage is persisted per page and scoped to this mini app. Values must be JSON-serializable.
+                            Notes: Storage is persisted per page and scoped to this mini app. Store plain values—no JSON.stringify/parse needed. Values must be JSON-serializable; Dates become strings and BigInt is not supported.
                         </p>
                     </div>
                 </div>
@@ -270,19 +310,32 @@ await Journals.clear()</code></pre>
                 <div class="editors">
                     <div class="editor-block">
                         <div class="editor-label">HTML</div>
-                        <code-mirror language="html" value={files.html} on:input={(e) => handleEditorInput('html', e)} style="border:1px solid #aaa"></code-mirror>
+                        {#key htmlKey}
+                            <code-mirror language="html" value={files.html} on:input={(e) => handleEditorInput('html', e)} style="border:1px solid #aaa"></code-mirror>
+                        {/key}
                     </div>
                     <div class="editor-block">
                         <div class="editor-label">CSS</div>
-                        <code-mirror language="css" value={files.css} on:input={(e) => handleEditorInput('css', e)} style="border:1px solid #aaa"></code-mirror>
+                        {#key cssKey}
+                            <code-mirror language="css" value={files.css} on:input={(e) => handleEditorInput('css', e)} style="border:1px solid #aaa"></code-mirror>
+                        {/key}
                     </div>
                     <div class="editor-block">
                         <div class="editor-label">JS</div>
-                        <code-mirror language="javascript" value={files.js} on:input={(e) => handleEditorInput('js', e)} style="border:1px solid #aaa"></code-mirror>
+                        {#key jsKey}
+                            <code-mirror language="javascript" value={files.js} on:input={(e) => handleEditorInput('js', e)} style="border:1px solid #aaa"></code-mirror>
+                        {/key}
                     </div>
                 </div>
-                <iframe title="Mini App" sandbox="allow-scripts" bind:this={iframe}></iframe>
+                <iframe title="Mini App" sandbox="allow-scripts allow-modals allow-downloads allow-forms" bind:this={iframe}></iframe>
             </div>
+            <AIChatPanel
+                open={aiOpen}
+                on:close={() => aiOpen = false}
+                on:apply={handleAIApply}
+                initialContext={aiSystemPrompt}
+                codeContext={files}
+            />
         </div>
     {/if}
 </div>
