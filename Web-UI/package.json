@@ -27,6 +27,7 @@
         "@tiptap/starter-kit": "^2.0.3",
         "code-mirror-custom-element": "^1.0.11",
         "date-fns": "^1.30.1",
+        "diff": "^8.0.2",
         "editorjs-drag-drop": "^1.1.16",
         "editorjs-html": "^4.0.5",
         "editorjs-text-color-plugin": "git+https://github.com/dariox64/editorjs-text-color-plugin.git",

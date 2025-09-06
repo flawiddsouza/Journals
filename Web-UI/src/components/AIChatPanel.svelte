@@ -1,5 +1,7 @@
 <script>
 import { createEventDispatcher, onMount } from 'svelte'
+import { createPatch } from 'diff'
+import Modal from './Modal.svelte'
 
 export let open = false
 export let initialContext = ''
@@ -125,30 +127,50 @@ async function askAI() {
         const endpoint = getEndpoint()
         const model = getModel()
 
-        // Prepare a new assistant message we can stream into (so typing indicator can show immediately)
+        // Build OpenAI-style messages from local chat state with strong recency rules
+        const buildChat = () => {
+            const chat = []
+            if (initialContext) chat.push({ role: 'system', content: initialContext })
+
+            // Split history and the latest user turn
+            const msgs = messages
+            const lastIsUser = msgs.length > 0 && msgs[msgs.length - 1]?.role === 'user'
+            const lastUser = lastIsUser ? msgs[msgs.length - 1] : null
+            const history = lastUser ? msgs.slice(0, -1) : msgs.slice()
+
+            // So the model doesn't anchor on stale assistant code, strip code fences from prior assistant turns
+            const stripCode = (t) => (t || '').replace(/```[\s\S]*?```/g, '[code omitted]')
+            for (const m of history) {
+                if (m.role === 'user') {
+                    chat.push({ role: 'user', content: m.content })
+                } else if (m.role === 'assistant') {
+                    chat.push({ role: 'assistant', content: stripCode(m.content) })
+                }
+                // (Intentionally omit local system/checkpoint messages from API payload)
+            }
+
+            // Inject the authoritative, current code snapshot RIGHT BEFORE the latest user prompt
+            if (includeContext && codeContext && (codeContext.html || codeContext.css || codeContext.js)) {
+                const parts = []
+                if (codeContext.html) parts.push('```html\n' + codeContext.html + '\n```')
+                if (codeContext.css) parts.push('```css\n' + codeContext.css + '\n```')
+                if (codeContext.js) parts.push('```javascript\n' + codeContext.js + '\n```')
+                chat.push({
+                    role: 'system',
+                    content: 'SOURCE OF TRUTH — Use ONLY the following as the current app code. Ignore any earlier code shown in this conversation. Return only the blocks that need changes, with full contents.\n\n' + parts.join('\n\n')
+                })
+            }
+
+            if (lastUser) chat.push({ role: 'user', content: lastUser.content })
+            return chat
+        }
+
+        const chat = buildChat()
+
+        // Prepare a new assistant message we can stream into (so typing indicator can show immediately),
+        // but do not include this placeholder in the API payload above.
         const assistantIndex = messages.length
         messages = [...messages, { role: 'assistant', content: '' }]
-
-        // Build OpenAI-style messages from local chat state
-        const chat = []
-        if (initialContext) chat.push({ role: 'system', content: initialContext })
-
-        // Optionally include current code context so model can propose edits
-        if (includeContext && codeContext && (codeContext.html || codeContext.css || codeContext.js)) {
-            const parts = []
-            if (codeContext.html) parts.push('```html\n' + codeContext.html + '\n```')
-            if (codeContext.css) parts.push('```css\n' + codeContext.css + '\n```')
-            if (codeContext.js) parts.push('```javascript\n' + codeContext.js + '\n```')
-            chat.push({
-                role: 'system',
-                content: 'Current app code (for context). Only return blocks that need changes; omit unchanged ones.\n\n' + parts.join('\n\n')
-            })
-        }
-        for (const m of messages) {
-            if (m.role === 'user' || m.role === 'assistant') {
-                chat.push({ role: m.role, content: m.content })
-            }
-        }
 
         const headers = {
             'Content-Type': 'application/json',
@@ -257,6 +279,21 @@ function extractCodeBlocks(text) {
     return out
 }
 
+function parseDiff(diffText) {
+    if (!diffText) return []
+    const lines = diffText.split('\n')
+    // Hide createPatch headers like "Index: CSS", separator lines, and file markers
+    const isHeaderLine = (line) => /^(Index:\s|={3,}$|---\s|\+\+\+\s)/.test(line)
+    return lines
+        .filter(line => !isHeaderLine(line))
+        .map(line => {
+        if (line.startsWith('+')) return { type: 'add', text: line }
+        if (line.startsWith('-')) return { type: 'del', text: line }
+        if (line.startsWith('@@')) return { type: 'hunk', text: line }
+            return { type: 'context', text: line }
+        })
+}
+
 let lastExtract = { html: undefined, css: undefined, js: undefined, blocks: [] }
 $: {
     // Track extract for the last assistant message
@@ -264,13 +301,66 @@ $: {
     lastExtract = last ? extractCodeBlocks(last.content) : { html: undefined, css: undefined, js: undefined, blocks: [] }
 }
 
+let showConfirm = false
+let confirmDelta = {}
+let confirmDiffs = { html: '', css: '', js: '' }
+let confirmSel = {}
+
 function applySelection(sel = { html: true, css: true, js: true }) {
     const delta = {}
     if (sel.html && lastExtract.html !== undefined) delta.html = lastExtract.html
     if (sel.css && lastExtract.css !== undefined) delta.css = lastExtract.css
     if (sel.js && lastExtract.js !== undefined) delta.js = lastExtract.js
     if (Object.keys(delta).length === 0) return
-    dispatch('apply', delta)
+    // Compute diffs
+    confirmDiffs = {
+        html: sel.html && delta.html ? createPatch('HTML', codeContext.html || '', delta.html) : '',
+        css: sel.css && delta.css ? createPatch('CSS', codeContext.css || '', delta.css) : '',
+        js: sel.js && delta.js ? createPatch('JS', codeContext.js || '', delta.js) : ''
+    }
+    confirmDelta = delta
+    confirmSel = sel
+    showConfirm = true
+}
+
+function confirmApply() {
+    // Create a checkpoint capturing the previous code for changed blocks
+    const changed = Object.keys(confirmDelta)
+    const prev = {}
+    const next = {}
+    for (const k of changed) {
+        // Only capture keys we are changing
+        prev[k] = codeContext?.[k] ?? ''
+        next[k] = confirmDelta[k]
+    }
+
+    const checkpoint = {
+        id: Date.now() + Math.random(),
+        changed,
+        prev,
+        next,
+        createdAt: new Date().toISOString(),
+        reverted: false
+    }
+
+    // Add a special checkpoint message with an inline revert action
+    messages = [
+        ...messages,
+        {
+            role: 'system',
+            type: 'checkpoint',
+            content: `Applied changes to: ${changed.join(', ') || '—'}`,
+            checkpoint
+        }
+    ]
+
+    // Dispatch the actual apply to the parent
+    dispatch('apply', confirmDelta)
+    showConfirm = false
+}
+
+function cancelApply() {
+    showConfirm = false
 }
 
 function keydown(e) {
@@ -282,6 +372,31 @@ function keydown(e) {
         e.preventDefault()
         send()
     }
+}
+
+function revertCheckpoint(checkpoint) {
+    if (!checkpoint || checkpoint.reverted) return
+    const revertDelta = {}
+    for (const blockName of checkpoint.changed) {
+        revertDelta[blockName] = checkpoint.prev?.[blockName] ?? ''
+    }
+    // Mark as reverted locally
+    checkpoint.reverted = true
+    // Dispatch revert to parent
+    dispatch('apply', revertDelta)
+    // Log a small system message
+    messages = [
+        ...messages,
+        {
+            role: 'system',
+            type: 'revert',
+            content: `Reverted checkpoint (${checkpoint.changed.join(', ')}). The next request will include the current code snapshot as the only source of truth; ignore earlier assistant code.`
+        }
+    ]
+}
+
+function clearChat() {
+    messages = []
 }
 </script>
 
@@ -299,19 +414,39 @@ function keydown(e) {
                         <div class="message system">{initialContext}</div>
                     {/if}
                     {#each messages as m, i}
-                        <div class="message {m.role}">
-                            {#if m.role === 'user'}
+                        <div class="message {m.role} {m.type || ''}">
+                            {#if m.type === 'checkpoint'}
+                                <div class="label">Checkpoint</div>
+                            {:else if m.type === 'revert'}
+                                <div class="label">System</div>
+                            {:else if m.role === 'user'}
                                 <div class="label">You</div>
                             {:else}
                                 <div class="label">Assistant</div>
                             {/if}
                             <div class="content">
-                                {#if m.role === 'assistant' && (!m.content || m.content.trim() === '') && busy && i === messages.length - 1}
-                                    <span class="typing" aria-label="Assistant is typing" role="status">
-                                        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-                                    </span>
+                                {#if m.type === 'checkpoint'}
+                                    <div class="checkpoint-row">
+                                        <div>
+                                            {m.content}
+                                            {#if m.checkpoint?.createdAt}
+                                                <span class="muted"> · {new Date(m.checkpoint.createdAt).toLocaleTimeString()}</span>
+                                            {/if}
+                                        </div>
+                                        <div class="checkpoint-actions">
+                                            <button on:click={() => revertCheckpoint(m.checkpoint)} disabled={m.checkpoint?.reverted}>
+                                                {m.checkpoint?.reverted ? 'Reverted' : 'Revert'}
+                                            </button>
+                                        </div>
+                                    </div>
                                 {:else}
-                                    {m.content}
+                                    {#if m.role === 'assistant' && (!m.content || m.content.trim() === '') && busy && i === messages.length - 1}
+                                        <span class="typing" aria-label="Assistant is typing" role="status">
+                                            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                                        </span>
+                                    {:else}
+                                        {m.content}
+                                    {/if}
                                 {/if}
                             </div>
                         </div>
@@ -344,7 +479,10 @@ function keydown(e) {
             <div class="ai-footer">
                 <div style="display:flex; gap:.5rem; align-items:center; justify-content:space-between;">
                     <span>Configure AI{#if !isConfigured}<span style="margin-left:.4rem; color:#b91c1c;">(required)</span>{/if}</span>
-                    <button class="ghost" on:click={() => { showSettings = !showSettings }} aria-expanded={showSettings}>{showSettings ? 'Hide' : 'Show'} Settings</button>
+                    <div style="display:flex; gap:.5rem; align-items:center;">
+                        <button class="ghost" on:click={clearChat} title="Clear chat history">Clear Chat</button>
+                        <button class="ghost" on:click={() => { showSettings = !showSettings }} aria-expanded={showSettings}>{showSettings ? 'Hide' : 'Show'} Settings</button>
+                    </div>
                 </div>
                 {#if codeContext && (codeContext.html || codeContext.css || codeContext.js)}
                     <div class="ctx-row">
@@ -404,6 +542,48 @@ function keydown(e) {
             </div>
         </div>
     </div>
+
+    {#if showConfirm}
+        <Modal on:close-modal={cancelApply}>
+            <div class="confirm-modal">
+                <h3>Confirm Changes</h3>
+                {#if confirmDiffs.html}
+                    <div class="diff-section">
+                        <h4>HTML Changes</h4>
+                        <div class="diff-view">
+                            {#each parseDiff(confirmDiffs.html) as line}
+                                <div class="diff-line {line.type}">{line.text}</div>
+                            {/each}
+                        </div>
+                    </div>
+                {/if}
+                {#if confirmDiffs.css}
+                    <div class="diff-section">
+                        <h4>CSS Changes</h4>
+                        <div class="diff-view">
+                            {#each parseDiff(confirmDiffs.css) as line}
+                                <div class="diff-line {line.type}">{line.text}</div>
+                            {/each}
+                        </div>
+                    </div>
+                {/if}
+                {#if confirmDiffs.js}
+                    <div class="diff-section">
+                        <h4>JS Changes</h4>
+                        <div class="diff-view">
+                            {#each parseDiff(confirmDiffs.js) as line}
+                                <div class="diff-line {line.type}">{line.text}</div>
+                            {/each}
+                        </div>
+                    </div>
+                {/if}
+                <div class="actions">
+                    <button on:click={cancelApply}>Cancel</button>
+                    <button on:click={confirmApply}>Apply Changes</button>
+                </div>
+            </div>
+        </Modal>
+    {/if}
 {/if}
 
 <style>
@@ -413,7 +593,7 @@ function keydown(e) {
     background: rgba(0,0,0,0.35);
     display: grid;
     place-items: center;
-    z-index: 40;
+    z-index: 2;
 }
 .ai-panel {
     width: min(980px, 96vw);
@@ -462,6 +642,12 @@ function keydown(e) {
     border: 1px solid #e5e7eb;
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
 }
+.message.checkpoint .content { background: #fff7ed; border-color: #fdba74; }
+.message.revert .content { background: #fef2f2; border-color: #fecaca; }
+.checkpoint-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.checkpoint-actions button { border: 1px solid #d1d5db; background: #fff; padding: .25rem .5rem; border-radius: 6px; cursor: pointer; }
+.checkpoint-actions button[disabled] { opacity: .6; cursor: default; }
+.muted { color: #6b7280; font-size: .8rem; }
 
 /* Inline typing indicator inside assistant bubble */
 .typing { display: inline-flex; gap: 6px; align-items: center; height: 1em; }
@@ -523,4 +709,47 @@ function keydown(e) {
 .settings .input-with-toggle { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: center; }
 .settings .input-with-toggle input { width: 100%; }
 .settings .input-with-toggle .eye { margin-left: .4rem; border: 1px solid #d1d5db; background: #f9fafb; border-radius: 6px; padding: .3rem .5rem; cursor: pointer; }
+
+.confirm-modal {
+    max-width: 800px;
+    max-height: 600px;
+    overflow: auto;
+}
+.diff-section {
+    margin-bottom: 1rem;
+}
+.diff-section h4 {
+    margin-bottom: 0.5rem;
+}
+.actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+.actions button {
+    padding: 0.5rem 1rem;
+    border: 1px solid #ccc;
+    background: #fff;
+    cursor: pointer;
+}
+.actions button:last-child {
+    background: #007bff;
+    color: white;
+}
+
+.diff-view {
+    font-family: monospace;
+    font-size: 0.8rem;
+    background: #f4f4f4;
+    padding: 0.5rem;
+    border-radius: 4px;
+    white-space: pre-wrap;
+}
+.diff-line {
+    margin: 0;
+}
+.diff-line.add { color: green; }
+.diff-line.del { color: red; }
+.diff-line.hunk { color: blue; font-weight: bold; }
+.diff-line.context { color: black; }
 </style>
