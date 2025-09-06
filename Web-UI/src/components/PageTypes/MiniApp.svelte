@@ -23,6 +23,8 @@ let aiOpen = false
 let htmlKey = 0
 let cssKey = 0
 let jsKey = 0
+// Derived flag to unify read-only conditions
+$: readOnlyMode = viewOnly || pageContentOverride !== undefined
 
 // System prompt for AIChatPanel to make it MiniApp-aware and reusable
 const aiSystemPrompt = `You are an assistant that generates or edits small, self-contained web mini apps for a sandboxed iframe editor.
@@ -85,6 +87,19 @@ document.getElementById('dec').addEventListener('click', () => set(counter - 1))
 }
 let kv = {}
 
+// If pageContentOverride is provided (history view), load from it and skip fetching/saving
+$: if (pageContentOverride !== undefined) {
+    contentReady = false
+    const parsed = parseContent(pageContentOverride)
+    if (parsed && parsed.files) {
+        files = parsed.files
+        kv = parsed.kv || {}
+    }
+    contentReady = true
+    htmlKey++; cssKey++; jsKey++
+    tick().then(buildAndRun)
+}
+
 $: fetchPage(pageId)
 
 function parseContent(content) {
@@ -93,7 +108,8 @@ function parseContent(content) {
 }
 
 function fetchPage(id) {
-    if (!id) return
+    // Don't fetch when we have an override (history preview) or missing id
+    if (!id || pageContentOverride !== undefined) return
     contentReady = false
     fetchPlus.get(`/pages/content/${id}`).then(resp => {
         const raw = resp.content
@@ -110,6 +126,8 @@ function fetchPage(id) {
 }
 
 const savePageContent = debounce(async function () {
+    // Do not save when viewing history or explicitly view-only
+    if (readOnlyMode) return
     const payload = JSON.stringify({ files, kv })
     try {
         await fetchPlus.put(`/pages/${pageId}`, { pageContent: payload })
@@ -120,12 +138,14 @@ const savePageContent = debounce(async function () {
 }, 500)
 
 function handleEditorInput(kind, e) {
+    if (readOnlyMode) return
     files = { ...files, [kind]: e.target.value }
     if (autoBuild) buildAndRunDebounced()
     savePageContent()
 }
 
 function handleAIApply(e) {
+    if (readOnlyMode) return
     const delta = e.detail || {}
     files = { ...files, ...delta }
     // Only refresh editors for blocks that changed
@@ -137,6 +157,7 @@ function handleAIApply(e) {
 }
 
 function clearData() {
+    if (readOnlyMode) return
     if (!confirm('Clear this Mini App\'s data?')) return
     kv = {}
     savePageContent()
@@ -203,11 +224,33 @@ function handleStorageRequest(ev) {
     let result
     try {
         switch (msg.method) {
-            case 'getItem': result = kv[msg.key]; break
-            case 'setItem': kv[msg.key] = msg.value; savePageContent(); result = true; break
-            case 'removeItem': delete kv[msg.key]; savePageContent(); result = true; break
-            case 'clear': kv = {}; savePageContent(); result = true; break
-            case 'keys': result = Object.keys(kv); break
+            case 'getItem':
+                result = kv[msg.key];
+                break
+            case 'setItem':
+                kv[msg.key] = msg.value
+                if (!readOnlyMode) {
+                    savePageContent()
+                }
+                result = true
+                break
+            case 'removeItem':
+                delete kv[msg.key]
+                if (!readOnlyMode) {
+                    savePageContent()
+                }
+                result = true
+                break
+            case 'clear':
+                kv = {}
+                if (!readOnlyMode) {
+                    savePageContent()
+                }
+                result = true
+                break
+            case 'keys':
+                result = Object.keys(kv)
+                break
             default: result = null
         }
     } catch (e) { result = null }
@@ -218,6 +261,8 @@ onMount(() => {
     window.addEventListener('message', handleStorageRequest)
     const unsub = eventStore.subscribe(evt => {
         if (!evt || !evt.event) return
+        // Ignore configuration events when viewing history or explicitly view-only
+        if (readOnlyMode) return
         if (evt.event === 'configureMiniApp') {
             configuration = true
             // Clear the event so new subscribers don't receive stale value
