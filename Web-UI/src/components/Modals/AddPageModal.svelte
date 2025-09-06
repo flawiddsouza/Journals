@@ -124,6 +124,7 @@ function handleAddPageInput(e) {
                 <option value="Spreadsheet">Spreadsheet</option>
                 <option value="DrawIO">Draw.io</option>
                 <option value="Kanban">Kanban</option>
+                <option value="MiniApp">Mini App</option>
                 {#if !pageGroupId}
                     <option value="PageGroup">Page Group</option>
                 {/if}

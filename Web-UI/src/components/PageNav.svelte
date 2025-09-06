@@ -23,6 +23,8 @@ let pageStyles = {}
 
 let showPageHistoryItemViewModal = false
 let pageHistoryItemViewPageContent = null
+let miniAppConfigMode = false
+let lastActivePageId = null
 
 $: if(showPageHistoryModal && activePage) {
     fetchPlus.get(`/page-history/${activePage.id}`).then(response => {
@@ -201,6 +203,22 @@ function configureTable() {
     })
 }
 
+function configureMiniApp() {
+    miniAppConfigMode = true
+    eventStore.set({
+        event: 'configureMiniApp',
+        data: {}
+    })
+}
+
+function exitConfigureMiniApp() {
+    miniAppConfigMode = false
+    eventStore.set({
+        event: 'exitConfigureMiniApp',
+        data: {}
+    })
+}
+
 function generatePageLinks() {
     const links = []
 
@@ -232,6 +250,22 @@ function generatePageLinks() {
                 })
             }
 
+            if (activePage.type === 'MiniApp' && activePage.view_only === false) {
+                if (!miniAppConfigMode) {
+                    links.push({
+                        href: '#configure-mini-app',
+                        text: 'Configure Mini App',
+                        onClick: () => configureMiniApp(),
+                    })
+                } else {
+                    links.push({
+                        href: '#exit-configure-mini-app',
+                        text: 'Exit Configuration',
+                        onClick: () => exitConfigureMiniApp(),
+                    })
+                }
+            }
+
             links.push({
                 href: '#export',
                 text: 'Export',
@@ -254,8 +288,14 @@ function generatePageLinks() {
 
 let pageLinks = generatePageLinks()
 
-$: if(activePage) {
+$: if (miniAppConfigMode, activePage) {
     pageLinks = generatePageLinks()
+}
+
+// Reset Mini App config mode whenever the page changes
+$: if ((activePage?.id ?? null) !== lastActivePageId) {
+    lastActivePageId = activePage?.id ?? null
+    if (miniAppConfigMode) miniAppConfigMode = false
 }
 
 function isLastLink(index, array) {

@@ -7,6 +7,7 @@ import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
 import PageGroup from './PageTypes/PageGroup.svelte'
 import Kanban from './PageTypes/Kanban.svelte'
+import MiniApp from './PageTypes/MiniApp.svelte'
 import { format } from 'date-fns'
 import defaultKeydownHandlerForContentEditableArea from '../helpers/defaultKeydownHandlerForContentEditableArea.js'
 
@@ -108,6 +109,12 @@ function makeContentEditableSingleLine(e) {
                     bind:pageId={activePage.id}
                     bind:viewOnly={viewOnlyComputed}
                 ></Kanban>
+            {/if}
+            {#if activePage.type === 'MiniApp'}
+                <MiniApp
+                    bind:pageId={activePage.id}
+                    bind:viewOnly={viewOnlyComputed}
+                ></MiniApp>
             {/if}
         </div>
     {/if}
