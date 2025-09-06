@@ -240,7 +240,7 @@ onMount(() => {
 <div class="pos-r miniapp-root">
     {#if !configuration}
         <div class="miniapp-preview">
-            <iframe title="Mini App" sandbox="allow-scripts allow-modals allow-downloads allow-forms" bind:this={iframe}></iframe>
+            <iframe title="Mini App" sandbox="allow-scripts allow-modals allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox" bind:this={iframe}></iframe>
         </div>
     {:else}
         <div class="miniapp">
@@ -327,7 +327,7 @@ await Journals.clear()</code></pre>
                         {/key}
                     </div>
                 </div>
-                <iframe title="Mini App" sandbox="allow-scripts allow-modals allow-downloads allow-forms" bind:this={iframe}></iframe>
+                <iframe title="Mini App" sandbox="allow-scripts allow-modals allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox" bind:this={iframe}></iframe>
             </div>
             <AIChatPanel
                 open={aiOpen}
