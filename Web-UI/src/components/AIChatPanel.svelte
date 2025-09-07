@@ -340,7 +340,8 @@ function confirmApply() {
         prev,
         next,
         createdAt: new Date().toISOString(),
-        reverted: false
+        reverted: false,
+        diffs: confirmDiffs
     }
 
     // Add a special checkpoint message with an inline revert action
@@ -398,6 +399,15 @@ function revertCheckpoint(checkpoint) {
 function clearChat() {
     messages = []
 }
+
+let showDiffModal = false
+let diffModalData = { html: '', css: '', js: '' }
+
+function viewDiff(checkpoint) {
+    if (!checkpoint?.diffs) return
+    diffModalData = checkpoint.diffs
+    showDiffModal = true
+}
 </script>
 
 {#if open}
@@ -434,6 +444,7 @@ function clearChat() {
                                             {/if}
                                         </div>
                                         <div class="checkpoint-actions">
+                                            <button on:click={() => viewDiff(m.checkpoint)} disabled={!m.checkpoint?.diffs}>View Diff</button>
                                             <button on:click={() => revertCheckpoint(m.checkpoint)} disabled={m.checkpoint?.reverted}>
                                                 {m.checkpoint?.reverted ? 'Reverted' : 'Revert'}
                                             </button>
@@ -580,6 +591,47 @@ function clearChat() {
                 <div class="actions">
                     <button on:click={cancelApply}>Cancel</button>
                     <button on:click={confirmApply}>Apply Changes</button>
+                </div>
+            </div>
+        </Modal>
+    {/if}
+
+    {#if showDiffModal}
+        <Modal on:close-modal={() => showDiffModal = false}>
+            <div class="confirm-modal">
+                <h3>Applied Changes</h3>
+                {#if diffModalData.html}
+                    <div class="diff-section">
+                        <h4>HTML Changes</h4>
+                        <div class="diff-view">
+                            {#each parseDiff(diffModalData.html) as line}
+                                <div class="diff-line {line.type}">{line.text}</div>
+                            {/each}
+                        </div>
+                    </div>
+                {/if}
+                {#if diffModalData.css}
+                    <div class="diff-section">
+                        <h4>CSS Changes</h4>
+                        <div class="diff-view">
+                            {#each parseDiff(diffModalData.css) as line}
+                                <div class="diff-line {line.type}">{line.text}</div>
+                            {/each}
+                        </div>
+                    </div>
+                {/if}
+                {#if diffModalData.js}
+                    <div class="diff-section">
+                        <h4>JS Changes</h4>
+                        <div class="diff-view">
+                            {#each parseDiff(diffModalData.js) as line}
+                                <div class="diff-line {line.type}">{line.text}</div>
+                            {/each}
+                        </div>
+                    </div>
+                {/if}
+                <div class="actions">
+                    <button on:click={() => showDiffModal = false}>Close</button>
                 </div>
             </div>
         </Modal>
