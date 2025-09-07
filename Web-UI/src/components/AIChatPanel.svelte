@@ -74,6 +74,8 @@ function clearConfig() {
 let messages = []
 
 function close() {
+    // If a request is in-flight, stop it before closing
+    if (busy) stop()
     dispatch('close')
 }
 
@@ -188,7 +190,9 @@ async function askAI() {
             stream: true
         })
 
-        const res = await fetch(endpoint, { method: 'POST', headers, body })
+        // Wire up abort to allow stopping streaming requests
+        currentAbort = new AbortController()
+        const res = await fetch(endpoint, { method: 'POST', headers, body, signal: currentAbort.signal })
         if (!res.ok) {
             const errText = await res.text().catch(() => `${res.status}`)
             // Replace placeholder with error message
@@ -196,6 +200,8 @@ async function askAI() {
             updated[assistantIndex] = { role: 'assistant', content: `Error: AI request failed (${res.status}): ${errText}` }
             messages = updated
             busy = false
+            currentAbort = null
+            currentReader = null
             return
         }
 
@@ -213,7 +219,8 @@ async function askAI() {
             return
         }
 
-        const reader = res.body.getReader()
+    const reader = res.body.getReader()
+    currentReader = reader
         const decoder = new TextDecoder('utf-8')
         let buffer = ''
 
@@ -247,7 +254,27 @@ async function askAI() {
         }
 
         busy = false
+        currentAbort = null
+        currentReader = null
     } catch (err) {
+        // Special-case aborts: mark as stopped instead of error
+        if (err && (err.name === 'AbortError' || /abort/i.test(err.message || ''))) {
+            const idx = messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && messages[messages.length - 1]?.content !== undefined
+                ? messages.length - 1
+                : -1
+            if (idx >= 0) {
+                const updated = [...messages]
+                updated[idx] = { ...updated[idx], content: (updated[idx].content || '') + '\n\n[stopped]' }
+                messages = updated
+            }
+            busy = false
+            currentAbort = null
+            if (currentReader) {
+                try { await currentReader.cancel() } catch {}
+            }
+            currentReader = null
+            return
+        }
         // If a placeholder assistant exists, try to replace it; else append
         const idx = messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && messages[messages.length - 1]?.content === ''
             ? messages.length - 1
@@ -260,6 +287,11 @@ async function askAI() {
             messages = [...messages, { role: 'assistant', content: `Error: ${err?.message || err}` }]
         }
         busy = false
+        currentAbort = null
+        if (currentReader) {
+            try { await currentReader.cancel() } catch {}
+        }
+        currentReader = null
     }
 }
 
@@ -408,6 +440,15 @@ function viewDiff(checkpoint) {
     diffModalData = checkpoint.diffs
     showDiffModal = true
 }
+
+// --- Stop/Cancel generation support ---
+let currentAbort = null
+let currentReader = null
+function stop() {
+    try { currentAbort?.abort() } catch {}
+    try { currentReader?.cancel() } catch {}
+}
+
 </script>
 
 {#if open}
@@ -485,7 +526,7 @@ function viewDiff(checkpoint) {
             </div>
             <div class="ai-input">
                 <textarea rows="3" bind:value={input} placeholder="Describe the app or change you want… (Enter to send)" on:keydown={keydown}></textarea>
-                <button class="send" on:click={send} disabled={busy || !input.trim() || !isConfigured}>Send</button>
+                <button class="send" on:click={busy ? stop : send} disabled={!busy && (!input.trim() || !isConfigured)}>{busy ? 'Stop' : 'Send'}</button>
             </div>
             <div class="ai-footer">
                 <div style="display:flex; gap:.5rem; align-items:center; justify-content:space-between;">
