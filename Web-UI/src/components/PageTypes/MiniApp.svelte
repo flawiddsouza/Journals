@@ -19,12 +19,27 @@ let showHelp = false
 let autoBuild = true
 let contentReady = false
 let aiOpen = false
+let activeTab = 'html'
 // Keys to force-refresh editors on external updates (AI/apply or fetch)
 let htmlKey = 0
 let cssKey = 0
 let jsKey = 0
 // Derived flag to unify read-only conditions
 $: readOnlyMode = viewOnly || pageContentOverride !== undefined
+
+// Tabs keyboard support (Left/Right arrows)
+const tabOrder = ['html', 'css', 'js']
+function onTabKeydown(e) {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        const idx = tabOrder.indexOf(activeTab)
+        const next = e.key === 'ArrowRight' ? (idx + 1) % tabOrder.length : (idx - 1 + tabOrder.length) % tabOrder.length
+        activeTab = tabOrder[next]
+        // move focus to the newly selected tab
+        const btn = document.getElementById('tab-' + activeTab)
+        if (btn) btn.focus()
+        e.preventDefault()
+    }
+}
 
 // System prompt for AIChatPanel to make it MiniApp-aware and reusable
 const aiSystemPrompt = `You are an assistant that generates or edits small, self-contained web mini apps for a sandboxed iframe editor.
@@ -353,23 +368,55 @@ await Journals.clear()</code></pre>
             {/if}
             <div class="panes">
                 <div class="editors">
-                    <div class="editor-block">
-                        <div class="editor-label">HTML</div>
-                        {#key htmlKey}
-                            <code-mirror language="html" value={files.html} on:input={(e) => handleEditorInput('html', e)} style="border:1px solid #aaa"></code-mirror>
-                        {/key}
+                    <div class="tabs" role="tablist" aria-label="Mini App editors" tabindex="0" on:keydown={onTabKeydown}>
+                        <button
+                            id="tab-html"
+                            class="tab"
+                            role="tab"
+                            aria-selected={activeTab === 'html'}
+                            aria-controls="panel-html"
+                            tabindex={activeTab === 'html' ? 0 : -1}
+                            on:click={() => (activeTab = 'html')}
+                        >HTML</button>
+                        <button
+                            id="tab-css"
+                            class="tab"
+                            role="tab"
+                            aria-selected={activeTab === 'css'}
+                            aria-controls="panel-css"
+                            tabindex={activeTab === 'css' ? 0 : -1}
+                            on:click={() => (activeTab = 'css')}
+                        >CSS</button>
+                        <button
+                            id="tab-js"
+                            class="tab"
+                            role="tab"
+                            aria-selected={activeTab === 'js'}
+                            aria-controls="panel-js"
+                            tabindex={activeTab === 'js' ? 0 : -1}
+                            on:click={() => (activeTab = 'js')}
+                        >JS</button>
                     </div>
-                    <div class="editor-block">
-                        <div class="editor-label">CSS</div>
-                        {#key cssKey}
-                            <code-mirror language="css" value={files.css} on:input={(e) => handleEditorInput('css', e)} style="border:1px solid #aaa"></code-mirror>
-                        {/key}
-                    </div>
-                    <div class="editor-block">
-                        <div class="editor-label">JS</div>
-                        {#key jsKey}
-                            <code-mirror language="javascript" value={files.js} on:input={(e) => handleEditorInput('js', e)} style="border:1px solid #aaa"></code-mirror>
-                        {/key}
+                    <div class="tab-panels">
+                        {#if activeTab === 'html'}
+                            <div role="tabpanel" id="panel-html" aria-labelledby="tab-html" class="editor-panel">
+                                {#key htmlKey}
+                                    <code-mirror language="html" value={files.html} on:input={(e) => handleEditorInput('html', e)} style="border:1px solid #aaa"></code-mirror>
+                                {/key}
+                            </div>
+                        {:else if activeTab === 'css'}
+                            <div role="tabpanel" id="panel-css" aria-labelledby="tab-css" class="editor-panel">
+                                {#key cssKey}
+                                    <code-mirror language="css" value={files.css} on:input={(e) => handleEditorInput('css', e)} style="border:1px solid #aaa"></code-mirror>
+                                {/key}
+                            </div>
+                        {:else}
+                            <div role="tabpanel" id="panel-js" aria-labelledby="tab-js" class="editor-panel">
+                                {#key jsKey}
+                                    <code-mirror language="javascript" value={files.js} on:input={(e) => handleEditorInput('js', e)} style="border:1px solid #aaa"></code-mirror>
+                                {/key}
+                            </div>
+                        {/if}
                     </div>
                 </div>
                 <iframe title="Mini App" sandbox="allow-scripts allow-modals allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox" bind:this={iframe}></iframe>
@@ -421,22 +468,54 @@ await Journals.clear()</code></pre>
 }
 
 .editors {
-    display: grid;
-    grid-template-rows: auto auto auto;
-    gap: 0.5rem;
-    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
     margin-top: 1rem;
     margin-bottom: 1rem;
 }
 
-.editor-block {
+.tabs {
+    display: flex;
+    gap: 0.25rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+.tab {
+    appearance: none;
+    border: none;
+    background: none;
+    padding: 0.4rem 0.6rem;
+    margin: 0;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+}
+.tab[aria-selected="true"] {
+    border-color: #0b65c2;
+    color: #0b65c2;
+    font-weight: 600;
+}
+.tab:focus-visible {
+    outline: 2px solid #0b65c2;
+    outline-offset: 2px;
+}
+.tab-panels {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+.editor-panel {
+    position: absolute;
+    inset: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    overflow: hidden;
 }
-
-.editor-label {
-    font-weight: 600;
+.editor-panel code-mirror {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
 }
 
 iframe {
