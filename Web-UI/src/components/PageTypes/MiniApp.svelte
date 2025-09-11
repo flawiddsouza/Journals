@@ -12,10 +12,12 @@ import { eventStore } from '../../stores.js'
 
 import 'code-mirror-custom-element'
 import AIChatPanel from '../../components/AIChatPanel.svelte'
+import DataViewer from '../../components/DataViewer.svelte'
 
 let iframe
 let configuration = false
 let showHelp = false
+let showData = false
 let autoBuild = true
 let contentReady = false
 let aiOpen = false
@@ -307,9 +309,9 @@ onMount(() => {
             <div class="toolbar">
                 <label class="autobuild-toggle"><input type="checkbox" bind:checked={autoBuild} on:change={() => { if (autoBuild) buildAndRun() }} /> Auto build</label>
                 <button on:click={buildAndRun} disabled={autoBuild} title={autoBuild ? 'Disable Auto build to use Run' : 'Run the mini app'}>Run</button>
-                <button on:click={clearData}>Clear Data</button>
                 <button on:click={() => aiOpen = true}>AI Chat</button>
                 <div class="spacer"></div>
+                <button class="linklike" title="Show stored data for this mini app" on:click={() => showData = !showData}>Stored Data</button>
                 <button class="linklike" title="Show Mini App API help" on:click={() => showHelp = !showHelp}>Mini App API</button>
             </div>
             {#if showHelp}
@@ -365,6 +367,10 @@ await Journals.clear()</code></pre>
                         </p>
                     </div>
                 </div>
+            {/if}
+            {#if showData}
+                <div style="margin-top: 0.5rem;"></div>
+                <DataViewer {kv} readOnly={readOnlyMode} on:clearData={clearData} />
             {/if}
             <div class="panes">
                 <div class="editors">

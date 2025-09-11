@@ -794,8 +794,10 @@ import AddPageModal from './Modals/AddPageModal.svelte'
             <div>
                 <table class="w-100p table">
                     <thead>
-                        <th>Profile</th>
-                        <th colspan="2">Actions</th>
+                        <tr>
+                            <th>Profile</th>
+                            <th colspan="2">Actions</th>
+                        </tr>
                     </thead>
                     <tbody>
                         {#each profiles as profile}
