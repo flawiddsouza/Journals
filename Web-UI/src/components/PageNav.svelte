@@ -325,7 +325,7 @@ function isLastLink(index, array) {
                 <table>
                     {#each pageHistory as pageHistoryItem}
                         <tr>
-                            <td>{format(pageHistoryItem.created_at + 'Z', 'DD-MM-YYYY hh:mm A')}</td>
+                            <td>{format(pageHistoryItem.created_at + 'Z', 'DD-MM-YYYY hh:mm:ss A')}</td>
                             <td><button on:click={() => viewPageHistoryItem(pageHistoryItem.id)}>View</button></td>
                             <td><button on:click={() => restorePageHistoryItem(pageHistoryItem.id)}>Restore</button></td>
                         </tr>
@@ -344,7 +344,7 @@ function isLastLink(index, array) {
                 <table>
                     {#each pageUploads as pageUploadsItem}
                         <tr>
-                            <td>{format(pageUploadsItem.created_at + 'Z', 'DD-MM-YYYY hh:mm A')}</td>
+                            <td>{format(pageUploadsItem.created_at + 'Z', 'DD-MM-YYYY hh:mm:ss A')}</td>
                             <!-- show view if image, show download if file -->
                             <td><button on:click={() => viewImage(pageUploadsItem)}>View</button></td>
                             <td><button on:click={() => deleteImage(pageUploadsItem.id)}>Delete</button></td>
