@@ -5,7 +5,7 @@ export let pageContentOverride = undefined
 export let style = ''
 
 import fetchPlus from '../../helpers/fetchPlus.js'
-import { dndzone } from 'svelte-dnd-action'
+import { dndzone, dragHandleZone, dragHandle } from 'svelte-dnd-action'
 import { flip } from 'svelte/animate'
 import debounce from '../../helpers/debounce.js'
 
@@ -13,6 +13,21 @@ let pageContent = null
 let loaded = false
 let boards = []
 let flipDurationMs = 300
+
+// Detect touch-capable devices to tweak DnD behavior for mobile
+let isTouch = false
+if (typeof window !== 'undefined') {
+    try {
+        isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+    } catch (_) {
+        isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0
+    }
+}
+
+// When on touch devices, require drag handles to start dragging
+// Cards & Boards use handles on touch; desktop keeps normal behavior
+const cardsDndAction = isTouch ? dragHandleZone : dndzone
+const boardsDndAction = isTouch ? dragHandleZone : dndzone
 
 function formatDate(dateString) {
     if (!dateString) return ''
@@ -301,109 +316,327 @@ function handleBoardsDndFinalize(e) {
 
 <div class="kanban-container" style="{style}">
     {#if loaded}
-        <section
-            use:dndzone={{
-                items: boards,
-                flipDurationMs,
-                type: 'boards',
-                dragDisabled: viewOnly,
-                dropTargetStyle: { outline: 'none' }
-            }}
-            on:consider={handleBoardsDndConsider}
-            on:finalize={handleBoardsDndFinalize}
-            class="kanban-boards"
-        >
-            {#each boards as board (board.id)}
-                <div
-                    class="kanban-board"
-                    animate:flip={{duration: flipDurationMs}}
-                >
-                    <div class="kanban-board-header">
-                        <h2>{board.title}</h2>
-                        {#if !viewOnly}
-                            <div class="board-actions">
-                                <button class="icon-button" on:click={() => handleAddCard(board.id)} title="Add Card">+</button>
-                                <button class="icon-button" on:click={() => handleEditBoard(board.id)} title="Edit Board">✎</button>
-                                <button class="icon-button delete" on:click={() => handleDeleteBoard(board.id)} title="Delete Board">×</button>
+        {#if isTouch}
+            <section
+                use:dragHandleZone={{
+                    items: boards,
+                    flipDurationMs,
+                    type: 'boards',
+                    dragDisabled: viewOnly,
+                    dropTargetStyle: { outline: 'none' }
+                }}
+                on:consider={handleBoardsDndConsider}
+                on:finalize={handleBoardsDndFinalize}
+                class="kanban-boards"
+            >
+                {#each boards as board (board.id)}
+                    <div
+                        class="kanban-board"
+                        animate:flip={{duration: flipDurationMs}}
+                    >
+                        <div class="kanban-board-header">
+                            <div class="board-title-row">
+                                {#if isTouch && !viewOnly}
+                                    <button
+                                        class="drag-handle board-handle"
+                                        use:dragHandle
+                                        aria-label="Drag board"
+                                        title="Drag board"
+                                        type="button"
+                                    ></button>
+                                {/if}
+                                <h2>{board.title}</h2>
                             </div>
+                            {#if !viewOnly}
+                                <div class="board-actions">
+                                    <button class="icon-button" on:click={() => handleAddCard(board.id)} title="Add Card">+</button>
+                                    <button class="icon-button" on:click={() => handleEditBoard(board.id)} title="Edit Board">✎</button>
+                                    <button class="icon-button delete" on:click={() => handleDeleteBoard(board.id)} title="Delete Board">×</button>
+                                </div>
+                            {/if}
+                        </div>
+
+                        {#if isTouch}
+                            <section
+                                use:dragHandleZone={{
+                                    items: board.cards,
+                                    flipDurationMs,
+                                    type: 'cards',
+                                    dragDisabled: viewOnly
+                                }}
+                                on:consider={e => handleBoardCardsDndConsider(e, board.id)}
+                                on:finalize={e => handleBoardCardsDndFinalize(e, board.id)}
+                                class="kanban-cards"
+                            >
+                                {#each board.cards as card (card.id)}
+                                    <div
+                                        class="kanban-card"
+                                        animate:flip={{duration: flipDurationMs}}
+                                    >
+                                        <div class="kanban-card-header">
+                                            {#if isTouch && !viewOnly}
+                                                <!-- Drag handle (touch-only) -->
+                                                <button
+                                                    class="drag-handle"
+                                                    use:dragHandle
+                                                    aria-label="Drag card"
+                                                    title="Drag"
+                                                    type="button"
+                                                ></button>
+                                            {/if}
+                                            {#if getCardEditState(card.id).isEditing && !viewOnly}
+                                                <input
+                                                    type="text"
+                                                    class="card-title-input"
+                                                    bind:value={card.title}
+                                                    on:blur={() => saveCardTitle(board.id, card.id, card.title)}
+                                                    on:keydown={(e) => e.key === 'Enter' && saveCardTitle(board.id, card.id, card.title)}
+                                                    use:selectTextOnMount
+                                                    data-card-id={card.id}
+                                                    autofocus
+                                                    spellcheck="false"
+                                                />
+                                            {:else}
+                                                <h3 on:dblclick={() => !viewOnly && handleEditCard(board.id, card.id)}>{card.title}</h3>
+                                            {/if}
+                                            {#if !viewOnly}
+                                                <div class="card-actions">
+                                                    <button class="icon-button" on:click={() => handleEditCard(board.id, card.id)} title="Edit Title">✎</button>
+                                                    <button class="icon-button" on:click={() => handleEditCardDescription(board.id, card.id)} title="Edit Description">✐</button>
+                                                    <button class="icon-button delete" on:click={() => handleDeleteCard(board.id, card.id)} title="Delete Card">×</button>
+                                                </div>
+                                            {/if}
+                                        </div>
+                                        {#if getCardEditState(card.id).isEditingDescription && !viewOnly}
+                                            <textarea
+                                                class="card-description-input"
+                                                bind:value={card.description}
+                                                on:blur={() => saveCardDescription(board.id, card.id, card.description)}
+                                                autofocus
+                                                spellcheck="false"
+                                            ></textarea>
+                                        {:else if card.description}
+                                            <div class="kanban-card-description" on:dblclick={() => !viewOnly && handleEditCardDescription(board.id, card.id)}>
+                                                {card.description}
+                                            </div>
+                                        {/if}
+
+                                        {#if card.createdAt}
+                                            <div class="kanban-card-timestamp">
+                                                Created: {formatDate(card.createdAt)}
+                                            </div>
+                                        {/if}
+                                    </div>
+                                {/each}
+
+                                {#if board.cards.length === 0}
+                                    <div class="empty-board-message">
+                                        {#if viewOnly}
+                                            No cards
+                                        {:else}
+                                            Drag cards here or click + to add a card
+                                        {/if}
+                                    </div>
+                                {/if}
+                            </section>
+                        {:else}
+                            <!-- Desktop cards DnD -->
+                            <section
+                                use:dndzone={{
+                                    items: board.cards,
+                                    flipDurationMs,
+                                    type: 'cards',
+                                    dragDisabled: viewOnly
+                                }}
+                                on:consider={e => handleBoardCardsDndConsider(e, board.id)}
+                                on:finalize={e => handleBoardCardsDndFinalize(e, board.id)}
+                                class="kanban-cards"
+                            >
+                                {#each board.cards as card (card.id)}
+                                    <div
+                                        class="kanban-card"
+                                        animate:flip={{duration: flipDurationMs}}
+                                    >
+                                        <div class="kanban-card-header">
+                                            {#if getCardEditState(card.id).isEditing && !viewOnly}
+                                                <input
+                                                    type="text"
+                                                    class="card-title-input"
+                                                    bind:value={card.title}
+                                                    on:blur={() => saveCardTitle(board.id, card.id, card.title)}
+                                                    on:keydown={(e) => e.key === 'Enter' && saveCardTitle(board.id, card.id, card.title)}
+                                                    use:selectTextOnMount
+                                                    data-card-id={card.id}
+                                                    autofocus
+                                                    spellcheck="false"
+                                                />
+                                            {:else}
+                                                <h3 on:dblclick={() => !viewOnly && handleEditCard(board.id, card.id)}>{card.title}</h3>
+                                            {/if}
+                                            {#if !viewOnly}
+                                                <div class="card-actions">
+                                                    <button class="icon-button" on:click={() => handleEditCard(board.id, card.id)} title="Edit Title">✎</button>
+                                                    <button class="icon-button" on:click={() => handleEditCardDescription(board.id, card.id)} title="Edit Description">✐</button>
+                                                    <button class="icon-button delete" on:click={() => handleDeleteCard(board.id, card.id)} title="Delete Card">×</button>
+                                                </div>
+                                            {/if}
+                                        </div>
+                                        {#if getCardEditState(card.id).isEditingDescription && !viewOnly}
+                                            <textarea
+                                                class="card-description-input"
+                                                bind:value={card.description}
+                                                on:blur={() => saveCardDescription(board.id, card.id, card.description)}
+                                                autofocus
+                                                spellcheck="false"
+                                            ></textarea>
+                                        {:else if card.description}
+                                            <div class="kanban-card-description" on:dblclick={() => !viewOnly && handleEditCardDescription(board.id, card.id)}>
+                                                {card.description}
+                                            </div>
+                                        {/if}
+
+                                        {#if card.createdAt}
+                                            <div class="kanban-card-timestamp">
+                                                Created: {formatDate(card.createdAt)}
+                                            </div>
+                                        {/if}
+                                    </div>
+                                {/each}
+
+                                {#if board.cards.length === 0}
+                                    <div class="empty-board-message">
+                                        {#if viewOnly}
+                                            No cards
+                                        {:else}
+                                            Drag cards here or click + to add a card
+                                        {/if}
+                                    </div>
+                                {/if}
+                            </section>
                         {/if}
                     </div>
-
-                    <section
-                        use:dndzone={{items: board.cards, flipDurationMs, type: 'cards', dragDisabled: viewOnly}}
-                        on:consider={e => handleBoardCardsDndConsider(e, board.id)}
-                        on:finalize={e => handleBoardCardsDndFinalize(e, board.id)}
-                        class="kanban-cards"
+                {/each}
+                {#if !viewOnly}
+                    <div class="add-board">
+                        <button on:click={handleAddBoard}>Add Board +</button>
+                    </div>
+                {/if}
+            </section>
+        {:else}
+            <!-- Desktop boards DnD -->
+            <section
+                use:dndzone={{
+                    items: boards,
+                    flipDurationMs,
+                    type: 'boards',
+                    dragDisabled: viewOnly,
+                    dropTargetStyle: { outline: 'none' }
+                }}
+                on:consider={handleBoardsDndConsider}
+                on:finalize={handleBoardsDndFinalize}
+                class="kanban-boards"
+            >
+                {#each boards as board (board.id)}
+                    <div
+                        class="kanban-board"
+                        animate:flip={{duration: flipDurationMs}}
                     >
-                        {#each board.cards as card (card.id)}
-                            <div
-                                class="kanban-card"
-                                animate:flip={{duration: flipDurationMs}}
-                            >
-                                <div class="kanban-card-header">
-                                    {#if getCardEditState(card.id).isEditing && !viewOnly}
-                                        <input
-                                            type="text"
-                                            class="card-title-input"
-                                            bind:value={card.title}
-                                            on:blur={() => saveCardTitle(board.id, card.id, card.title)}
-                                            on:keydown={(e) => e.key === 'Enter' && saveCardTitle(board.id, card.id, card.title)}
-                                            use:selectTextOnMount
-                                            data-card-id={card.id}
+                        <div class="kanban-board-header">
+                            <div class="board-title-row">
+                                <h2>{board.title}</h2>
+                            </div>
+                            {#if !viewOnly}
+                                <div class="board-actions">
+                                    <button class="icon-button" on:click={() => handleAddCard(board.id)} title="Add Card">+</button>
+                                    <button class="icon-button" on:click={() => handleEditBoard(board.id)} title="Edit Board">✎</button>
+                                    <button class="icon-button delete" on:click={() => handleDeleteBoard(board.id)} title="Delete Board">×</button>
+                                </div>
+                            {/if}
+                        </div>
+
+                        <!-- Desktop cards DnD -->
+                        <section
+                            use:dndzone={{
+                                items: board.cards,
+                                flipDurationMs,
+                                type: 'cards',
+                                dragDisabled: viewOnly
+                            }}
+                            on:consider={e => handleBoardCardsDndConsider(e, board.id)}
+                            on:finalize={e => handleBoardCardsDndFinalize(e, board.id)}
+                            class="kanban-cards"
+                        >
+                            {#each board.cards as card (card.id)}
+                                <div
+                                    class="kanban-card"
+                                    animate:flip={{duration: flipDurationMs}}
+                                >
+                                    <div class="kanban-card-header">
+                                        {#if getCardEditState(card.id).isEditing && !viewOnly}
+                                            <input
+                                                type="text"
+                                                class="card-title-input"
+                                                bind:value={card.title}
+                                                on:blur={() => saveCardTitle(board.id, card.id, card.title)}
+                                                on:keydown={(e) => e.key === 'Enter' && saveCardTitle(board.id, card.id, card.title)}
+                                                use:selectTextOnMount
+                                                data-card-id={card.id}
+                                                autofocus
+                                                spellcheck="false"
+                                            />
+                                        {:else}
+                                            <h3 on:dblclick={() => !viewOnly && handleEditCard(board.id, card.id)}>{card.title}</h3>
+                                        {/if}
+                                        {#if !viewOnly}
+                                            <div class="card-actions">
+                                                <button class="icon-button" on:click={() => handleEditCard(board.id, card.id)} title="Edit Title">✎</button>
+                                                <button class="icon-button" on:click={() => handleEditCardDescription(board.id, card.id)} title="Edit Description">✐</button>
+                                                <button class="icon-button delete" on:click={() => handleDeleteCard(board.id, card.id)} title="Delete Card">×</button>
+                                            </div>
+                                        {/if}
+                                    </div>
+                                    {#if getCardEditState(card.id).isEditingDescription && !viewOnly}
+                                        <textarea
+                                            class="card-description-input"
+                                            bind:value={card.description}
+                                            on:blur={() => saveCardDescription(board.id, card.id, card.description)}
                                             autofocus
                                             spellcheck="false"
-                                        />
-                                    {:else}
-                                        <h3 on:dblclick={() => !viewOnly && handleEditCard(board.id, card.id)}>{card.title}</h3>
+                                        ></textarea>
+                                    {:else if card.description}
+                                        <div class="kanban-card-description" on:dblclick={() => !viewOnly && handleEditCardDescription(board.id, card.id)}>
+                                            {card.description}
+                                        </div>
                                     {/if}
-                                    {#if !viewOnly}
-                                        <div class="card-actions">
-                                            <button class="icon-button" on:click={() => handleEditCard(board.id, card.id)} title="Edit Title">✎</button>
-                                            <button class="icon-button" on:click={() => handleEditCardDescription(board.id, card.id)} title="Edit Description">✐</button>
-                                            <button class="icon-button delete" on:click={() => handleDeleteCard(board.id, card.id)} title="Delete Card">×</button>
+
+                                    {#if card.createdAt}
+                                        <div class="kanban-card-timestamp">
+                                            Created: {formatDate(card.createdAt)}
                                         </div>
                                     {/if}
                                 </div>
-                                {#if getCardEditState(card.id).isEditingDescription && !viewOnly}
-                                    <textarea
-                                        class="card-description-input"
-                                        bind:value={card.description}
-                                        on:blur={() => saveCardDescription(board.id, card.id, card.description)}
-                                        autofocus
-                                        spellcheck="false"
-                                    ></textarea>
-                                {:else if card.description}
-                                    <div class="kanban-card-description" on:dblclick={() => !viewOnly && handleEditCardDescription(board.id, card.id)}>
-                                        {card.description}
-                                    </div>
-                                {/if}
+                            {/each}
 
-                                {#if card.createdAt}
-                                    <div class="kanban-card-timestamp">
-                                        Created: {formatDate(card.createdAt)}
-                                    </div>
-                                {/if}
-                            </div>
-                        {/each}
+                            {#if board.cards.length === 0}
+                                <div class="empty-board-message">
+                                    {#if viewOnly}
+                                        No cards
+                                    {:else}
+                                        Drag cards here or click + to add a card
+                                    {/if}
+                                </div>
+                            {/if}
+                        </section>
+                    </div>
+                {/each}
+                {#if !viewOnly}
+                    <div class="add-board">
+                        <button on:click={handleAddBoard}>Add Board +</button>
+                    </div>
+                {/if}
+            </section>
+        {/if}
 
-                        {#if board.cards.length === 0}
-                            <div class="empty-board-message">
-                                {#if viewOnly}
-                                    No cards
-                                {:else}
-                                    Drag cards here or click + to add a card
-                                {/if}
-                            </div>
-                        {/if}
-                    </section>
-                </div>
-            {/each}
-            {#if !viewOnly}
-                <div class="add-board">
-                    <button on:click={handleAddBoard}>Add Board +</button>
-                </div>
-            {/if}
-        </section>
     {:else}
         <div>Loading...</div>
     {/if}
@@ -447,6 +680,12 @@ function handleBoardsDndFinalize(e) {
     font-weight: 500;
 }
 
+.board-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
 .kanban-cards {
     padding: 0.75rem;
     overflow-y: auto;
@@ -471,6 +710,37 @@ function handleBoardsDndFinalize(e) {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+}
+
+/* Drag handle for card (mostly relevant on touch) */
+.drag-handle {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-right: 0.25rem;
+    cursor: grab;
+    position: relative;
+    flex: 0 0 auto;
+}
+.drag-handle::before,
+.drag-handle::after {
+    content: '';
+    position: absolute;
+    left: 0.125rem;
+    right: 0.125rem;
+    height: 3px;
+    background: #bdbdbd;
+    border-radius: 2px;
+}
+.drag-handle::before { top: 0.375rem; }
+.drag-handle::after { bottom: 0.375rem; }
+.drag-handle:active { cursor: grabbing; }
+
+.board-handle {
+    width: 1rem;
+    height: 1rem;
 }
 
 .kanban-card-header h3 {
@@ -569,5 +839,28 @@ function handleBoardsDndFinalize(e) {
     resize: vertical;
     font-family: inherit;
     font-size: 0.875rem;
+}
+
+/* Mobile/touch ergonomics: allow natural panning and reduce accidental drags */
+@media (pointer: coarse) {
+    .kanban-cards {
+        /* Vertical scroll should be natural inside lists */
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
+    }
+    .kanban-boards {
+        /* Horizontal scroll between boards should be natural */
+        touch-action: pan-x;
+    }
+    .kanban-board-header {
+        /* allow horizontal panning except on the handle itself */
+        touch-action: pan-x;
+    }
+    .kanban-card {
+        /* Avoid misleading grab cursor on touch */
+        cursor: default;
+    }
+    /* Only the handle should initiate drag on touch */
+    .drag-handle { touch-action: none; }
 }
 </style>
