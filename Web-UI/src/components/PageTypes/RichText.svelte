@@ -69,7 +69,8 @@ async function uploadByFile(file) {
     const response = await fetch(`${baseURL}/upload-image/${pageId}`, {
         method: 'POST',
         body: data,
-        headers: { 'Token': localStorage.getItem('token') }
+        headers: { 'Token': localStorage.getItem('token') },
+        credentials: 'include'
     }).then(response => response.json())
 
     return {

@@ -110,7 +110,8 @@ function handlePaste(event) {
         fetch(`${baseURL}/upload-image/${pageId}`, {
             method: 'POST',
             body: data,
-            headers: { 'Token': localStorage.getItem('token') }
+            headers: { 'Token': localStorage.getItem('token') },
+            credentials: 'include'
         }).then(response => response.json()).then(response => {
             document.querySelector('.upload-image-loader').remove()
             document.execCommand('insertHTML', false, `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`)

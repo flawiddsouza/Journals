@@ -83,7 +83,8 @@ async function uploadFile() {
         fetch(`${baseURL}/upload-image/${pageId}`, {
             method: 'POST',
             body: data,
-            headers: { 'Token': localStorage.getItem('token') }
+            headers: { 'Token': localStorage.getItem('token') },
+            credentials: 'include'
         }).then(response => response.json()).then(response => {
             loader.remove()
             if(insertFileModalLinkLabel === '') {

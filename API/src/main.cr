@@ -4,6 +4,11 @@ require "crypto/bcrypt"
 require "jwt"
 require "file_utils"
 require "mime"
+require "dotenv"
+
+if File.exists?("./.env")
+  Dotenv.load
+end
 
 # enable cors
 require "./cors"

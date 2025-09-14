@@ -1,9 +1,3 @@
-require "dotenv"
-
-if File.exists?("./.env")
-  Dotenv.load
-end
-
 data_directory = "./data"
 
 db = DB.open "sqlite3://#{data_directory}/store.db"
@@ -73,6 +67,9 @@ post "/login" do |env|
       exp = Time.utc.to_unix + (60 * token_timeout)
       payload = {username: user["username"], exp: exp}
       jwt = JWT.encode(payload, ENV["JWT_SECRET"], JWT::Algorithm::HS256)
+      # Also set HttpOnly cookie for cross-origin <img>/<a> usage
+      max_age = exp - Time.utc.to_unix
+      env.response.headers.add "Set-Cookie", "token=#{jwt}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=#{max_age}"
       {token: jwt, expiresIn: "1 hour"}.to_json
     else
       {error: "Authentication Failed"}.to_json
@@ -90,7 +87,7 @@ end
 
 class AuthHandler < Kemal::Handler
   exclude ["/login", "/register"], "POST"
-  exclude ["/", "/install", "/uploads/images/:file_name"], "GET"
+  exclude ["/", "/install"], "GET"
   exclude ["/*"], "OPTIONS" # required for cors to work
 
   def call(env)
@@ -100,6 +97,13 @@ class AuthHandler < Kemal::Handler
 
     if !token
       token = env.request.headers["Token"]?
+    end
+
+    # Fallback to cookie-based token (for <img>/<a> requests)
+    if !token
+      if cookie = env.request.cookies["token"]?
+        token = cookie.value
+      end
     end
 
     if !token

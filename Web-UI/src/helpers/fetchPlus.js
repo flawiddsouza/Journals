@@ -44,7 +44,7 @@ token.subscribe(value => {
     fetchPlus.token = value
 })
 
-// fetchPlus.credentials = 'include'
+fetchPlus.credentials = 'include'
 fetchPlus.headers = {
     'Accept': 'application/json',
     'Content-Type': 'application/json',

@@ -951,6 +951,17 @@ get "/uploads/images/:file_name" do |env|
   file_path = "#{data_directory}/uploads/images/#{file_name}"
 
   if File.exists?(file_path)
+    # Verify ownership: ensure this file is owned by the authenticated user
+    begin
+      owned = db.scalar("SELECT 1 FROM page_uploads WHERE file_path = ? AND user_id = ?", "uploads/images/#{file_name}", env.auth_id).as(Int64 | Nil)
+      if owned.nil?
+        env.response.status_code = 404
+        next
+      end
+    rescue
+      env.response.status_code = 404
+      next
+    end
     begin
       env.response.content_type = MIME.from_filename(file_name)
     rescue exception
