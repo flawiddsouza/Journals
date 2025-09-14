@@ -449,10 +449,23 @@ function stop() {
     try { currentReader?.cancel() } catch {}
 }
 
+// Ensure the modal only closes when a click both starts AND ends on the overlay background
+let overlayMouseDown = false
+function onOverlayMouseDown(e) {
+    // Only mark true if the initial press is directly on the overlay (not a child)
+    overlayMouseDown = e.target === e.currentTarget
+}
+function onOverlayClick(e) {
+    // Close only if the click target is the overlay itself and the press started on it
+    if (e.target !== e.currentTarget) return
+    if (!overlayMouseDown) return
+    close()
+}
+
 </script>
 
 {#if open}
-    <div class="ai-overlay" role="dialog" aria-modal="true" aria-label="AI Assistant" on:click={close}>
+    <div class="ai-overlay" role="dialog" aria-modal="true" aria-label="AI Assistant" on:mousedown={onOverlayMouseDown} on:click={onOverlayClick}>
         <div class="ai-panel" bind:this={panelEl} on:click|stopPropagation>
             <div class="ai-header">
                 <div class="title">AI Assistant</div>
