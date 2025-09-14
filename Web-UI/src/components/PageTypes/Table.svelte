@@ -21,6 +21,15 @@ let computedRowStyles = []
 let computedColumnStyles = []
 let computedColumnValues = []
 
+// Minimal pagination (show last 500 rows by default when large)
+const PAGE_SIZE = 500
+let currentPage = 1
+let totalPages = 1
+let showPagination = false
+let visibleStartIndex = 0
+let visibleItems = []
+let gotoPageInput = ''
+
 let autocompleteData = {
     show: false,
     suggestions: [],
@@ -94,6 +103,14 @@ $: if(pageContentOverride) {
     computeAllRowStyles()
     computeAllColumnStyles()
     computeAllComputedColumns()
+
+    // initialize pagination for pageContentOverride: go to last page immediately
+    currentPage = Math.max(1, Math.ceil((items?.length || 0) / PAGE_SIZE))
+
+    // Focus last cell and scroll to it on initial load (both paginated and non-paginated)
+    setTimeout(() => {
+        focusLastEditableCell()
+    }, 0)
 }
 
 $: fetchPage(pageId)
@@ -146,29 +163,17 @@ function fetchPage(pageId) {
         computeAllColumnStyles()
         computeAllComputedColumns()
 
+        // initialize pagination for fetched data: go to last page immediately
+        currentPage = Math.max(1, Math.ceil((items?.length || 0) / PAGE_SIZE))
+
         if(columns.length === 0) {
             configuration = true
             showAddColumn = true
         }
 
-        // set focus to the last cell in the table
+        // set focus to the last cell in the table (both paginated and non-paginated)
         setTimeout(() => {
-            if(editableTable) {
-                let lastEditableTD = editableTable.querySelectorAll('tbody > tr:last-child > td > div[contenteditable]:empty')
-                if(lastEditableTD.length === 0) {
-                    lastEditableTD = editableTable.querySelectorAll('tbody > tr:last-child > td > div[contenteditable]')
-                    lastEditableTD = lastEditableTD[lastEditableTD.length - 1]
-                } else {
-                    lastEditableTD = lastEditableTD[0]
-                }
-                if(lastEditableTD) {
-                    lastEditableTD.focus()
-                    lastEditableTD.scrollIntoView()
-                }
-                // move cursor to the end of editable area
-                document.execCommand('selectAll', false, null);
-                document.getSelection().collapseToEnd();
-            }
+            focusLastEditableCell()
         }, 0)
     })
 }
@@ -234,6 +239,27 @@ $: if(items) {
     dontTriggerSave = false
 }
 
+// Reactive pagination derivations
+$: totalPages = Math.max(1, Math.ceil((items?.length || 0) / PAGE_SIZE))
+$: showPagination = (items?.length || 0) > PAGE_SIZE
+
+// Initialize to last page once per page load (no jumps on subsequent edits)
+// handled explicitly after data loads (fetchPage and pageContentOverride)
+
+// Keep current page within bounds if items shrink/expand
+$: if (currentPage > totalPages) {
+    currentPage = totalPages
+}
+$: if (currentPage < 1) {
+    currentPage = 1
+}
+
+// Compute visible slice
+$: visibleStartIndex = showPagination ? (currentPage - 1) * PAGE_SIZE : 0
+$: visibleItems = showPagination
+    ? (items || []).slice(visibleStartIndex, visibleStartIndex + PAGE_SIZE)
+    : (items || [])
+
 function evalulateStartupScript(jsString, dynamicVariables) {
     try {
         const functionParameters = Object.keys(dynamicVariables).join(',')
@@ -243,6 +269,48 @@ function evalulateStartupScript(jsString, dynamicVariables) {
         alert('error evaluating startup script')
         console.log('startup script error', e)
     }
+}
+
+function gotoPage(pageStr) {
+    const n = parseInt(String(pageStr ?? '').trim(), 10)
+    if (Number.isNaN(n)) {
+        gotoPageInput = ''
+        return
+    }
+    const clamped = Math.min(totalPages, Math.max(1, n))
+    goToPage(clamped)
+    gotoPageInput = ''
+}
+
+function scrollTableTop() {
+    editableTable?.scrollIntoView({ behavior: 'auto', block: 'start', inline: 'nearest' })
+}
+
+function goToPage(n) {
+    const clamped = Math.min(totalPages, Math.max(1, n))
+    if (clamped !== currentPage) {
+        currentPage = clamped
+        // Scroll table top into view without smooth behavior to avoid lag
+        scrollTableTop()
+    }
+}
+
+function focusLastEditableCell() {
+    if(!editableTable) return
+    let lastEditableTD = editableTable.querySelectorAll('tbody > tr:last-child > td > div[contenteditable]:empty')
+    if(lastEditableTD.length === 0) {
+        lastEditableTD = editableTable.querySelectorAll('tbody > tr:last-child > td > div[contenteditable]')
+        lastEditableTD = lastEditableTD[lastEditableTD.length - 1]
+    } else {
+        lastEditableTD = lastEditableTD[0]
+    }
+    if(lastEditableTD) {
+        lastEditableTD.focus()
+        lastEditableTD.scrollIntoView()
+    }
+    // move cursor to the end of editable area
+    document.execCommand('selectAll', false, null);
+    document.getSelection().collapseToEnd();
 }
 
 function evalulateJS(source, jsString, rowIndex=null, columnName=null) {
@@ -314,8 +382,10 @@ function insertRow(rowIndex, insertAbove) {
     // move focus to the first focusable cell of the inserted row, if shift key is not pressed
     if(!insertAbove) {
         setTimeout(() => {
-            let rows = document.querySelector('.editable-table tbody').querySelectorAll('tr')
-            let bottomRow = rows[rowIndex + 1]
+            // convert global index to local visible index since we render a slice
+            const localIndex = rowIndex - visibleStartIndex
+            let rows = document.querySelector('.editable-table tbody')?.querySelectorAll('tr') || []
+            let bottomRow = rows[localIndex + 1]
             if(typeof bottomRow !== 'undefined') {
                 let bottomCell = bottomRow.querySelector('div[contenteditable]')
                 bottomCell.focus()
@@ -347,7 +417,9 @@ function deleteRow(rowIndex) {
     let tbody = document.querySelector('.editable-table tbody')
     if(!tbody) { return }
     let rows = tbody.querySelectorAll('tr')
-    let bottomRow = rows[rowIndex - 1]
+    // convert global index to local visible index
+    const localIndex = rowIndex - visibleStartIndex
+    let bottomRow = rows[localIndex - 1]
     if(typeof bottomRow !== 'undefined') {
         let bottomCell = bottomRow.querySelector('div[contenteditable]')
         bottomCell.focus()
@@ -756,6 +828,7 @@ $: {
 }
 
 function handleInputInTD(e, itemIndex, columnName) {
+    // itemIndex is global index
     const column = columns.find(col => col.name === columnName);
     if (column && column.autocomplete === 'Yes') {
         const value = e.target.textContent;
@@ -768,7 +841,7 @@ function handleInputInTD(e, itemIndex, columnName) {
             autocompleteData.show = true;
             autocompleteData.suggestions = filteredSuggestions;
             autocompleteData.position = getSuggestionPosition(e.target);
-            autocompleteData.itemIndex = itemIndex;
+            autocompleteData.itemIndex = itemIndex; // global index for data update
             autocompleteData.columnName = columnName;
         } else {
             autocompleteData.show = false;
@@ -797,16 +870,12 @@ function handleSelectSuggestion(event) {
         items[itemIndex][columnName] = suggestion;
         items = items; // Trigger reactivity
 
-        // console.log({
-        //     autocompleteData,
-        //     'Accepted Suggestion': suggestion
-        // })
-
         autocompleteData.show = false;
 
         // Update the cell content and focus
+        const localIndex = itemIndex - visibleStartIndex
         const cell = editableTable.querySelector(
-            `tbody tr:nth-child(${itemIndex + 1}) td:nth-child(${columns.findIndex(col => col.name === columnName) + 1}) div[contenteditable]`
+            `tbody tr:nth-child(${localIndex + 1}) td:nth-child(${columns.findIndex(col => col.name === columnName) + 1}) div[contenteditable]`
         );
         if (cell) {
             cell.textContent = suggestion;
@@ -856,18 +925,18 @@ eventStore.subscribe(event => {
                 </tr>
             </thead>
             <tbody>
-                {#each items as item, itemIndex}
+                {#each visibleItems as item, localRowIndex (visibleStartIndex + localRowIndex)}
                     <tr>
                         {#each columns as column, columnIndex}
-                            <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {computedRowStyles[itemIndex]}; {computedColumnStyles[itemIndex] ? computedColumnStyles[itemIndex][columnIndex] : ''}">
+                            <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {computedRowStyles[visibleStartIndex + localRowIndex]}; {computedColumnStyles[visibleStartIndex + localRowIndex] ? computedColumnStyles[visibleStartIndex + localRowIndex][columnIndex] : ''}">
                                 {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
                                     {#if column.type === '' || column.type === undefined}
                                         <div
                                             contenteditable
                                             spellcheck="false"
                                             bind:innerHTML={item[column.name]}
-                                            on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}
-                                            on:input={(e) => handleInputInTD(e, itemIndex, column.name)}
+                                            on:keydown={(e) => handleKeysInTD(e, visibleStartIndex + localRowIndex, column.name)}
+                                            on:input={(e) => handleInputInTD(e, visibleStartIndex + localRowIndex, column.name)}
                                             on:blur={handleBlur}
                                         ></div>
                                     {:else}
@@ -875,14 +944,14 @@ eventStore.subscribe(event => {
                                             contenteditable="plaintext-only"
                                             spellcheck="false"
                                             bind:innerHTML={item[column.name]}
-                                            on:keydown={(e) => handleKeysInTD(e, itemIndex, column.name)}
-                                            on:input={(e) => handleInputInTD(e, itemIndex, column.name)}
+                                            on:keydown={(e) => handleKeysInTD(e, visibleStartIndex + localRowIndex, column.name)}
+                                            on:input={(e) => handleInputInTD(e, visibleStartIndex + localRowIndex, column.name)}
                                             on:blur={handleBlur}
                                         ></div>
                                     {/if}
                                 {:else}
                                     {#if column.type === 'Computed'}
-                                        <div>{@html computedColumnValues[itemIndex][columnIndex]}</div>
+                                        <div>{@html computedColumnValues[visibleStartIndex + localRowIndex][columnIndex]}</div>
                                     {:else}
                                         <div>{@html getColumnValue(column.type, item[column.name]) || '<span style="visibility: hidden">cat</span>'}</div>
                                     {/if}
@@ -891,13 +960,13 @@ eventStore.subscribe(event => {
                         {/each}
                         {#if pageContentOverride === undefined && viewOnly === false}
                         <td class="table-actions">
-                            <button on:click={() => insertRow(itemIndex, true)}>↑</button>
-                            <button on:click={() => insertRow(itemIndex, false)}>↓</button>
+                            <button on:click={() => insertRow(visibleStartIndex + localRowIndex, true)}>↑</button>
+                            <button on:click={() => insertRow(visibleStartIndex + localRowIndex, false)}>↓</button>
                             <button on:click={() => {
                                 if(!confirm('Are you sure you want to delete this row?')) {
                                     return
                                 }
-                                deleteRow(itemIndex)
+                                deleteRow(visibleStartIndex + localRowIndex)
                             }}>x</button>
                         </td>
                         {/if}
@@ -916,6 +985,26 @@ eventStore.subscribe(event => {
                 </tr>
             {/if}
         </table>
+        {#if showPagination}
+            <div class="pager">
+                <button on:click={() => goToPage(1)} disabled={currentPage === 1}>⏮︎</button>
+                <button on:click={() => goToPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1}>◀︎</button>
+                <span>Page {currentPage} / {totalPages}</span>
+                <input
+                    class="pager-jump"
+                    type="number"
+                    min="1"
+                    max={totalPages}
+                    placeholder="Go to…"
+                    bind:value={gotoPageInput}
+                    on:keydown={(e) => { if (e.key === 'Enter') { gotoPage(gotoPageInput) } }}
+                    on:blur={() => { if (gotoPageInput !== '' && gotoPageInput !== null && gotoPageInput !== undefined) gotoPage(gotoPageInput) }}
+                />
+                <button on:click={() => gotoPage(gotoPageInput)} disabled={totalPages <= 1}>Go</button>
+                <button on:click={() => goToPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}>▶︎</button>
+                <button on:click={() => goToPage(totalPages)} disabled={currentPage === totalPages}>⏭︎</button>
+            </div>
+        {/if}
         {#if note && note.trim()}
             <div class="table-note" style="margin-top: 1em;">
                 {@html note}
@@ -1289,6 +1378,30 @@ table td > div[contenteditable] {
 
 .table-note {
     margin-bottom: 7.4em;
+}
+
+.pager {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    gap: 0.5em;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 0.5em 0;
+    background: white;
+}
+
+.pager > button {
+    border: 1px solid grey;
+    background: transparent;
+    padding: 2px 6px;
+}
+
+.pager-jump {
+    width: 6ch;
+    padding: 2px 4px;
+    border: 1px solid grey;
+    font: inherit;
 }
 
 .config-area-note {
