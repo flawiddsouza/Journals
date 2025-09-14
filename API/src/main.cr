@@ -10,6 +10,34 @@ if File.exists?("./.env")
   Dotenv.load
 end
 
+module App
+  DATA_DIRECTORY = "./data"
+
+  # Lazily initialize and reuse a single DB connection
+  @@db : DB::Database?
+
+  def self.db : DB::Database
+    @@db ||= begin
+      db = DB.open "sqlite3://#{DATA_DIRECTORY}/store.db"
+      db.exec("PRAGMA journal_mode = WAL")
+      db.exec("PRAGMA foreign_keys = ON")
+      if cache_size = ENV["SQLITE_CACHE_SIZE"]?
+        db.exec("PRAGMA cache_size = #{cache_size}")
+      end
+      db
+    end
+    @@db.not_nil!
+  end
+end
+
+def db : DB::Database
+  App.db
+end
+
+def data_directory : String
+  App::DATA_DIRECTORY
+end
+
 # enable cors
 require "./cors"
 

@@ -1,14 +1,3 @@
-data_directory = "./data"
-
-db = DB.open "sqlite3://#{data_directory}/store.db"
-db.exec("PRAGMA journal_mode = WAL")
-db.exec("PRAGMA foreign_keys = ON")
-# Set cache size from env if present
-cache_size = ENV["SQLITE_CACHE_SIZE"]?
-if cache_size
-  db.exec("PRAGMA cache_size = #{cache_size}")
-end
-
 post "/register" do |env|
   username = env.params.json["username"]?
   password = env.params.json["password"]?
@@ -142,10 +131,7 @@ class AuthHandler < Kemal::Handler
       env.response << {"error": "Authentication Failed: Invalid Token"}.to_json
       return env
     else
-      data_directory = "./data"
-      DB.open "sqlite3://#{data_directory}/store.db" do |db|
-        env.auth_id = db.scalar("SELECT id FROM users WHERE username = ?", token_decoded[0]["username"].as_s)
-      end
+      env.auth_id = db.scalar("SELECT id FROM users WHERE username = ?", token_decoded[0]["username"].as_s)
       return call_next(env)
     end
   end

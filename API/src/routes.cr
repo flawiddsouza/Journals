@@ -4,17 +4,6 @@ get "/" do
   "Journals API"
 end
 
-data_directory = "./data"
-
-db = DB.open "sqlite3://#{data_directory}/store.db"
-db.exec("PRAGMA journal_mode = WAL")
-db.exec("PRAGMA foreign_keys = ON")
-# Set cache size from env if present
-cache_size = ENV["SQLITE_CACHE_SIZE"]?
-if cache_size
-  db.exec("PRAGMA cache_size = #{cache_size}")
-end
-
 get "/install" do
   db.exec "
     CREATE TABLE IF NOT EXISTS users (
