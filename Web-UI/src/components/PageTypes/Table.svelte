@@ -17,9 +17,7 @@ let insertFileModalLinkLabel = ''
 let currentTd = null
 let noteContainer = null
 let savedCursorPosition = null
-let computedRowStyles = []
-let computedColumnStyles = []
-let computedColumnValues = []
+// Styles and computed columns are calculated on the fly per visible cell to reduce state bookkeeping
 
 // Minimal pagination (show last 500 rows by default when large)
 const PAGE_SIZE = 500
@@ -43,50 +41,15 @@ function computeRowStyle(rowIndex) {
     return evalulateJS('Row Style', rowStyle, rowIndex)
 }
 
-function computeAllRowStyles() {
-    computedRowStyles = items.map((_, index) => computeRowStyle(index))
-}
-
-function recomputeRowStyle(rowIndex) {
-    computedRowStyles[rowIndex] = computeRowStyle(rowIndex)
-    computedRowStyles = computedRowStyles
-}
-
 function computeColumnStyle(rowIndex, columnIndex, columnName) {
     if (!columns[columnIndex].style) return ''
     return evalulateJS('Column Style', columns[columnIndex].style, rowIndex, columnName)
-}
-
-function computeAllColumnStyles() {
-    computedColumnStyles = items.map((_, rowIndex) =>
-        columns.map((column, columnIndex) => computeColumnStyle(rowIndex, columnIndex, column.name))
-    )
-}
-
-function recomputeColumnStyle(rowIndex) {
-    computedColumnStyles[rowIndex] = columns.map((column, columnIndex) => computeColumnStyle(rowIndex, columnIndex, column.name))
-    computedColumnStyles = computedColumnStyles
 }
 
 function computeComputedColumn(rowIndex, columnIndex) {
     const column = columns[columnIndex]
     if (!column.expression) return ''
     return evalulateJS('Computed Column', column.expression, rowIndex, column.name)
-}
-
-function computeAllComputedColumns() {
-    computedColumnValues = items.map((_, rowIndex) =>
-        columns.map((column, columnIndex) =>
-            column.type === 'Computed' ? computeComputedColumn(rowIndex, columnIndex) : null
-        )
-    )
-}
-
-function recomputeComputedColumn(rowIndex) {
-    computedColumnValues[rowIndex] = columns.map((column, columnIndex) =>
-        column.type === 'Computed' ? computeComputedColumn(rowIndex, columnIndex) : null
-    )
-    computedColumnValues = computedColumnValues
 }
 
 $: if(pageContentOverride) {
@@ -100,9 +63,7 @@ $: if(pageContentOverride) {
     customFunctions = parsedPage.customFunctions
     note = parsedPage.note || ''
 
-    computeAllRowStyles()
-    computeAllColumnStyles()
-    computeAllComputedColumns()
+    // styles and computed columns are now computed on the fly
 
     // initialize pagination for pageContentOverride: go to last page immediately
     currentPage = Math.max(1, Math.ceil((items?.length || 0) / PAGE_SIZE))
@@ -159,9 +120,7 @@ function fetchPage(pageId) {
 
         items = parsedResponse.items
 
-        computeAllRowStyles()
-        computeAllColumnStyles()
-        computeAllComputedColumns()
+            // styles and computed columns are now computed on the fly
 
         // initialize pagination for fetched data: go to last page immediately
         currentPage = Math.max(1, Math.ceil((items?.length || 0) / PAGE_SIZE))
@@ -375,9 +334,7 @@ function insertRow(rowIndex, insertAbove) {
     }
     items = items
 
-    computeAllRowStyles()
-    computeAllColumnStyles()
-    computeAllComputedColumns()
+    // styles and computed columns are now computed on the fly
 
     // move focus to the first focusable cell of the inserted row, if shift key is not pressed
     if(!insertAbove) {
@@ -402,10 +359,8 @@ function deleteRow(rowIndex) {
             items[0][column.name] = ''
         })
 
-        computeAllRowStyles()
-        computeAllColumnStyles()
-        computeAllComputedColumns()
-        return
+    // styles and computed columns are now computed on the fly
+            // styles and computed columns are now computed on the fly
     }
 
     undoStackForRemoveRow.push({ index: rowIndex, item: items[rowIndex] }) // save undo
@@ -425,9 +380,7 @@ function deleteRow(rowIndex) {
         bottomCell.focus()
     }
 
-    computeAllRowStyles()
-    computeAllColumnStyles()
-    computeAllComputedColumns()
+    // styles and computed columns are now computed on the fly
 }
 
 function handleKeysInTD(e, itemIndex, itemColumn) {
@@ -850,9 +803,7 @@ function handleInputInTD(e, itemIndex, columnName) {
         autocompleteData.show = false;
     }
 
-    recomputeRowStyle(itemIndex);
-    recomputeColumnStyle(itemIndex);
-    recomputeComputedColumn(itemIndex);
+    // styles and computed columns are computed on demand now
 }
 
 function getSuggestionPosition(element) {
@@ -928,7 +879,7 @@ eventStore.subscribe(event => {
                 {#each visibleItems as item, localRowIndex (visibleStartIndex + localRowIndex)}
                     <tr>
                         {#each columns as column, columnIndex}
-                            <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {computedRowStyles[visibleStartIndex + localRowIndex]}; {computedColumnStyles[visibleStartIndex + localRowIndex] ? computedColumnStyles[visibleStartIndex + localRowIndex][columnIndex] : ''}">
+                            <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {computeRowStyle(visibleStartIndex + localRowIndex)}; {computeColumnStyle(visibleStartIndex + localRowIndex, columnIndex, column.name)}">
                                 {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
                                     {#if column.type === '' || column.type === undefined}
                                         <div
@@ -951,7 +902,7 @@ eventStore.subscribe(event => {
                                     {/if}
                                 {:else}
                                     {#if column.type === 'Computed'}
-                                        <div>{@html computedColumnValues[visibleStartIndex + localRowIndex][columnIndex]}</div>
+                                        <div>{@html computeComputedColumn(visibleStartIndex + localRowIndex, columnIndex)}</div>
                                     {:else}
                                         <div>{@html getColumnValue(column.type, item[column.name]) || '<span style="visibility: hidden">cat</span>'}</div>
                                     {/if}
