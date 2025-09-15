@@ -1,4 +1,4 @@
-FROM crystallang/crystal:1.9 AS api-build
+FROM crystallang/crystal:1.17 AS api-build
 WORKDIR /app
 
 # Project shared dependencies
