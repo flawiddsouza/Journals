@@ -87,6 +87,10 @@ class AuthHandler < Kemal::Handler
   def call(env)
     return call_next(env) if exclude_match?(env)
 
+    # required or the rescue errors are sent without CORS
+    # for some reason before_all is not called here :/
+    CORSUtils.apply(env)
+
     token = env.params.json["token"]?
 
     if !token
@@ -108,10 +112,6 @@ class AuthHandler < Kemal::Handler
     end
 
     token = token.as(String)
-
-    # required or the rescue errors are sent without CORS
-    # for some reason before_all is not called here :/
-    env.response.headers["Access-Control-Allow-Origin"] = "*"
 
     begin
       token_decoded = JWT.decode(token, ENV["JWT_SECRET"], JWT::Algorithm::HS256)

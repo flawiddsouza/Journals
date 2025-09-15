@@ -10,6 +10,10 @@ if File.exists?("./.env")
   Dotenv.load
 end
 
+# Initialize CORS configuration early (after env loaded)
+require "./cors_utils"
+CORSUtils.init!
+
 module App
   DATA_DIRECTORY = "./data"
 
