@@ -1,5 +1,5 @@
 <script>
-import { createEventDispatcher, onMount } from 'svelte'
+import { createEventDispatcher, onMount, tick } from 'svelte'
 import { createPatch } from 'diff'
 import Modal from './Modal.svelte'
 
@@ -72,6 +72,48 @@ function clearConfig() {
  * content: string (may include ```lang code``` blocks)
  */
 let messages = []
+let messagesContainer
+
+function scrollToBottom() {
+    if (messagesContainer) {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight
+    }
+}
+
+function scrollToLatestDiff() {
+    if (!messagesContainer) return
+
+    // Find the latest message with diffs
+    const latestMessageWithDiffs = [...messagesContainer.querySelectorAll('.message')].reverse().find(msg =>
+        msg.querySelector('.diff-preview')
+    )
+
+    if (!latestMessageWithDiffs) return
+
+    const diffPreview = latestMessageWithDiffs.querySelector('.diff-preview')
+    if (!diffPreview) return
+
+    // Prefer the diff header (heading), fall back to first .diff-line, then diffPreview top
+    const diffHeader = diffPreview.querySelector('.diff-header')
+    const firstDiffLine = diffPreview.querySelector('.diff-line')
+    const targetEl = diffHeader || firstDiffLine || diffPreview
+
+    // Helper to compute and apply scrollTop
+    const applyScroll = () => {
+        const containerRect = messagesContainer.getBoundingClientRect()
+        const targetRect = targetEl.getBoundingClientRect()
+        const desiredScrollTop = messagesContainer.scrollTop + (targetRect.top - containerRect.top)
+        const maxScroll = messagesContainer.scrollHeight - messagesContainer.clientHeight
+        messagesContainer.scrollTop = Math.max(0, Math.min(desiredScrollTop, maxScroll))
+    }
+
+    // Apply immediately
+    applyScroll()
+
+    // Retry shortly after to handle any late DOM updates or layout recalculations
+    setTimeout(applyScroll, 50)
+    setTimeout(applyScroll, 200)
+}
 
 function close() {
     // If a request is in-flight, stop it before closing
@@ -89,12 +131,19 @@ onMount(() => {
     if (!((config.apiUrl && config.model && config.apiKey))) {
         showSettings = true
     }
-    if (open) focusInput()
+    if (open) {
+        setTimeout(() => {
+            if (messages.length > 0) scrollToBottom()
+            focusInput()
+        }, 0)
+    }
 })
 
 $: if (open) {
-    // Autofocus when opened
-    setTimeout(focusInput, 0)
+    tick().then(() => {
+        if (messages.length > 0) scrollToBottom()
+        focusInput()
+    })
 }
 
 function send() {
@@ -213,7 +262,19 @@ async function askAI() {
             const data = await res.json()
             const content = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text || ''
             const updated = [...messages]
-            updated[assistantIndex] = { ...updated[assistantIndex], content }
+            updated[assistantIndex] = { role: 'assistant', content }
+            // Compute diffs if code blocks present
+            const extracted = extractCodeBlocks(content)
+            if (extracted.html || extracted.css || extracted.js) {
+                updated[assistantIndex].diffs = {
+                    html: extracted.html ? createPatch('HTML', codeContext.html || '', extracted.html) : '',
+                    css: extracted.css ? createPatch('CSS', codeContext.css || '', extracted.css) : '',
+                    js: extracted.js ? createPatch('JS', codeContext.js || '', extracted.js) : ''
+                }
+                updated[assistantIndex].applied = { html: false, css: false, js: false }
+                // Scroll to bottom after diffs are rendered
+                tick().then(scrollToLatestDiff)
+            }
             messages = updated
             busy = false
             return
@@ -252,6 +313,22 @@ async function askAI() {
                 }
             }
         }
+
+        // After streaming, compute diffs if code blocks present
+        const updated = [...messages]
+        const finalContent = updated[assistantIndex].content
+        const extracted = extractCodeBlocks(finalContent)
+        if (extracted.html || extracted.css || extracted.js) {
+            updated[assistantIndex].diffs = {
+                html: extracted.html ? createPatch('HTML', codeContext.html || '', extracted.html) : '',
+                css: extracted.css ? createPatch('CSS', codeContext.css || '', extracted.css) : '',
+                js: extracted.js ? createPatch('JS', codeContext.js || '', extracted.js) : ''
+            }
+            updated[assistantIndex].applied = { html: false, css: false, js: false }
+            // Scroll to bottom after diffs are rendered
+            tick().then(scrollToLatestDiff)
+        }
+        messages = updated
 
         busy = false
         currentAbort = null
@@ -326,44 +403,21 @@ function parseDiff(diffText) {
         })
 }
 
-let lastExtract = { html: undefined, css: undefined, js: undefined, blocks: [] }
-$: {
-    // Track extract for the last assistant message
-    const last = [...messages].reverse().find(m => m.role === 'assistant')
-    lastExtract = last ? extractCodeBlocks(last.content) : { html: undefined, css: undefined, js: undefined, blocks: [] }
-}
-
-let showConfirm = false
-let confirmDelta = {}
-let confirmDiffs = { html: '', css: '', js: '' }
-let confirmSel = {}
-
-function applySelection(sel = { html: true, css: true, js: true }) {
+function applySelection(m, sel = { html: true, css: true, js: true }) {
+    const extracted = extractCodeBlocks(m.content)
     const delta = {}
-    if (sel.html && lastExtract.html !== undefined) delta.html = lastExtract.html
-    if (sel.css && lastExtract.css !== undefined) delta.css = lastExtract.css
-    if (sel.js && lastExtract.js !== undefined) delta.js = lastExtract.js
+    if (sel.html && extracted.html) delta.html = extracted.html
+    if (sel.css && extracted.css) delta.css = extracted.css
+    if (sel.js && extracted.js) delta.js = extracted.js
     if (Object.keys(delta).length === 0) return
-    // Compute diffs
-    confirmDiffs = {
-        html: sel.html && delta.html ? createPatch('HTML', codeContext.html || '', delta.html) : '',
-        css: sel.css && delta.css ? createPatch('CSS', codeContext.css || '', delta.css) : '',
-        js: sel.js && delta.js ? createPatch('JS', codeContext.js || '', delta.js) : ''
-    }
-    confirmDelta = delta
-    confirmSel = sel
-    showConfirm = true
-}
 
-function confirmApply() {
-    // Create a checkpoint capturing the previous code for changed blocks
-    const changed = Object.keys(confirmDelta)
+    // Directly apply without confirmation
+    const changed = Object.keys(delta)
     const prev = {}
     const next = {}
     for (const k of changed) {
-        // Only capture keys we are changing
         prev[k] = codeContext?.[k] ?? ''
-        next[k] = confirmDelta[k]
+        next[k] = delta[k]
     }
 
     const checkpoint = {
@@ -373,10 +427,34 @@ function confirmApply() {
         next,
         createdAt: new Date().toISOString(),
         reverted: false,
-        diffs: confirmDiffs
+        diffs: {
+            html: sel.html ? m.diffs.html : '',
+            css: sel.css ? m.diffs.css : '',
+            js: sel.js ? m.diffs.js : ''
+        }
     }
 
-    // Add a special checkpoint message with an inline revert action
+    // Mark applied in the message
+    if (!m.applied) m.applied = { html: false, css: false, js: false }
+    const isApplyAll = sel.html && sel.css && sel.js
+    if (isApplyAll) {
+        // For Apply All, mark all as applied
+        m.applied.html = true
+        m.applied.css = true
+        m.applied.js = true
+    } else {
+        // For specific applies
+        if (delta.html) m.applied.html = true
+        if (delta.css) m.applied.css = true
+        if (delta.js) m.applied.js = true
+    }
+
+    // Find the index and reassign to trigger reactivity
+    const index = messages.indexOf(m)
+    if (index !== -1) {
+        messages[index] = { ...messages[index] }
+    }
+
     messages = [
         ...messages,
         {
@@ -387,13 +465,7 @@ function confirmApply() {
         }
     ]
 
-    // Dispatch the actual apply to the parent
-    dispatch('apply', confirmDelta)
-    showConfirm = false
-}
-
-function cancelApply() {
-    showConfirm = false
+    dispatch('apply', delta)
 }
 
 function keydown(e) {
@@ -417,6 +489,18 @@ function revertCheckpoint(checkpoint) {
     checkpoint.reverted = true
     // Dispatch revert to parent
     dispatch('apply', revertDelta)
+    // Find the assistant message before this checkpoint and reset applied state
+    const checkpointIndex = messages.findIndex(msg => msg.checkpoint === checkpoint)
+    if (checkpointIndex > 0) {
+        const assistantMsg = messages[checkpointIndex - 1]
+        if (assistantMsg.role === 'assistant' && assistantMsg.applied) {
+            for (const block of checkpoint.changed) {
+                assistantMsg.applied[block] = false
+            }
+            // Reassign to trigger reactivity
+            messages[checkpointIndex - 1] = { ...messages[checkpointIndex - 1] }
+        }
+    }
     // Log a small system message
     messages = [
         ...messages,
@@ -430,15 +514,6 @@ function revertCheckpoint(checkpoint) {
 
 function clearChat() {
     messages = []
-}
-
-let showDiffModal = false
-let diffModalData = { html: '', css: '', js: '' }
-
-function viewDiff(checkpoint) {
-    if (!checkpoint?.diffs) return
-    diffModalData = checkpoint.diffs
-    showDiffModal = true
 }
 
 // --- Stop/Cancel generation support ---
@@ -462,6 +537,12 @@ function onOverlayClick(e) {
     close()
 }
 
+function processContent(content, hasDiffs) {
+    if (!hasDiffs) return content;
+    // Replace code blocks with a note
+    return content.replace(/```[\s\S]*?```/g, '[code omitted - see diff below]');
+}
+
 </script>
 
 {#if open}
@@ -473,7 +554,7 @@ function onOverlayClick(e) {
                 <button class="ghost" on:click={close} aria-label="Close">✕</button>
             </div>
             <div class="ai-body">
-                <div class="messages" aria-live="polite">
+                <div class="messages" aria-live="polite" bind:this={messagesContainer}>
                     {#if initialContext}
                         <div class="message system">{initialContext}</div>
                     {/if}
@@ -498,7 +579,6 @@ function onOverlayClick(e) {
                                             {/if}
                                         </div>
                                         <div class="checkpoint-actions">
-                                            <button on:click={() => viewDiff(m.checkpoint)} disabled={!m.checkpoint?.diffs}>View Diff</button>
                                             <button on:click={() => revertCheckpoint(m.checkpoint)} disabled={m.checkpoint?.reverted}>
                                                 {m.checkpoint?.reverted ? 'Reverted' : 'Revert'}
                                             </button>
@@ -510,31 +590,58 @@ function onOverlayClick(e) {
                                             <span class="dot"></span><span class="dot"></span><span class="dot"></span>
                                         </span>
                                     {:else}
-                                        {m.content}
+                                        {processContent(m.content, !!m.diffs)}
                                     {/if}
                                 {/if}
                             </div>
+                            {#if m.diffs}
+                                <div class="diff-preview">
+                                    {#if m.diffs.html}
+                                        <div class="diff-section">
+                                            <div class="diff-header">
+                                                <h5>HTML Changes</h5>
+                                                <button on:click={() => applySelection(m, { html: true, css: false, js: false })} disabled={m.applied?.html}>Apply</button>
+                                            </div>
+                                            <div class="diff-view">
+                                                {#each parseDiff(m.diffs.html) as line}
+                                                    <div class="diff-line {line.type}">{line.text}</div>
+                                                {/each}
+                                            </div>
+                                        </div>
+                                    {/if}
+                                    {#if m.diffs.css}
+                                        <div class="diff-section">
+                                            <div class="diff-header">
+                                                <h5>CSS Changes</h5>
+                                                <button on:click={() => applySelection(m, { html: false, css: true, js: false })} disabled={m.applied?.css}>Apply</button>
+                                            </div>
+                                            <div class="diff-view">
+                                                {#each parseDiff(m.diffs.css) as line}
+                                                    <div class="diff-line {line.type}">{line.text}</div>
+                                                {/each}
+                                            </div>
+                                        </div>
+                                    {/if}
+                                    {#if m.diffs.js}
+                                        <div class="diff-section">
+                                            <div class="diff-header">
+                                                <h5>JS Changes</h5>
+                                                <button on:click={() => applySelection(m, { html: false, css: false, js: true })} disabled={m.applied?.js}>Apply</button>
+                                            </div>
+                                            <div class="diff-view">
+                                                {#each parseDiff(m.diffs.js) as line}
+                                                    <div class="diff-line {line.type}">{line.text}</div>
+                                                {/each}
+                                            </div>
+                                        </div>
+                                    {/if}
+                                    <div class="apply-actions">
+                                        <button on:click={() => applySelection(m, { html: true, css: true, js: true })} disabled={m.applied?.html && m.applied?.css && m.applied?.js}>Apply All</button>
+                                    </div>
+                                </div>
+                            {/if}
                         </div>
                     {/each}
-                </div>
-                <div class="extract">
-                    <div class="extract-title">Detected blocks</div>
-                    {#if lastExtract.blocks.length === 0}
-                        <div class="extract-empty">No code blocks found in the last reply.</div>
-                    {:else}
-                        <ul>
-                            {#each lastExtract.blocks as b}
-                                <li><code>{b.lang || 'text'}</code> block ({b.code.length} chars)</li>
-                            {/each}
-                        </ul>
-                        <div class="apply-actions">
-                            <button on:click={() => applySelection({ html: true, css: true, js: true })}>Apply All</button>
-                            <button on:click={() => applySelection({ html: true, css: false, js: false })} disabled={!lastExtract.html}>Apply HTML</button>
-                            <button on:click={() => applySelection({ html: false, css: true, js: false })} disabled={!lastExtract.css}>Apply CSS</button>
-                            <button on:click={() => applySelection({ html: false, css: false, js: true })} disabled={!lastExtract.js}>Apply JS</button>
-                        </div>
-                        <div class="apply-hint">Applying replaces the entire matching block (HTML/CSS/JS). The assistant should return full contents for any changed block.</div>
-                    {/if}
                 </div>
             </div>
             <div class="ai-input">
@@ -607,89 +714,6 @@ function onOverlayClick(e) {
             </div>
         </div>
     </div>
-
-    {#if showConfirm}
-        <Modal on:close-modal={cancelApply}>
-            <div class="confirm-modal">
-                <h3>Confirm Changes</h3>
-                {#if confirmDiffs.html}
-                    <div class="diff-section">
-                        <h4>HTML Changes</h4>
-                        <div class="diff-view">
-                            {#each parseDiff(confirmDiffs.html) as line}
-                                <div class="diff-line {line.type}">{line.text}</div>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-                {#if confirmDiffs.css}
-                    <div class="diff-section">
-                        <h4>CSS Changes</h4>
-                        <div class="diff-view">
-                            {#each parseDiff(confirmDiffs.css) as line}
-                                <div class="diff-line {line.type}">{line.text}</div>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-                {#if confirmDiffs.js}
-                    <div class="diff-section">
-                        <h4>JS Changes</h4>
-                        <div class="diff-view">
-                            {#each parseDiff(confirmDiffs.js) as line}
-                                <div class="diff-line {line.type}">{line.text}</div>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-                <div class="actions">
-                    <button on:click={cancelApply}>Cancel</button>
-                    <button on:click={confirmApply}>Apply Changes</button>
-                </div>
-            </div>
-        </Modal>
-    {/if}
-
-    {#if showDiffModal}
-        <Modal on:close-modal={() => showDiffModal = false}>
-            <div class="confirm-modal">
-                <h3>Applied Changes</h3>
-                {#if diffModalData.html}
-                    <div class="diff-section">
-                        <h4>HTML Changes</h4>
-                        <div class="diff-view">
-                            {#each parseDiff(diffModalData.html) as line}
-                                <div class="diff-line {line.type}">{line.text}</div>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-                {#if diffModalData.css}
-                    <div class="diff-section">
-                        <h4>CSS Changes</h4>
-                        <div class="diff-view">
-                            {#each parseDiff(diffModalData.css) as line}
-                                <div class="diff-line {line.type}">{line.text}</div>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-                {#if diffModalData.js}
-                    <div class="diff-section">
-                        <h4>JS Changes</h4>
-                        <div class="diff-view">
-                            {#each parseDiff(diffModalData.js) as line}
-                                <div class="diff-line {line.type}">{line.text}</div>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-                <div class="actions">
-                    <button on:click={() => showDiffModal = false}>Close</button>
-                </div>
-            </div>
-        </Modal>
-    {/if}
 {/if}
 
 <style>
@@ -726,7 +750,7 @@ function onOverlayClick(e) {
 
 .ai-body {
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1fr;
     gap: 0.75rem;
     padding: 0.75rem;
     overflow: hidden;
@@ -767,12 +791,6 @@ function onOverlayClick(e) {
     0%, 80%, 100% { opacity: .25; transform: translateY(0); }
     40% { opacity: 1; transform: translateY(-3px); }
 }
-
-.extract { border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.5rem; overflow: auto; }
-.extract-title { font-weight: 600; margin-bottom: 0.25rem; }
-.extract-empty { color: #6b7280; font-size: 0.95rem; }
-.apply-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.25rem; }
-.apply-hint { margin-top: .25rem; font-size: .8rem; color: #6b7280; }
 
 .ai-input {
     display: grid;
@@ -816,33 +834,6 @@ function onOverlayClick(e) {
 .settings .input-with-toggle input { width: 100%; }
 .settings .input-with-toggle .eye { margin-left: .4rem; border: 1px solid #d1d5db; background: #f9fafb; border-radius: 6px; padding: .3rem .5rem; cursor: pointer; }
 
-.confirm-modal {
-    max-width: 800px;
-    max-height: 600px;
-    overflow: auto;
-}
-.diff-section {
-    margin-bottom: 1rem;
-}
-.diff-section h4 {
-    margin-bottom: 0.5rem;
-}
-.actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-}
-.actions button {
-    padding: 0.5rem 1rem;
-    border: 1px solid #ccc;
-    background: #fff;
-    cursor: pointer;
-}
-.actions button:last-child {
-    background: #007bff;
-    color: white;
-}
-
 .diff-view {
     font-family: monospace;
     font-size: 0.8rem;
@@ -858,4 +849,41 @@ function onOverlayClick(e) {
 .diff-line.del { color: red; }
 .diff-line.hunk { color: blue; font-weight: bold; }
 .diff-line.context { color: black; }
+
+.diff-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+    padding: 0.25rem 0;
+}
+.diff-header h5 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.diff-header button {
+    border: 1px solid #d1d5db;
+    background: #fff;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.apply-actions {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+.apply-actions button {
+    border: 1px solid #d1d5db;
+    background: #fff;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+}
 </style>
