@@ -714,6 +714,54 @@ delete "/page-uploads/delete/:id" do |env|
   {success: true}.to_json
 end
 
+# Delete a page upload by path or absolute URL (owned by the authenticated user)
+# Expected JSON body: { "pageId": number, "path": string }
+delete "/page-uploads/delete-by-path" do |env|
+  begin
+    page_id = env.params.json["pageId"].as(Int64)
+    received_path = env.params.json["path"].as(String)
+  rescue
+    env.response.content_type = "application/json"
+    env.response.status_code = 400
+    env.response << {error: "Invalid request body"}.to_json
+    next
+  end
+
+  # Normalize to stored relative path like "uploads/images/<file>"
+  relative_path = received_path
+  if idx = received_path.index("uploads/images/")
+    relative_path = received_path[idx..-1]
+  else
+    # strip base URL if present or leading slash
+    relative_path = received_path.lstrip('/').to_s
+  end
+
+  # Ensure the upload belongs to the user and page
+  begin
+    page_upload = db.query_one("SELECT id, file_path FROM page_uploads WHERE page_id = ? AND user_id = ? AND file_path = ?", page_id, env.auth_id, relative_path, as: {
+      id: Int64,
+      file_path: String
+    })
+  rescue
+    env.response.content_type = "application/json"
+    env.response.status_code = 404
+    env.response << {error: "Upload not found"}.to_json
+    next
+  end
+
+  file_path = ::File.join [data_directory, page_upload["file_path"]]
+  begin
+    File.delete(file_path)
+  rescue
+    # ignore missing file on disk, still delete DB row
+  end
+
+  db.exec "DELETE FROM page_uploads WHERE id = ? AND user_id = ?", page_upload["id"], env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
 require "json"
 
 private class PageIdSortOrder

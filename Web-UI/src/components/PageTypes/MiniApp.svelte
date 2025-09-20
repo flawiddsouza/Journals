@@ -13,6 +13,7 @@ import { eventStore } from '../../stores.js'
 import 'code-mirror-custom-element'
 import AIChatPanel from '../../components/AIChatPanel.svelte'
 import DataViewer from '../../components/DataViewer.svelte'
+import { baseURL } from '../../../config.js'
 
 let iframe
 let configuration = false
@@ -48,9 +49,18 @@ const aiSystemPrompt = `You are an assistant that generates or edits small, self
 
 Environment:
 - Code runs inside an iframe. The editor injects CSS, HTML, then wraps JS inside an async IIFE: (async () => { /* your JS */ })().
-- Persistent storage is available via a global async object Journals with methods: getItem(key), setItem(key, value), removeItem(key), clear(), keys(). All return Promises.
+- Persistent storage is available via a global async object Journals with methods: getItem(key), setItem(key, value), removeItem(key), clear(), keys(); plus file helpers: upload(file[, filename?]) and getFileUrl(pathOrUrl). All return Promises.
 - Storage semantics: getItem/setItem accept and return JSON-serializable values via structured clone over postMessage. Do NOT JSON.stringify or JSON.parse; pass plain objects/arrays/primitives. Avoid functions, symbols, DOM nodes, and BigInt. Dates will be stored as strings.
 - No imports, no build tools, no external network resources. Use only vanilla HTML/CSS/JS.
+
+ Uploads:
+ - You can upload a user-selected File or Blob via Journals.upload(file[, filename?]): Promise<string>. It returns a URL string to the uploaded file.
+ - You can delete a previously uploaded file via Journals.deleteFile(pathOrUrl): Promise<boolean>.
+ - Typical usage: const f = document.querySelector('input[type=file]').files[0]; const url = await Journals.upload(f); // url is a string.
+
+ Assets:
+ - Many media URLs require auth (cookies/headers) and cannot be loaded directly in the iframe via <img src>.
+ - Use Journals.getFileUrl(pathOrUrl): Promise<string> to fetch the file from the parent with credentials and receive a blob URL to assign to src.
 
  Output format (strict):
  - Reply with fenced code blocks labeled exactly: html, css, javascript. Example: \`\`\`html ...\`\`\`.
@@ -191,7 +201,8 @@ function buildSrcdoc() {
     let seq = 0;
 
     window.addEventListener('message', ev => {
-        if (!ev.data || ev.data.type !== 'MiniAppStorageResponse') return;
+        if (!ev.data) return;
+        if (ev.data.type !== 'MiniAppStorageResponse' && ev.data.type !== 'MiniAppUploadResponse' && ev.data.type !== 'MiniAppFetchAssetResponse') return;
         const { requestId, result } = ev.data;
         const resolver = pending.get(requestId);
         if (resolver) { resolver(result); pending.delete(requestId); }
@@ -203,12 +214,58 @@ function buildSrcdoc() {
         return new Promise(res => pending.set(requestId, res));
     }
 
+    async function callUpload(file, filename){
+        const requestId = 'r'+(++seq);
+        let name = filename;
+        let fileData = null;
+        let mime = '';
+        try {
+            if (file && typeof file.arrayBuffer === 'function') {
+                fileData = await file.arrayBuffer();
+                mime = file.type || '';
+                if (!name && file.name) name = file.name;
+            }
+        } catch (e) {
+            // fall back to posting the File/Blob directly
+        }
+
+        if (fileData) {
+            // Prefer transferring raw bytes to avoid structured clone edge cases
+            parent.postMessage({ type:'MiniAppUpload', fileData, mime, filename: name, requestId }, '*', [fileData]);
+        } else {
+            parent.postMessage({ type:'MiniAppUpload', file, filename: name, requestId }, '*');
+        }
+        return new Promise(res => pending.set(requestId, res));
+    }
+
+    function callFetchAsset(url){
+        const requestId = 'r'+(++seq);
+        parent.postMessage({ type:'MiniAppFetchAsset', url, requestId }, '*');
+        return new Promise(res => pending.set(requestId, res));
+    }
+
+    function callDelete(url){
+        const requestId = 'r'+(++seq);
+        parent.postMessage({ type:'MiniAppDelete', url, requestId }, '*');
+        return new Promise(res => pending.set(requestId, res));
+    }
+
     window.Journals = {
         async getItem(k){ return call('getItem', k) },
         async setItem(k, v){ return call('setItem', k, v) },
         async removeItem(k){ return call('removeItem', k) },
         async clear(){ return call('clear') },
-        async keys(){ return call('keys') }
+        async keys(){ return call('keys') },
+        async upload(file, filename){ return callUpload(file, filename) },
+        async deleteFile(pathOrUrl){ return callDelete(pathOrUrl) },
+        async getFileUrl(url){
+            const res = await callFetchAsset(url)
+            if (!res || !res.buffer) return null
+            try {
+                const blob = new Blob([res.buffer], { type: res.mime || 'application/octet-stream' })
+                return URL.createObjectURL(blob)
+            } catch (e) { return null }
+        }
     };
 })();
 <\/script>`
@@ -237,41 +294,130 @@ const buildAndRunDebounced = debounce(buildAndRun, 200)
 function handleStorageRequest(ev) {
     if (!iframe || ev.source !== iframe.contentWindow) return
     const msg = ev.data
-    if (!msg || msg.type !== 'MiniAppStorage') return
-    let result
-    try {
-        switch (msg.method) {
-            case 'getItem':
-                result = kv[msg.key];
-                break
-            case 'setItem':
-                kv[msg.key] = msg.value
-                if (!readOnlyMode) {
-                    savePageContent()
-                }
-                result = true
-                break
-            case 'removeItem':
-                delete kv[msg.key]
-                if (!readOnlyMode) {
-                    savePageContent()
-                }
-                result = true
-                break
-            case 'clear':
-                kv = {}
-                if (!readOnlyMode) {
-                    savePageContent()
-                }
-                result = true
-                break
-            case 'keys':
-                result = Object.keys(kv)
-                break
-            default: result = null
+    if (!msg) return
+
+    // Storage API
+    if (msg.type === 'MiniAppStorage') {
+        let result
+        try {
+            switch (msg.method) {
+                case 'getItem':
+                    result = kv[msg.key];
+                    break
+                case 'setItem':
+                    kv[msg.key] = msg.value
+                    if (!readOnlyMode) {
+                        savePageContent()
+                    }
+                    result = true
+                    break
+                case 'removeItem':
+                    delete kv[msg.key]
+                    if (!readOnlyMode) {
+                        savePageContent()
+                    }
+                    result = true
+                    break
+                case 'clear':
+                    kv = {}
+                    if (!readOnlyMode) {
+                        savePageContent()
+                    }
+                    result = true
+                    break
+                case 'keys':
+                    result = Object.keys(kv)
+                    break
+                default: result = null
+            }
+        } catch (e) { result = null }
+        ev.source.postMessage({ type: 'MiniAppStorageResponse', requestId: msg.requestId, result }, '*')
+        return
+    }
+
+    // Upload API
+    if (msg.type === 'MiniAppUpload') {
+        // Disallow in read-only contexts
+        if (readOnlyMode) {
+            ev.source.postMessage({ type: 'MiniAppUploadResponse', requestId: msg.requestId, result: null }, '*')
+            return
         }
-    } catch (e) { result = null }
-    ev.source.postMessage({ type: 'MiniAppStorageResponse', requestId: msg.requestId, result }, '*')
+        let filename = msg.filename || 'upload.bin'
+        let blob
+        if (msg.fileData) {
+            // Reconstruct a Blob from transferred bytes
+            blob = new Blob([msg.fileData], { type: msg.mime || 'application/octet-stream' })
+        } else {
+            const fileOrBlob = msg.file
+            blob = fileOrBlob
+            if (!filename && fileOrBlob && fileOrBlob.name) filename = fileOrBlob.name
+        }
+        ;(async () => {
+            try {
+                const data = new FormData()
+                data.append('image', blob, filename)
+                const resp = await fetch(`${baseURL}/upload-image/${pageId}`, {
+                    method: 'POST',
+                    body: data,
+                    headers: { 'Token': localStorage.getItem('token') },
+                    credentials: 'include'
+                }).then(r => r.json())
+                const url = `${baseURL}/${resp.imageUrl}`
+                ev.source.postMessage({ type: 'MiniAppUploadResponse', requestId: msg.requestId, result: url }, '*')
+            } catch (e) {
+                console.error('MiniAppUpload failed', e)
+                ev.source.postMessage({ type: 'MiniAppUploadResponse', requestId: msg.requestId, result: null }, '*')
+            }
+        })()
+        return
+    }
+
+    // Fetch protected asset and return bytes
+    if (msg.type === 'MiniAppFetchAsset') {
+        const url = msg.url
+        ;(async () => {
+            try {
+                const resp = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'Token': localStorage.getItem('token') },
+                    credentials: 'include'
+                })
+                const mime = resp.headers.get('Content-Type') || ''
+                const buf = await resp.arrayBuffer()
+                ev.source.postMessage({ type: 'MiniAppFetchAssetResponse', requestId: msg.requestId, result: { buffer: buf, mime } }, '*', [buf])
+            } catch (e) {
+                ev.source.postMessage({ type: 'MiniAppFetchAssetResponse', requestId: msg.requestId, result: null }, '*')
+            }
+        })()
+        return
+    }
+
+    // Delete previously uploaded asset by path or URL
+    if (msg.type === 'MiniAppDelete') {
+        if (readOnlyMode) {
+            ev.source.postMessage({ type: 'MiniAppStorageResponse', requestId: msg.requestId, result: false }, '*')
+            return
+        }
+        ;(async () => {
+            try {
+                const resp = await fetch(`${baseURL}/page-uploads/delete-by-path`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Token': localStorage.getItem('token')
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ pageId, path: msg.url })
+                })
+                const ok = resp.ok
+                ev.source.postMessage({ type: 'MiniAppStorageResponse', requestId: msg.requestId, result: ok }, '*')
+            } catch (e) {
+                ev.source.postMessage({ type: 'MiniAppStorageResponse', requestId: msg.requestId, result: false }, '*')
+            }
+        })()
+        return
+    }
 }
 
 onMount(() => {
@@ -324,7 +470,20 @@ const n = (await Journals.getItem('counter')) || 0
 await Journals.setItem('counter', n + 1)
 await Journals.removeItem('counter')
 const keys = await Journals.keys() // ["counter", ...]
-await Journals.clear()</code></pre>
+await Journals.clear()
+
+// Upload a user-selected file and get back a URL string
+const input = document.querySelector('input[type=file]')
+const file = input.files[0]
+const url = await Journals.upload(file)
+// e.g. set <img alt="" src=url> or save in storage
+
+// Resolve a protected file URL/path to a usable blob URL
+const imgUrl = await Journals.getFileUrl('/uploads/images/abc.png')
+// Then set it on an element: img.src = imgUrl
+// Delete an uploaded file by its returned URL/path
+await Journals.deleteFile('/uploads/images/abc.png')
+</code></pre>
                         <p>Available methods:</p>
                         <table class="miniapp-methods" aria-label="Journals API methods">
                             <thead>
@@ -359,6 +518,21 @@ await Journals.clear()</code></pre>
                                     <td><code>keys()</code></td>
                                     <td>List all keys stored by this mini app.</td>
                                     <td><code>string[]</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>upload(file[, filename])</code></td>
+                                    <td>Upload a <code>File</code> or <code>Blob</code> and receive its URL.</td>
+                                    <td><code>string (URL) | null</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>getFileUrl(pathOrUrl)</code></td>
+                                    <td>Return a blob URL for protected files (adds auth on your behalf).</td>
+                                    <td><code>string (blob URL) | null</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>deleteFile(pathOrUrl)</code></td>
+                                    <td>Delete a previously uploaded file owned by this page.</td>
+                                    <td><code>boolean</code></td>
                                 </tr>
                             </tbody>
                         </table>
