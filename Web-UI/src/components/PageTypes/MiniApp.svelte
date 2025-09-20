@@ -60,11 +60,12 @@ function onTabKeydown(e) {
 // System prompt for AIChatPanel to make it MiniApp-aware and reusable
 const aiSystemPrompt = `You are an assistant that generates or edits small, self-contained web mini apps for a sandboxed iframe editor.
 
-Environment:
-- Code runs inside an iframe. The editor injects CSS, HTML, then wraps JS inside an async IIFE: (async () => { /* your JS */ })().
+ Environment:
+ - Code runs inside an iframe. The editor injects CSS, HTML, and executes JS as a module script (<script type="module">). Top-level await is allowed.
 - Persistent storage is available via a global async object Journals with methods: getItem(key), setItem(key, value), removeItem(key), clear(), keys(); plus file helpers: upload(file[, filename?]) and getFileUrl(pathOrUrl). All return Promises.
 - Storage semantics: getItem/setItem accept and return JSON-serializable values via structured clone over postMessage. Do NOT JSON.stringify or JSON.parse; pass plain objects/arrays/primitives. Avoid functions, symbols, DOM nodes, and BigInt. Dates will be stored as strings.
-- No imports, no build tools, no external network resources. Use only vanilla HTML/CSS/JS.
+ - You may use ESM imports for whitelisted libraries via an import map. For example, Vue is available as: import { createApp, ref, onMounted } from 'vue'.
+ - No external network resources or CDNs. Only bare specifiers provided by the import map are allowed (e.g., 'vue'). No relative/absolute URLs in import.
 
  Uploads:
  - You can upload a user-selected File or Blob via Journals.upload(file[, filename?]): Promise<string>. It returns a URL string to the uploaded file.
@@ -78,7 +79,7 @@ Environment:
  Output format (strict):
  - Reply with fenced code blocks labeled exactly: html, css, javascript. Example: \`\`\`html ...\`\`\`.
  - When editing existing code, return ONLY the blocks that need changes; omit blocks that are unchanged. For any block you include, provide the FULL updated content of that block (not a diff or patch). Keep explanations very brief, after the code.
- - JS should attach event listeners with addEventListener and can use await directly (it will be wrapped in an async IIFE).
+ - JS should attach event listeners with addEventListener and can use await directly at top-level (module script). If you import from 'vue', use the ESM API.
 
 Constraints:
 - Keep code minimal, accessible, and self-contained.
@@ -206,7 +207,7 @@ function clearData() {
 }
 
 function buildSrcdoc() {
-    // Inject bridge first, then user JS
+    // Inject bridge first, then bootstrap that sets import map (if needed) and runs user JS as a module
     const bridge = `
 <script>
 (() => {
@@ -215,7 +216,12 @@ function buildSrcdoc() {
 
     window.addEventListener('message', ev => {
         if (!ev.data) return;
-        if (ev.data.type !== 'MiniAppStorageResponse' && ev.data.type !== 'MiniAppUploadResponse' && ev.data.type !== 'MiniAppFetchAssetResponse') return;
+        if (
+            ev.data.type !== 'MiniAppStorageResponse' &&
+            ev.data.type !== 'MiniAppUploadResponse' &&
+            ev.data.type !== 'MiniAppFetchAssetResponse' &&
+            ev.data.type !== 'MiniAppLoadLibraryResponse'
+        ) return;
         const { requestId, result } = ev.data;
         const resolver = pending.get(requestId);
         if (resolver) { resolver(result); pending.delete(requestId); }
@@ -263,6 +269,12 @@ function buildSrcdoc() {
         return new Promise(res => pending.set(requestId, res));
     }
 
+    function callLoadLibrary(name){
+        const requestId = 'r'+(++seq);
+        parent.postMessage({ type:'MiniAppLoadLibrary', name, requestId }, '*');
+        return new Promise(res => pending.set(requestId, res));
+    }
+
     window.Journals = {
         async getItem(k){ return call('getItem', k) },
         async setItem(k, v){ return call('setItem', k, v) },
@@ -280,8 +292,15 @@ function buildSrcdoc() {
             } catch (e) { return null }
         }
     };
+
+    // Expose loader for bootstrap
+    window.__MiniAppCallLoadLibrary = callLoadLibrary;
 })();
 <\/script>`
+
+    // Detect if user code references 'vue' via static or dynamic import
+    const needsVue = /\bfrom\s+['\"]vue['\"]|import\s*\(\s*['\"]vue['\"]\s*\)/.test(files.js || '')
+    const userJsLiteral = JSON.stringify(files.js || '')
 
     return `<!doctype html>
 <html>
@@ -292,7 +311,35 @@ function buildSrcdoc() {
 <body>
     ${files.html || ''}
     ${bridge}
-    <script>(async () => { try { ${files.js || ''} } catch(e){ console.error(e) } })()<\/script>
+    <script>
+    (async () => {
+        try {
+            const NEEDS_VUE = ${needsVue ? 'true' : 'false'};
+            // If Vue is needed, request its ESM code from parent and set an import map to a blob URL created inside the iframe
+            if (NEEDS_VUE && typeof window.__MiniAppCallLoadLibrary === 'function') {
+                const res = await window.__MiniAppCallLoadLibrary('vue');
+                if (res && res.ok && res.code) {
+                    const libBlob = new Blob([res.code], { type: 'text/javascript' });
+                    const libUrl = URL.createObjectURL(libBlob);
+                    const im = document.createElement('script');
+                    im.type = 'importmap';
+                    im.textContent = JSON.stringify({ imports: { vue: libUrl } });
+                    document.head.appendChild(im);
+                }
+            }
+            // Now run the user's JS as a module so static imports work
+            const userCode = ${userJsLiteral};
+            const jsBlob = new Blob([userCode], { type: 'text/javascript' });
+            const jsUrl = URL.createObjectURL(jsBlob);
+            const s = document.createElement('script');
+            s.type = 'module';
+            s.src = jsUrl;
+            document.body.appendChild(s);
+            // Optionally revoke later; keep alive while running
+            s.addEventListener('load', () => { /* URL.revokeObjectURL(jsUrl) */ });
+        } catch (e) { console.error(e); }
+    })();
+    <\/script>
 </body>
 </html>`
 }
@@ -427,6 +474,31 @@ function handleStorageRequest(ev) {
                 ev.source.postMessage({ type: 'MiniAppStorageResponse', requestId: msg.requestId, result: ok }, '*')
             } catch (e) {
                 ev.source.postMessage({ type: 'MiniAppStorageResponse', requestId: msg.requestId, result: false }, '*')
+            }
+        })()
+        return
+    }
+
+    // Library loader: serve vendored ESM source code (whitelisted)
+    if (msg.type === 'MiniAppLoadLibrary') {
+        ;(async () => {
+            try {
+                // Whitelist map; extend as needed. Keep prod build for minimal footprint.
+                const libMap = {
+                    vue: '/libs/vue@3.x/vue.esm-browser.prod.js'
+                }
+                const path = libMap[msg.name]
+                if (!path) {
+                    ev.source.postMessage({ type: 'MiniAppLoadLibraryResponse', requestId: msg.requestId, result: { ok: false } }, '*')
+                    return
+                }
+                const resp = await fetch(path, { credentials: 'include' })
+                if (!resp.ok) throw new Error('Failed to fetch '+path)
+                const code = await resp.text()
+                ev.source.postMessage({ type: 'MiniAppLoadLibraryResponse', requestId: msg.requestId, result: { ok: true, code } }, '*')
+            } catch (e) {
+                console.error('MiniAppLoadLibrary failed', e)
+                ev.source.postMessage({ type: 'MiniAppLoadLibraryResponse', requestId: msg.requestId, result: { ok: false } }, '*')
             }
         })()
         return
