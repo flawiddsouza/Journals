@@ -17,6 +17,7 @@ import { baseURL } from '../../../config.js'
 
 let iframe
 let configuration = false
+let pendingConfigure = false
 let showHelp = false
 let showData = false
 let autoBuild = true
@@ -512,11 +513,18 @@ onMount(() => {
         // Ignore configuration events when viewing history or explicitly view-only
         if (readOnlyMode) return
         if (evt.event === 'configureMiniApp') {
+            // Defer entering configuration until content is ready
+            if (!contentReady) {
+                pendingConfigure = true
+                eventStore.set(null)
+                return
+            }
             configuration = true
             // Clear the event so new subscribers don't receive stale value
             eventStore.set(null)
             tick().then(buildAndRun)
         } else if (evt.event === 'exitConfigureMiniApp') {
+            pendingConfigure = false
             configuration = false
             // Clear the event so new subscribers don't receive stale value
             eventStore.set(null)
@@ -528,11 +536,24 @@ onMount(() => {
         if (typeof unsub === 'function') unsub()
     }
 })
+
+// If configuration was requested while loading, enter as soon as content is ready
+$: if (pendingConfigure && contentReady && !configuration) {
+    pendingConfigure = false
+    configuration = true
+    tick().then(buildAndRun)
+}
 </script>
 
 <div class="pos-r miniapp-root">
     {#if !configuration}
-        <div class="miniapp-preview">
+        <div class="miniapp-preview pos-r" aria-busy={!contentReady}>
+            {#if !contentReady}
+                <div class="loading-overlay" role="status" aria-live="polite">
+                    <div class="spinner" aria-hidden="true"></div>
+                    <div>Loading mini app…</div>
+                </div>
+            {/if}
             <iframe title="Mini App" sandbox="allow-scripts allow-modals allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox" bind:this={iframe}></iframe>
         </div>
     {:else}
@@ -684,7 +705,15 @@ await Journals.deleteFile('/uploads/images/abc.png')
                         {/if}
                     </div>
                 </div>
-                <iframe title="Mini App" sandbox="allow-scripts allow-modals allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox" bind:this={iframe}></iframe>
+                <div class="miniapp-frame pos-r" aria-busy={!contentReady}>
+                    {#if !contentReady}
+                        <div class="loading-overlay" role="status" aria-live="polite">
+                            <div class="spinner" aria-hidden="true"></div>
+                            <div>Loading mini app…</div>
+                        </div>
+                    {/if}
+                    <iframe title="Mini App" sandbox="allow-scripts allow-modals allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox" bind:this={iframe}></iframe>
+                </div>
             </div>
             <AIChatPanel
                 open={aiOpen}
@@ -800,6 +829,10 @@ iframe {
     overflow: hidden;
 }
 
+.miniapp-frame {
+    height: 100%;
+}
+
 .pos-r {
     position: relative;
 }
@@ -852,5 +885,30 @@ iframe {
 }
 .miniapp-methods code {
     white-space: nowrap;
+}
+
+/* Loading overlay */
+.loading-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: rgba(255, 255, 255, 0.85);
+    color: #111827;
+    z-index: 10;
+    font-weight: 500;
+}
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid #e5e7eb;
+    border-top-color: #0b65c2;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 </style>
