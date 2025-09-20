@@ -130,7 +130,6 @@ $: filteredEntries = dataFilter.trim() ? kvEntries.filter(([k,v]) => k.toLowerCa
     background: #f8f9fa;
     color: #24292f;
     font-size: 0.9rem;
-    max-height: 60vh;
     overflow: hidden;
     display: flex;
     flex-direction: column;

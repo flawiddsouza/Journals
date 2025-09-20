@@ -464,7 +464,7 @@ onMount(() => {
             <iframe title="Mini App" sandbox="allow-scripts allow-modals allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox" bind:this={iframe}></iframe>
         </div>
     {:else}
-        <div class="miniapp">
+    <div class="miniapp" class:hasPanel={showHelp || showData}>
             <div class="toolbar">
                 <label class="autobuild-toggle"><input type="checkbox" bind:checked={autoBuild} on:change={() => { if (autoBuild) buildAndRun() }} /> Auto build</label>
                 <button on:click={buildAndRun} disabled={autoBuild} title={autoBuild ? 'Disable Auto build to use Run' : 'Run the mini app'}>Run</button>
@@ -637,6 +637,10 @@ await Journals.deleteFile('/uploads/images/abc.png')
     grid-template-rows: auto 1fr;
 }
 
+.miniapp.hasPanel {
+    grid-template-rows: auto auto 1fr;
+}
+
 .toolbar {
     display: flex;
     gap: 0.5rem;
@@ -736,6 +740,7 @@ iframe {
     background: #f6f8fa;
     color: #24292f;
     font-size: 0.9rem;
+    overflow: auto;
 }
 .miniapp-help-title {
     font-weight: 600;
