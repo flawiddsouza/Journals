@@ -30,6 +30,19 @@ let jsKey = 0
 // Derived flag to unify read-only conditions
 $: readOnlyMode = viewOnly || pageContentOverride !== undefined
 
+// Ensure only one of the info panels is open at a time
+function togglePanel(panel) {
+    if (panel === 'data') {
+        const next = !showData
+        showData = next
+        if (next) showHelp = false
+    } else if (panel === 'help') {
+        const next = !showHelp
+        showHelp = next
+        if (next) showData = false
+    }
+}
+
 // Tabs keyboard support (Left/Right arrows)
 const tabOrder = ['html', 'css', 'js']
 function onTabKeydown(e) {
@@ -457,8 +470,8 @@ onMount(() => {
                 <button on:click={buildAndRun} disabled={autoBuild} title={autoBuild ? 'Disable Auto build to use Run' : 'Run the mini app'}>Run</button>
                 <button on:click={() => aiOpen = true}>AI Chat</button>
                 <div class="spacer"></div>
-                <button class="linklike" title="Show stored data for this mini app" on:click={() => showData = !showData}>Stored Data</button>
-                <button class="linklike" title="Show Mini App API help" on:click={() => showHelp = !showHelp}>Mini App API</button>
+                <button class="linklike" title="Show stored data for this mini app" on:click={() => togglePanel('data')}>Stored Data</button>
+                <button class="linklike" title="Show Mini App API help" on:click={() => togglePanel('help')}>Mini App API</button>
             </div>
             {#if showHelp}
                 <div class="miniapp-help" role="note" aria-label="Mini App API">
