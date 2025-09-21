@@ -11,14 +11,14 @@ let pageNotFound = false
 let gridTemplateRowsMainDiv = `grid-template-rows: 1fr`
 
 async function getPageInfo() {
-    if(!activePageId) {
+    if (!activePageId) {
         pageNotFound = true
         return
     }
 
     try {
         activePage = await fetchPlus.get(`/pages/info/${activePageId}`)
-        if(activePage.locked === false && activePage.type !== 'PageGroup') {
+        if (activePage.locked === false && activePage.type !== 'PageGroup') {
             gridTemplateRowsMainDiv = `grid-template-rows: auto 1fr`
         } else {
             gridTemplateRowsMainDiv = `grid-template-rows: 1fr`
@@ -28,15 +28,15 @@ async function getPageInfo() {
     }
 }
 
-const updatePageName = debounce(function(e) {
+const updatePageName = debounce(function (e) {
     fetchPlus.put(`/pages/name/${activePage.id}`, {
-        pageName: e.target.innerText
+        pageName: e.target.innerText,
     })
 }, 500)
 
-$: if(activePage && activePage.id) {
+$: if (activePage && activePage.id) {
     let pageTitle = activePage.name
-    if(activePage.parent_id) {
+    if (activePage.parent_id) {
         pageTitle += ' | ' + activePage.parent_name
     }
     document.title = pageTitle + ' | ' + ' Journals'
@@ -46,20 +46,24 @@ getPageInfo()
 </script>
 
 {#if pageNotFound}
-    <div style="display: grid; place-items: center; height: 100svh; font-size: 2rem;">404 Page Not Found</div>
+    <div
+        style="display: grid; place-items: center; height: 100svh; font-size: 2rem;"
+    >
+        404 Page Not Found
+    </div>
 {:else}
     <div style="display: grid; height: 100svh; {gridTemplateRowsMainDiv}">
         {#if activePage.locked === false && activePage.type !== 'PageGroup'}
             <div class="page-header">
                 <div style="margin-left: 2em">
-                    <PageNav bind:activePage={activePage}></PageNav>
+                    <PageNav bind:activePage></PageNav>
                 </div>
             </div>
         {/if}
         <Page
             {notebooks}
-            activePage={activePage}
-            updatePageName={updatePageName}
+            {activePage}
+            {updatePageName}
             viewOnly={activePage.parent_view_only}
             className="journal-page-container"
         ></Page>

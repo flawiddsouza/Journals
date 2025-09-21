@@ -16,7 +16,7 @@ export let addPageToTop = false
 
 let addPageSettings = {
     name: '',
-    type: 'FlatPage'
+    type: 'FlatPage',
 }
 
 async function handleAddPage() {
@@ -26,13 +26,16 @@ async function handleAddPage() {
 
     let pageName = addPageSettings.name
     let pageType = addPageSettings.type
-    let pageParentId = addPageSettings.type !== 'PageGroup' ? Number(addPageSettings.parentId ?? null) : null
+    let pageParentId =
+        addPageSettings.type !== 'PageGroup'
+            ? Number(addPageSettings.parentId ?? null)
+            : null
 
     const response = await fetchPlus.post('/pages', {
         sectionId,
         pageName,
         pageType,
-        pageParentId: pageParentId !== 0 ? pageParentId : null
+        pageParentId: pageParentId !== 0 ? pageParentId : null,
     })
 
     let pageObj = {
@@ -44,19 +47,21 @@ async function handleAddPage() {
         view_only: false,
         password_exists: false,
         locked: false,
-        created_at: response.createdAt
+        created_at: response.createdAt,
     }
 
     if (addPageSettings.parentId) {
         if (!pageGroupId && addPageSettings.parentId !== activePage.id) {
-            activePage = pages.find(page => page.id === addPageSettings.parentId)
+            activePage = pages.find(
+                (page) => page.id === addPageSettings.parentId,
+            )
             activePage.activePageId = pageObj.id
         } else {
             eventStore.set({
                 event: 'pageAddedToPageGroup',
                 data: {
-                    pageGroupId: addPageSettings.parentId
-                }
+                    pageGroupId: addPageSettings.parentId,
+                },
             })
         }
 
@@ -74,7 +79,7 @@ async function handleAddPage() {
     let pageIdsWithSortOrder = pages.map((page, index) => {
         return {
             pageId: String(page.id),
-            sortOrder: index + 1
+            sortOrder: index + 1,
         }
     })
 
@@ -89,7 +94,7 @@ async function handleAddPage() {
 function clearAddPageSettings() {
     addPageSettings = {
         name: '',
-        type: 'FlatPage'
+        type: 'FlatPage',
     }
     onClose()
 }
@@ -100,7 +105,7 @@ function focus(element) {
 
 function handleAddPageInput(e) {
     // insert current date at cursor
-    if(e.altKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+    if (e.altKey && e.shiftKey && e.key.toLowerCase() === 'd') {
         const el = e.target
         const textToInsert = format(new Date(), 'DD-MMM-YY')
         el.setRangeText(textToInsert, el.selectionStart, el.selectionEnd, 'end')
@@ -112,10 +117,19 @@ function handleAddPageInput(e) {
 <Modal on:close-modal={onClose}>
     <form on:submit|preventDefault={handleAddPage}>
         <h2 class="heading">Add Page</h2>
-        <label>Name<br>
-            <input type="text" bind:value={addPageSettings.name} required class="w-100p" use:focus on:keydown={handleAddPageInput}>
+        <label
+            >Name<br />
+            <input
+                type="text"
+                bind:value={addPageSettings.name}
+                required
+                class="w-100p"
+                use:focus
+                on:keydown={handleAddPageInput}
+            />
         </label>
-        <label class="d-b mt-0_5em">Type<br>
+        <label class="d-b mt-0_5em"
+            >Type<br />
             <select bind:value={addPageSettings.type} required class="w-100p">
                 <option value="FlatPage">Flat Page</option>
                 <option value="FlatPageV2">Flat Page v2</option>
@@ -131,16 +145,17 @@ function handleAddPageInput(e) {
             </select>
         </label>
         {#if addPageSettings.type !== 'PageGroup' && !pageGroupId}
-        <label class="d-b mt-0_5em">Page Group<br>
-            <select bind:value={addPageSettings.parentId} class="w-100p">
-                <option value="">No Page Group</option>
-                {#each pages as page (page.id)}
-                    {#if page.type === 'PageGroup'}
-                        <option value={page.id}>{page.name}</option>
-                    {/if}
-                {/each}
-            </select>
-        </label>
+            <label class="d-b mt-0_5em"
+                >Page Group<br />
+                <select bind:value={addPageSettings.parentId} class="w-100p">
+                    <option value="">No Page Group</option>
+                    {#each pages as page (page.id)}
+                        {#if page.type === 'PageGroup'}
+                            <option value={page.id}>{page.name}</option>
+                        {/if}
+                    {/each}
+                </select>
+            </label>
         {/if}
         <button class="w-100p mt-1em">Add</button>
     </form>

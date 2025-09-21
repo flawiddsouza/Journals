@@ -1,8 +1,10 @@
 export const logoutAccount = () => {
     let accounts = localStorage.getItem('accounts')
-    if(accounts) {
+    if (accounts) {
         accounts = JSON.parse(accounts)
-        accounts = accounts.filter(account => account.username !== localStorage.getItem('username'))
+        accounts = accounts.filter(
+            (account) => account.username !== localStorage.getItem('username'),
+        )
         localStorage.setItem('accounts', JSON.stringify(accounts))
     }
     localStorage.removeItem('username')
@@ -15,7 +17,7 @@ export const logoutAccount = () => {
 
 export const switchAccount = () => {
     let accounts = localStorage.getItem('accounts')
-    if(accounts) {
+    if (accounts) {
         accounts = JSON.parse(accounts)
     } else {
         accounts = []
@@ -23,15 +25,15 @@ export const switchAccount = () => {
 
     const username = localStorage.getItem('username')
 
-    const account = accounts.find(account => account.username === username)
+    const account = accounts.find((account) => account.username === username)
 
-    if(!account) {
+    if (!account) {
         accounts.push({
             username: username,
             password: localStorage.getItem('password'),
             token: localStorage.getItem('token'),
             activePage: localStorage.getItem('activePage'),
-            activeSection: localStorage.getItem('activeSection')
+            activeSection: localStorage.getItem('activeSection'),
         })
     } else {
         account.activePage = localStorage.getItem('activePage')

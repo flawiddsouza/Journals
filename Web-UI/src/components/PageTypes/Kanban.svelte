@@ -18,9 +18,10 @@ let flipDurationMs = 300
 let isTouch = false
 if (typeof window !== 'undefined') {
     try {
-        isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+        isTouch =
+            window.matchMedia && window.matchMedia('(pointer: coarse)').matches
     } catch (_) {
-        isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0
+        isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0
     }
 }
 
@@ -37,36 +38,48 @@ function formatDate(dateString) {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
     })
 }
 
 let editState = {
-    cards: {}  // Will store cardId -> { isEditing, isEditingDescription, isNew }
+    cards: {}, // Will store cardId -> { isEditing, isEditingDescription, isNew }
 }
 
 function getCardEditState(cardId) {
     if (!editState.cards[cardId]) {
-        editState.cards[cardId] = { isEditing: false, isEditingDescription: false, isNew: false }
+        editState.cards[cardId] = {
+            isEditing: false,
+            isEditingDescription: false,
+            isNew: false,
+        }
     }
     return editState.cards[cardId]
 }
 
 function setCardEditing(cardId, isEditing, isNew = false) {
     if (!editState.cards[cardId]) {
-        editState.cards[cardId] = { isEditing: false, isEditingDescription: false, isNew: false }
+        editState.cards[cardId] = {
+            isEditing: false,
+            isEditingDescription: false,
+            isNew: false,
+        }
     }
     editState.cards[cardId].isEditing = isEditing
     editState.cards[cardId].isNew = isNew
-    editState = {...editState} // Trigger reactivity
+    editState = { ...editState } // Trigger reactivity
 }
 
 function setCardEditingDescription(cardId, isEditingDescription) {
     if (!editState.cards[cardId]) {
-        editState.cards[cardId] = { isEditing: false, isEditingDescription: false, isNew: false }
+        editState.cards[cardId] = {
+            isEditing: false,
+            isEditingDescription: false,
+            isNew: false,
+        }
     }
     editState.cards[cardId].isEditingDescription = isEditingDescription
-    editState = {...editState} // Trigger reactivity
+    editState = { ...editState } // Trigger reactivity
 }
 
 // Custom action for selecting text in an input when mounted,
@@ -80,7 +93,7 @@ function selectTextOnMount(node) {
     return {}
 }
 
-$: if(pageContentOverride !== undefined) {
+$: if (pageContentOverride !== undefined) {
     try {
         pageContent = JSON.parse(pageContentOverride)
         boards = pageContent.boards || defaultBoards()
@@ -99,56 +112,63 @@ function defaultBoards() {
         {
             id: 'todo',
             title: 'To Do',
-            cards: []
+            cards: [],
         },
         {
             id: 'in-progress',
             title: 'In Progress',
-            cards: []
+            cards: [],
         },
         {
             id: 'done',
             title: 'Done',
-            cards: []
-        }
+            cards: [],
+        },
     ]
 }
 
 function fetchPage(pageId) {
-    if(pageId) {
-        fetchPlus.get(`/pages/content/${pageId}`).then(response => {
-            try {
-                pageContent = response.content ? JSON.parse(response.content) : { boards: defaultBoards() }
-                boards = pageContent.boards || defaultBoards()
-            } catch (e) {
-                console.error('Error parsing page content', e)
+    if (pageId) {
+        fetchPlus
+            .get(`/pages/content/${pageId}`)
+            .then((response) => {
+                try {
+                    pageContent = response.content
+                        ? JSON.parse(response.content)
+                        : { boards: defaultBoards() }
+                    boards = pageContent.boards || defaultBoards()
+                } catch (e) {
+                    console.error('Error parsing page content', e)
+                    boards = defaultBoards()
+                }
+                loaded = true
+            })
+            .catch((error) => {
+                console.error('Error fetching page content', error)
                 boards = defaultBoards()
-            }
-            loaded = true
-        }).catch(error => {
-            console.error('Error fetching page content', error)
-            boards = defaultBoards()
-            loaded = true
-        })
+                loaded = true
+            })
     }
 }
 
-const savePageContent = debounce(function() {
-    if(pageId === null) {
+const savePageContent = debounce(function () {
+    if (pageId === null) {
         return
     }
 
-    fetchPlus.put(`/pages/${pageId}`, {
-        pageContent: JSON.stringify({
-            boards
+    fetchPlus
+        .put(`/pages/${pageId}`, {
+            pageContent: JSON.stringify({
+                boards,
+            }),
         })
-    }).catch(() => {
-        alert('Page Save Failed')
-    })
+        .catch(() => {
+            alert('Page Save Failed')
+        })
 }, 500)
 
 function handleAddCard(boardId) {
-    const board = boards.find(b => b.id === boardId)
+    const board = boards.find((b) => b.id === boardId)
     if (board) {
         const now = new Date().toISOString()
         // Create a new card at the top of the board
@@ -157,7 +177,7 @@ function handleAddCard(boardId) {
             title: 'New Card',
             description: '',
             createdAt: now,
-            updatedAt: now
+            updatedAt: now,
         }
         board.cards.unshift(newCard)
         setCardEditing(newCard.id, true, true) // Mark as new card
@@ -167,9 +187,9 @@ function handleAddCard(boardId) {
 }
 
 function handleEditCard(boardId, cardId) {
-    const board = boards.find(b => b.id === boardId)
+    const board = boards.find((b) => b.id === boardId)
     if (board) {
-        const card = board.cards.find(c => c.id === cardId)
+        const card = board.cards.find((c) => c.id === cardId)
         if (card) {
             setCardEditing(cardId, true, false) // Not a new card
             boards = boards // trigger svelte reactivity
@@ -178,9 +198,9 @@ function handleEditCard(boardId, cardId) {
 }
 
 function handleEditCardDescription(boardId, cardId) {
-    const board = boards.find(b => b.id === boardId)
+    const board = boards.find((b) => b.id === boardId)
     if (board) {
-        const card = board.cards.find(c => c.id === cardId)
+        const card = board.cards.find((c) => c.id === cardId)
         if (card) {
             setCardEditingDescription(cardId, true)
             boards = boards // trigger svelte reactivity
@@ -189,9 +209,9 @@ function handleEditCardDescription(boardId, cardId) {
 }
 
 function saveCardTitle(boardId, cardId, newTitle) {
-    const board = boards.find(b => b.id === boardId)
+    const board = boards.find((b) => b.id === boardId)
     if (board) {
-        const card = board.cards.find(c => c.id === cardId)
+        const card = board.cards.find((c) => c.id === cardId)
         if (card) {
             // Only update if the title isn't empty
             if (newTitle && newTitle.trim()) {
@@ -213,9 +233,9 @@ function saveCardTitle(boardId, cardId, newTitle) {
 }
 
 function saveCardDescription(boardId, cardId, newDescription) {
-    const board = boards.find(b => b.id === boardId)
+    const board = boards.find((b) => b.id === boardId)
     if (board) {
-        const card = board.cards.find(c => c.id === cardId)
+        const card = board.cards.find((c) => c.id === cardId)
         if (card) {
             card.description = newDescription
             setCardEditingDescription(cardId, false)
@@ -228,10 +248,10 @@ function saveCardDescription(boardId, cardId, newDescription) {
 }
 
 function handleDeleteCard(boardId, cardId) {
-    const board = boards.find(b => b.id === boardId)
+    const board = boards.find((b) => b.id === boardId)
     if (board) {
         if (confirm('Are you sure you want to delete this card?')) {
-            board.cards = board.cards.filter(c => c.id !== cardId)
+            board.cards = board.cards.filter((c) => c.id !== cardId)
             delete editState.cards[cardId]
             boards = boards // trigger svelte reactivity
             savePageContent()
@@ -248,7 +268,7 @@ function handleAddBoard() {
             title: boardTitle,
             cards: [],
             createdAt: now,
-            updatedAt: now
+            updatedAt: now,
         })
         boards = [...boards] // trigger reactivity
         savePageContent()
@@ -256,7 +276,7 @@ function handleAddBoard() {
 }
 
 function handleEditBoard(boardId) {
-    const board = boards.find(b => b.id === boardId)
+    const board = boards.find((b) => b.id === boardId)
     if (board) {
         const boardTitle = prompt('Edit board title:', board.title)
         if (boardTitle && boardTitle.trim()) {
@@ -270,10 +290,14 @@ function handleEditBoard(boardId) {
 }
 
 function handleDeleteBoard(boardId) {
-    const board = boards.find(b => b.id === boardId)
+    const board = boards.find((b) => b.id === boardId)
     if (board) {
-        if (confirm(`Are you sure you want to delete the "${board.title}" board and all its cards?`)) {
-            boards = boards.filter(b => b.id !== boardId)
+        if (
+            confirm(
+                `Are you sure you want to delete the "${board.title}" board and all its cards?`,
+            )
+        ) {
+            boards = boards.filter((b) => b.id !== boardId)
             savePageContent()
         }
     }
@@ -281,40 +305,40 @@ function handleDeleteBoard(boardId) {
 
 // Handle drag and drop between boards
 function handleBoardCardsDndConsider(e, boardId) {
-    if (viewOnly) return;
+    if (viewOnly) return
 
-    const board = boards.find(b => b.id === boardId);
+    const board = boards.find((b) => b.id === boardId)
     if (board) {
-        board.cards = e.detail.items;
-        boards = [...boards]; // trigger reactivity
+        board.cards = e.detail.items
+        boards = [...boards] // trigger reactivity
     }
 }
 
 function handleBoardCardsDndFinalize(e, boardId) {
-    if (viewOnly) return;
+    if (viewOnly) return
 
-    const board = boards.find(b => b.id === boardId);
+    const board = boards.find((b) => b.id === boardId)
     if (board) {
-        board.cards = e.detail.items;
-        boards = [...boards]; // trigger reactivity
-        savePageContent();
+        board.cards = e.detail.items
+        boards = [...boards] // trigger reactivity
+        savePageContent()
     }
 }
 
 // Handle drag and drop for rearranging boards
 function handleBoardsDndConsider(e) {
-    if (viewOnly) return;
-    boards = e.detail.items;
+    if (viewOnly) return
+    boards = e.detail.items
 }
 
 function handleBoardsDndFinalize(e) {
-    if (viewOnly) return;
-    boards = e.detail.items;
-    savePageContent();
+    if (viewOnly) return
+    boards = e.detail.items
+    savePageContent()
 }
 </script>
 
-<div class="kanban-container" style="{style}">
+<div class="kanban-container" {style}>
     {#if loaded}
         {#if isTouch}
             <section
@@ -323,7 +347,7 @@ function handleBoardsDndFinalize(e) {
                     flipDurationMs,
                     type: 'boards',
                     dragDisabled: viewOnly,
-                    dropTargetStyle: { outline: 'none' }
+                    dropTargetStyle: { outline: 'none' },
                 }}
                 on:consider={handleBoardsDndConsider}
                 on:finalize={handleBoardsDndFinalize}
@@ -332,7 +356,7 @@ function handleBoardsDndFinalize(e) {
                 {#each boards as board (board.id)}
                     <div
                         class="kanban-board"
-                        animate:flip={{duration: flipDurationMs}}
+                        animate:flip={{ duration: flipDurationMs }}
                     >
                         <div class="kanban-board-header">
                             <div class="board-title-row">
@@ -349,9 +373,23 @@ function handleBoardsDndFinalize(e) {
                             </div>
                             {#if !viewOnly}
                                 <div class="board-actions">
-                                    <button class="icon-button" on:click={() => handleAddCard(board.id)} title="Add Card">+</button>
-                                    <button class="icon-button" on:click={() => handleEditBoard(board.id)} title="Edit Board">✎</button>
-                                    <button class="icon-button delete" on:click={() => handleDeleteBoard(board.id)} title="Delete Board">×</button>
+                                    <button
+                                        class="icon-button"
+                                        on:click={() => handleAddCard(board.id)}
+                                        title="Add Card">+</button
+                                    >
+                                    <button
+                                        class="icon-button"
+                                        on:click={() =>
+                                            handleEditBoard(board.id)}
+                                        title="Edit Board">✎</button
+                                    >
+                                    <button
+                                        class="icon-button delete"
+                                        on:click={() =>
+                                            handleDeleteBoard(board.id)}
+                                        title="Delete Board">×</button
+                                    >
                                 </div>
                             {/if}
                         </div>
@@ -362,16 +400,20 @@ function handleBoardsDndFinalize(e) {
                                     items: board.cards,
                                     flipDurationMs,
                                     type: 'cards',
-                                    dragDisabled: viewOnly
+                                    dragDisabled: viewOnly,
                                 }}
-                                on:consider={e => handleBoardCardsDndConsider(e, board.id)}
-                                on:finalize={e => handleBoardCardsDndFinalize(e, board.id)}
+                                on:consider={(e) =>
+                                    handleBoardCardsDndConsider(e, board.id)}
+                                on:finalize={(e) =>
+                                    handleBoardCardsDndFinalize(e, board.id)}
                                 class="kanban-cards"
                             >
                                 {#each board.cards as card (card.id)}
                                     <div
                                         class="kanban-card"
-                                        animate:flip={{duration: flipDurationMs}}
+                                        animate:flip={{
+                                            duration: flipDurationMs,
+                                        }}
                                     >
                                         <div class="kanban-card-header">
                                             {#if isTouch && !viewOnly}
@@ -389,21 +431,68 @@ function handleBoardsDndFinalize(e) {
                                                     type="text"
                                                     class="card-title-input"
                                                     bind:value={card.title}
-                                                    on:blur={() => saveCardTitle(board.id, card.id, card.title)}
-                                                    on:keydown={(e) => e.key === 'Enter' && saveCardTitle(board.id, card.id, card.title)}
+                                                    on:blur={() =>
+                                                        saveCardTitle(
+                                                            board.id,
+                                                            card.id,
+                                                            card.title,
+                                                        )}
+                                                    on:keydown={(e) =>
+                                                        e.key === 'Enter' &&
+                                                        saveCardTitle(
+                                                            board.id,
+                                                            card.id,
+                                                            card.title,
+                                                        )}
                                                     use:selectTextOnMount
                                                     data-card-id={card.id}
                                                     autofocus
                                                     spellcheck="false"
                                                 />
                                             {:else}
-                                                <h3 on:dblclick={() => !viewOnly && handleEditCard(board.id, card.id)}>{card.title}</h3>
+                                                <h3
+                                                    on:dblclick={() =>
+                                                        !viewOnly &&
+                                                        handleEditCard(
+                                                            board.id,
+                                                            card.id,
+                                                        )}
+                                                >
+                                                    {card.title}
+                                                </h3>
                                             {/if}
                                             {#if !viewOnly}
                                                 <div class="card-actions">
-                                                    <button class="icon-button" on:click={() => handleEditCard(board.id, card.id)} title="Edit Title">✎</button>
-                                                    <button class="icon-button" on:click={() => handleEditCardDescription(board.id, card.id)} title="Edit Description">✐</button>
-                                                    <button class="icon-button delete" on:click={() => handleDeleteCard(board.id, card.id)} title="Delete Card">×</button>
+                                                    <button
+                                                        class="icon-button"
+                                                        on:click={() =>
+                                                            handleEditCard(
+                                                                board.id,
+                                                                card.id,
+                                                            )}
+                                                        title="Edit Title"
+                                                        >✎</button
+                                                    >
+                                                    <button
+                                                        class="icon-button"
+                                                        on:click={() =>
+                                                            handleEditCardDescription(
+                                                                board.id,
+                                                                card.id,
+                                                            )}
+                                                        title="Edit Description"
+                                                        >✐</button
+                                                    >
+                                                    <button
+                                                        class="icon-button delete"
+                                                        on:click={() =>
+                                                            handleDeleteCard(
+                                                                board.id,
+                                                                card.id,
+                                                            )}
+                                                        title="Delete Card"
+                                                        >×</button
+                                                    >
                                                 </div>
                                             {/if}
                                         </div>
@@ -411,19 +500,34 @@ function handleBoardsDndFinalize(e) {
                                             <textarea
                                                 class="card-description-input"
                                                 bind:value={card.description}
-                                                on:blur={() => saveCardDescription(board.id, card.id, card.description)}
+                                                on:blur={() =>
+                                                    saveCardDescription(
+                                                        board.id,
+                                                        card.id,
+                                                        card.description,
+                                                    )}
                                                 autofocus
                                                 spellcheck="false"
                                             ></textarea>
                                         {:else if card.description}
-                                            <div class="kanban-card-description" on:dblclick={() => !viewOnly && handleEditCardDescription(board.id, card.id)}>
+                                            <div
+                                                class="kanban-card-description"
+                                                on:dblclick={() =>
+                                                    !viewOnly &&
+                                                    handleEditCardDescription(
+                                                        board.id,
+                                                        card.id,
+                                                    )}
+                                            >
                                                 {card.description}
                                             </div>
                                         {/if}
 
                                         {#if card.createdAt}
                                             <div class="kanban-card-timestamp">
-                                                Created: {formatDate(card.createdAt)}
+                                                Created: {formatDate(
+                                                    card.createdAt,
+                                                )}
                                             </div>
                                         {/if}
                                     </div>
@@ -434,7 +538,8 @@ function handleBoardsDndFinalize(e) {
                                         {#if viewOnly}
                                             No cards
                                         {:else}
-                                            Drag cards here or click + to add a card
+                                            Drag cards here or click + to add a
+                                            card
                                         {/if}
                                     </div>
                                 {/if}
@@ -446,16 +551,20 @@ function handleBoardsDndFinalize(e) {
                                     items: board.cards,
                                     flipDurationMs,
                                     type: 'cards',
-                                    dragDisabled: viewOnly
+                                    dragDisabled: viewOnly,
                                 }}
-                                on:consider={e => handleBoardCardsDndConsider(e, board.id)}
-                                on:finalize={e => handleBoardCardsDndFinalize(e, board.id)}
+                                on:consider={(e) =>
+                                    handleBoardCardsDndConsider(e, board.id)}
+                                on:finalize={(e) =>
+                                    handleBoardCardsDndFinalize(e, board.id)}
                                 class="kanban-cards"
                             >
                                 {#each board.cards as card (card.id)}
                                     <div
                                         class="kanban-card"
-                                        animate:flip={{duration: flipDurationMs}}
+                                        animate:flip={{
+                                            duration: flipDurationMs,
+                                        }}
                                     >
                                         <div class="kanban-card-header">
                                             {#if getCardEditState(card.id).isEditing && !viewOnly}
@@ -463,21 +572,68 @@ function handleBoardsDndFinalize(e) {
                                                     type="text"
                                                     class="card-title-input"
                                                     bind:value={card.title}
-                                                    on:blur={() => saveCardTitle(board.id, card.id, card.title)}
-                                                    on:keydown={(e) => e.key === 'Enter' && saveCardTitle(board.id, card.id, card.title)}
+                                                    on:blur={() =>
+                                                        saveCardTitle(
+                                                            board.id,
+                                                            card.id,
+                                                            card.title,
+                                                        )}
+                                                    on:keydown={(e) =>
+                                                        e.key === 'Enter' &&
+                                                        saveCardTitle(
+                                                            board.id,
+                                                            card.id,
+                                                            card.title,
+                                                        )}
                                                     use:selectTextOnMount
                                                     data-card-id={card.id}
                                                     autofocus
                                                     spellcheck="false"
                                                 />
                                             {:else}
-                                                <h3 on:dblclick={() => !viewOnly && handleEditCard(board.id, card.id)}>{card.title}</h3>
+                                                <h3
+                                                    on:dblclick={() =>
+                                                        !viewOnly &&
+                                                        handleEditCard(
+                                                            board.id,
+                                                            card.id,
+                                                        )}
+                                                >
+                                                    {card.title}
+                                                </h3>
                                             {/if}
                                             {#if !viewOnly}
                                                 <div class="card-actions">
-                                                    <button class="icon-button" on:click={() => handleEditCard(board.id, card.id)} title="Edit Title">✎</button>
-                                                    <button class="icon-button" on:click={() => handleEditCardDescription(board.id, card.id)} title="Edit Description">✐</button>
-                                                    <button class="icon-button delete" on:click={() => handleDeleteCard(board.id, card.id)} title="Delete Card">×</button>
+                                                    <button
+                                                        class="icon-button"
+                                                        on:click={() =>
+                                                            handleEditCard(
+                                                                board.id,
+                                                                card.id,
+                                                            )}
+                                                        title="Edit Title"
+                                                        >✎</button
+                                                    >
+                                                    <button
+                                                        class="icon-button"
+                                                        on:click={() =>
+                                                            handleEditCardDescription(
+                                                                board.id,
+                                                                card.id,
+                                                            )}
+                                                        title="Edit Description"
+                                                        >✐</button
+                                                    >
+                                                    <button
+                                                        class="icon-button delete"
+                                                        on:click={() =>
+                                                            handleDeleteCard(
+                                                                board.id,
+                                                                card.id,
+                                                            )}
+                                                        title="Delete Card"
+                                                        >×</button
+                                                    >
                                                 </div>
                                             {/if}
                                         </div>
@@ -485,19 +641,34 @@ function handleBoardsDndFinalize(e) {
                                             <textarea
                                                 class="card-description-input"
                                                 bind:value={card.description}
-                                                on:blur={() => saveCardDescription(board.id, card.id, card.description)}
+                                                on:blur={() =>
+                                                    saveCardDescription(
+                                                        board.id,
+                                                        card.id,
+                                                        card.description,
+                                                    )}
                                                 autofocus
                                                 spellcheck="false"
                                             ></textarea>
                                         {:else if card.description}
-                                            <div class="kanban-card-description" on:dblclick={() => !viewOnly && handleEditCardDescription(board.id, card.id)}>
+                                            <div
+                                                class="kanban-card-description"
+                                                on:dblclick={() =>
+                                                    !viewOnly &&
+                                                    handleEditCardDescription(
+                                                        board.id,
+                                                        card.id,
+                                                    )}
+                                            >
                                                 {card.description}
                                             </div>
                                         {/if}
 
                                         {#if card.createdAt}
                                             <div class="kanban-card-timestamp">
-                                                Created: {formatDate(card.createdAt)}
+                                                Created: {formatDate(
+                                                    card.createdAt,
+                                                )}
                                             </div>
                                         {/if}
                                     </div>
@@ -508,7 +679,8 @@ function handleBoardsDndFinalize(e) {
                                         {#if viewOnly}
                                             No cards
                                         {:else}
-                                            Drag cards here or click + to add a card
+                                            Drag cards here or click + to add a
+                                            card
                                         {/if}
                                     </div>
                                 {/if}
@@ -530,7 +702,7 @@ function handleBoardsDndFinalize(e) {
                     flipDurationMs,
                     type: 'boards',
                     dragDisabled: viewOnly,
-                    dropTargetStyle: { outline: 'none' }
+                    dropTargetStyle: { outline: 'none' },
                 }}
                 on:consider={handleBoardsDndConsider}
                 on:finalize={handleBoardsDndFinalize}
@@ -539,7 +711,7 @@ function handleBoardsDndFinalize(e) {
                 {#each boards as board (board.id)}
                     <div
                         class="kanban-board"
-                        animate:flip={{duration: flipDurationMs}}
+                        animate:flip={{ duration: flipDurationMs }}
                     >
                         <div class="kanban-board-header">
                             <div class="board-title-row">
@@ -547,9 +719,23 @@ function handleBoardsDndFinalize(e) {
                             </div>
                             {#if !viewOnly}
                                 <div class="board-actions">
-                                    <button class="icon-button" on:click={() => handleAddCard(board.id)} title="Add Card">+</button>
-                                    <button class="icon-button" on:click={() => handleEditBoard(board.id)} title="Edit Board">✎</button>
-                                    <button class="icon-button delete" on:click={() => handleDeleteBoard(board.id)} title="Delete Board">×</button>
+                                    <button
+                                        class="icon-button"
+                                        on:click={() => handleAddCard(board.id)}
+                                        title="Add Card">+</button
+                                    >
+                                    <button
+                                        class="icon-button"
+                                        on:click={() =>
+                                            handleEditBoard(board.id)}
+                                        title="Edit Board">✎</button
+                                    >
+                                    <button
+                                        class="icon-button delete"
+                                        on:click={() =>
+                                            handleDeleteBoard(board.id)}
+                                        title="Delete Board">×</button
+                                    >
                                 </div>
                             {/if}
                         </div>
@@ -560,16 +746,18 @@ function handleBoardsDndFinalize(e) {
                                 items: board.cards,
                                 flipDurationMs,
                                 type: 'cards',
-                                dragDisabled: viewOnly
+                                dragDisabled: viewOnly,
                             }}
-                            on:consider={e => handleBoardCardsDndConsider(e, board.id)}
-                            on:finalize={e => handleBoardCardsDndFinalize(e, board.id)}
+                            on:consider={(e) =>
+                                handleBoardCardsDndConsider(e, board.id)}
+                            on:finalize={(e) =>
+                                handleBoardCardsDndFinalize(e, board.id)}
                             class="kanban-cards"
                         >
                             {#each board.cards as card (card.id)}
                                 <div
                                     class="kanban-card"
-                                    animate:flip={{duration: flipDurationMs}}
+                                    animate:flip={{ duration: flipDurationMs }}
                                 >
                                     <div class="kanban-card-header">
                                         {#if getCardEditState(card.id).isEditing && !viewOnly}
@@ -577,21 +765,67 @@ function handleBoardsDndFinalize(e) {
                                                 type="text"
                                                 class="card-title-input"
                                                 bind:value={card.title}
-                                                on:blur={() => saveCardTitle(board.id, card.id, card.title)}
-                                                on:keydown={(e) => e.key === 'Enter' && saveCardTitle(board.id, card.id, card.title)}
+                                                on:blur={() =>
+                                                    saveCardTitle(
+                                                        board.id,
+                                                        card.id,
+                                                        card.title,
+                                                    )}
+                                                on:keydown={(e) =>
+                                                    e.key === 'Enter' &&
+                                                    saveCardTitle(
+                                                        board.id,
+                                                        card.id,
+                                                        card.title,
+                                                    )}
                                                 use:selectTextOnMount
                                                 data-card-id={card.id}
                                                 autofocus
                                                 spellcheck="false"
                                             />
                                         {:else}
-                                            <h3 on:dblclick={() => !viewOnly && handleEditCard(board.id, card.id)}>{card.title}</h3>
+                                            <h3
+                                                on:dblclick={() =>
+                                                    !viewOnly &&
+                                                    handleEditCard(
+                                                        board.id,
+                                                        card.id,
+                                                    )}
+                                            >
+                                                {card.title}
+                                            </h3>
                                         {/if}
                                         {#if !viewOnly}
                                             <div class="card-actions">
-                                                <button class="icon-button" on:click={() => handleEditCard(board.id, card.id)} title="Edit Title">✎</button>
-                                                <button class="icon-button" on:click={() => handleEditCardDescription(board.id, card.id)} title="Edit Description">✐</button>
-                                                <button class="icon-button delete" on:click={() => handleDeleteCard(board.id, card.id)} title="Delete Card">×</button>
+                                                <button
+                                                    class="icon-button"
+                                                    on:click={() =>
+                                                        handleEditCard(
+                                                            board.id,
+                                                            card.id,
+                                                        )}
+                                                    title="Edit Title">✎</button
+                                                >
+                                                <button
+                                                    class="icon-button"
+                                                    on:click={() =>
+                                                        handleEditCardDescription(
+                                                            board.id,
+                                                            card.id,
+                                                        )}
+                                                    title="Edit Description"
+                                                    >✐</button
+                                                >
+                                                <button
+                                                    class="icon-button delete"
+                                                    on:click={() =>
+                                                        handleDeleteCard(
+                                                            board.id,
+                                                            card.id,
+                                                        )}
+                                                    title="Delete Card"
+                                                    >×</button
+                                                >
                                             </div>
                                         {/if}
                                     </div>
@@ -599,19 +833,34 @@ function handleBoardsDndFinalize(e) {
                                         <textarea
                                             class="card-description-input"
                                             bind:value={card.description}
-                                            on:blur={() => saveCardDescription(board.id, card.id, card.description)}
+                                            on:blur={() =>
+                                                saveCardDescription(
+                                                    board.id,
+                                                    card.id,
+                                                    card.description,
+                                                )}
                                             autofocus
                                             spellcheck="false"
                                         ></textarea>
                                     {:else if card.description}
-                                        <div class="kanban-card-description" on:dblclick={() => !viewOnly && handleEditCardDescription(board.id, card.id)}>
+                                        <div
+                                            class="kanban-card-description"
+                                            on:dblclick={() =>
+                                                !viewOnly &&
+                                                handleEditCardDescription(
+                                                    board.id,
+                                                    card.id,
+                                                )}
+                                        >
                                             {card.description}
                                         </div>
                                     {/if}
 
                                     {#if card.createdAt}
                                         <div class="kanban-card-timestamp">
-                                            Created: {formatDate(card.createdAt)}
+                                            Created: {formatDate(
+                                                card.createdAt,
+                                            )}
                                         </div>
                                     {/if}
                                 </div>
@@ -636,7 +885,6 @@ function handleBoardsDndFinalize(e) {
                 {/if}
             </section>
         {/if}
-
     {:else}
         <div>Loading...</div>
     {/if}
@@ -734,9 +982,15 @@ function handleBoardsDndFinalize(e) {
     background: #bdbdbd;
     border-radius: 2px;
 }
-.drag-handle::before { top: 0.375rem; }
-.drag-handle::after { bottom: 0.375rem; }
-.drag-handle:active { cursor: grabbing; }
+.drag-handle::before {
+    top: 0.375rem;
+}
+.drag-handle::after {
+    bottom: 0.375rem;
+}
+.drag-handle:active {
+    cursor: grabbing;
+}
 
 .board-handle {
     width: 1rem;
@@ -765,7 +1019,8 @@ function handleBoardsDndFinalize(e) {
     font-style: italic;
 }
 
-.board-actions, .card-actions {
+.board-actions,
+.card-actions {
     display: flex;
     gap: 0.25rem;
 }
@@ -861,6 +1116,8 @@ function handleBoardsDndFinalize(e) {
         cursor: default;
     }
     /* Only the handle should initiate drag on touch */
-    .drag-handle { touch-action: none; }
+    .drag-handle {
+        touch-action: none;
+    }
 }
 </style>

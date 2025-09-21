@@ -33,8 +33,8 @@ let autocompleteData = {
     suggestions: [],
     position: { top: 0, left: 0 },
     itemIndex: null,
-    columnName: null
-};
+    columnName: null,
+}
 
 function computeRowStyle(rowIndex) {
     if (!rowStyle) return ''
@@ -43,16 +43,26 @@ function computeRowStyle(rowIndex) {
 
 function computeColumnStyle(rowIndex, columnIndex, columnName) {
     if (!columns[columnIndex].style) return ''
-    return evalulateJS('Column Style', columns[columnIndex].style, rowIndex, columnName)
+    return evalulateJS(
+        'Column Style',
+        columns[columnIndex].style,
+        rowIndex,
+        columnName,
+    )
 }
 
 function computeComputedColumn(rowIndex, columnIndex) {
     const column = columns[columnIndex]
     if (!column.expression) return ''
-    return evalulateJS('Computed Column', column.expression, rowIndex, column.name)
+    return evalulateJS(
+        'Computed Column',
+        column.expression,
+        rowIndex,
+        column.name,
+    )
 }
 
-$: if(pageContentOverride) {
+$: if (pageContentOverride) {
     let parsedPage = JSON.parse(pageContentOverride)
     columns = parsedPage.columns
     items = parsedPage.items
@@ -81,7 +91,7 @@ import fetchPlus from '../../helpers/fetchPlus.js'
 let editableTable = null
 
 function fetchPage(pageId) {
-    if(pageId === null) {
+    if (pageId === null) {
         return
     }
     // reset variables on page change
@@ -90,42 +100,55 @@ function fetchPage(pageId) {
     cancelEditColumn()
     undoStackForRemoveRow = [] // reset undo stack
     // end of reset variables on page change
-    fetchPlus.get(`/pages/content/${pageId}`).then(response => {
-        let parsedResponse = response.content ? JSON.parse(response.content) : {
-            columns: [],
-            items: [],
-            totals: {},
-            widths: {},
-            rowStyle: '',
-            startupScript: '',
-            customFunctions: '',
-            note: '',
-        }
+    fetchPlus.get(`/pages/content/${pageId}`).then((response) => {
+        let parsedResponse = response.content
+            ? JSON.parse(response.content)
+            : {
+                  columns: [],
+                  items: [],
+                  totals: {},
+                  widths: {},
+                  rowStyle: '',
+                  startupScript: '',
+                  customFunctions: '',
+                  note: '',
+              }
         columns = parsedResponse.columns
         dontTriggerSave = true
         totals = parsedResponse.totals
         widths = parsedResponse.widths ? parsedResponse.widths : {}
         rowStyle = parsedResponse.rowStyle ? parsedResponse.rowStyle : ''
-        startupScript = parsedResponse.startupScript ? parsedResponse.startupScript : ''
-        customFunctions = parsedResponse.customFunctions ? parsedResponse.customFunctions : ''
+        startupScript = parsedResponse.startupScript
+            ? parsedResponse.startupScript
+            : ''
+        customFunctions = parsedResponse.customFunctions
+            ? parsedResponse.customFunctions
+            : ''
         note = parsedResponse.note ? parsedResponse.note : ''
 
-        if(!viewOnly && columns.length > 0 && startupScript && startupScript.trim()) {
+        if (
+            !viewOnly &&
+            columns.length > 0 &&
+            startupScript &&
+            startupScript.trim()
+        ) {
             const copyOfItems = JSON.stringify(parsedResponse.items)
-            evalulateStartupScript(startupScript, { rows: parsedResponse.items })
-            if(copyOfItems !== JSON.stringify(parsedResponse.items)) {
+            evalulateStartupScript(startupScript, {
+                rows: parsedResponse.items,
+            })
+            if (copyOfItems !== JSON.stringify(parsedResponse.items)) {
                 dontTriggerSave = false
             }
         }
 
         items = parsedResponse.items
 
-            // styles and computed columns are now computed on the fly
+        // styles and computed columns are now computed on the fly
 
         // initialize pagination for fetched data: go to last page immediately
         currentPage = Math.max(1, Math.ceil((items?.length || 0) / PAGE_SIZE))
 
-        if(columns.length === 0) {
+        if (columns.length === 0) {
             configuration = true
             showAddColumn = true
         }
@@ -139,8 +162,8 @@ function fetchPage(pageId) {
 
 import debounce from '../../helpers/debounce.js'
 
-const savePageContent = debounce(function() {
-    if(pageId === null) {
+const savePageContent = debounce(function () {
+    if (pageId === null) {
         return
     }
     fetchPlus.put(`/pages/${pageId}`, {
@@ -153,7 +176,7 @@ const savePageContent = debounce(function() {
             startupScript,
             customFunctions,
             note,
-        })
+        }),
     })
 }, 500)
 
@@ -163,22 +186,22 @@ function save() {
     items = items // save
 }
 
-$: if(items) {
+$: if (items) {
     totals = totals
-    Object.keys(totals).forEach(columnName => {
-        if(totals[columnName] === '') {
+    Object.keys(totals).forEach((columnName) => {
+        if (totals[columnName] === '') {
             delete totals[columnName]
         }
 
         // remove totals for columns that are not present in the table
-        if(!columns.some(column => column.name === columnName)) {
+        if (!columns.some((column) => column.name === columnName)) {
             delete totals[columnName]
         }
     })
 
     widths = widths
-    Object.keys(widths).forEach(columnName => {
-        if(widths[columnName] === '') {
+    Object.keys(widths).forEach((columnName) => {
+        if (widths[columnName] === '') {
             delete widths[columnName]
         }
     })
@@ -191,7 +214,7 @@ $: if(items) {
 
     note = note
 
-    if(!dontTriggerSave) {
+    if (!dontTriggerSave) {
         savePageContent()
     }
 
@@ -217,14 +240,17 @@ $: if (currentPage < 1) {
 $: visibleStartIndex = showPagination ? (currentPage - 1) * PAGE_SIZE : 0
 $: visibleItems = showPagination
     ? (items || []).slice(visibleStartIndex, visibleStartIndex + PAGE_SIZE)
-    : (items || [])
+    : items || []
 
 function evalulateStartupScript(jsString, dynamicVariables) {
     try {
         const functionParameters = Object.keys(dynamicVariables).join(',')
         const functionArguments = Object.values(dynamicVariables)
-        return new Function(functionParameters, jsString).apply(this, functionArguments)
-    } catch(e) {
+        return new Function(functionParameters, jsString).apply(
+            this,
+            functionArguments,
+        )
+    } catch (e) {
         alert('error evaluating startup script')
         console.log('startup script error', e)
     }
@@ -242,7 +268,11 @@ function gotoPage(pageStr) {
 }
 
 function scrollTableTop() {
-    editableTable?.scrollIntoView({ behavior: 'auto', block: 'start', inline: 'nearest' })
+    editableTable?.scrollIntoView({
+        behavior: 'auto',
+        block: 'start',
+        inline: 'nearest',
+    })
 }
 
 function goToPage(n) {
@@ -255,29 +285,47 @@ function goToPage(n) {
 }
 
 function focusLastEditableCell() {
-    if(!editableTable) return
-    let lastEditableTD = editableTable.querySelectorAll('tbody > tr:last-child > td > div[contenteditable]:empty')
-    if(lastEditableTD.length === 0) {
-        lastEditableTD = editableTable.querySelectorAll('tbody > tr:last-child > td > div[contenteditable]')
+    if (!editableTable) return
+    let lastEditableTD = editableTable.querySelectorAll(
+        'tbody > tr:last-child > td > div[contenteditable]:empty',
+    )
+    if (lastEditableTD.length === 0) {
+        lastEditableTD = editableTable.querySelectorAll(
+            'tbody > tr:last-child > td > div[contenteditable]',
+        )
         lastEditableTD = lastEditableTD[lastEditableTD.length - 1]
     } else {
         lastEditableTD = lastEditableTD[0]
     }
-    if(lastEditableTD) {
+    if (lastEditableTD) {
         lastEditableTD.focus()
         lastEditableTD.scrollIntoView()
     }
     // move cursor to the end of editable area
-    document.execCommand('selectAll', false, null);
-    document.getSelection().collapseToEnd();
+    document.execCommand('selectAll', false, null)
+    document.getSelection().collapseToEnd()
 }
 
-function evalulateJS(source, jsString, rowIndex=null, columnName=null) {
+function evalulateJS(source, jsString, rowIndex = null, columnName = null) {
     console.log('evaluating', source)
     try {
-        const customFunctionsCode = customFunctions ? customFunctions + '\n' : ''
-        return new Function('items', 'rowIndex', 'item', 'columnName', customFunctionsCode + jsString).call(this, items, rowIndex, rowIndex !== null ? items[rowIndex] : null, columnName)
-    } catch(e) {
+        const customFunctionsCode = customFunctions
+            ? customFunctions + '\n'
+            : ''
+        return new Function(
+            'items',
+            'rowIndex',
+            'item',
+            'columnName',
+            customFunctionsCode + jsString,
+        ).call(
+            this,
+            items,
+            rowIndex,
+            rowIndex !== null ? items[rowIndex] : null,
+            columnName,
+        )
+    } catch (e) {
         console.error(`${source}:`, e)
         return 'error evaluating given expression'
     }
@@ -289,7 +337,8 @@ import defaultKeydownHandlerForContentEditableArea from '../../helpers/defaultKe
 
 // From: https://stackoverflow.com/a/7478420/4932305
 function getSelectionTextInfo(el) {
-    var atStart = false, atEnd = false
+    var atStart = false,
+        atEnd = false
     var selRange, testRange
     if (window.getSelection) {
         var sel = window.getSelection()
@@ -299,11 +348,11 @@ function getSelectionTextInfo(el) {
 
             testRange.selectNodeContents(el)
             testRange.setEnd(selRange.startContainer, selRange.startOffset)
-            atStart = (testRange.toString() == '')
+            atStart = testRange.toString() == ''
 
             testRange.selectNodeContents(el)
             testRange.setStart(selRange.endContainer, selRange.endOffset)
-            atEnd = (testRange.toString() == '')
+            atEnd = testRange.toString() == ''
         }
     } else if (document.selection && document.selection.type != 'Control') {
         selRange = document.selection.createRange()
@@ -311,11 +360,11 @@ function getSelectionTextInfo(el) {
 
         testRange.moveToElementText(el)
         testRange.setEndPoint('EndToStart', selRange)
-        atStart = (testRange.text == '')
+        atStart = testRange.text == ''
 
         testRange.moveToElementText(el)
         testRange.setEndPoint('StartToEnd', selRange)
-        atEnd = (testRange.text == '')
+        atEnd = testRange.text == ''
     }
 
     return { atStart: atStart, atEnd: atEnd }
@@ -323,13 +372,14 @@ function getSelectionTextInfo(el) {
 
 function insertRow(rowIndex, insertAbove) {
     let insertObj = {}
-    columns.forEach(column => {
+    columns.forEach((column) => {
         insertObj[column.name] = ''
     })
 
-    if(!insertAbove) {
+    if (!insertAbove) {
         items.splice(rowIndex + 1, 0, insertObj)
-    } else { // insert row above if ctrl + shift + enter
+    } else {
+        // insert row above if ctrl + shift + enter
         items.splice(rowIndex, 0, insertObj)
     }
     items = items
@@ -337,13 +387,16 @@ function insertRow(rowIndex, insertAbove) {
     // styles and computed columns are now computed on the fly
 
     // move focus to the first focusable cell of the inserted row, if shift key is not pressed
-    if(!insertAbove) {
+    if (!insertAbove) {
         setTimeout(() => {
             // convert global index to local visible index since we render a slice
             const localIndex = rowIndex - visibleStartIndex
-            let rows = document.querySelector('.editable-table tbody')?.querySelectorAll('tr') || []
+            let rows =
+                document
+                    .querySelector('.editable-table tbody')
+                    ?.querySelectorAll('tr') || []
             let bottomRow = rows[localIndex + 1]
-            if(typeof bottomRow !== 'undefined') {
+            if (typeof bottomRow !== 'undefined') {
                 let bottomCell = bottomRow.querySelector('div[contenteditable]')
                 bottomCell.focus()
             }
@@ -352,15 +405,18 @@ function insertRow(rowIndex, insertAbove) {
 }
 
 function deleteRow(rowIndex) {
-    if(items.length === 1) {
-        undoStackForRemoveRow.push({ index: 0, item: JSON.parse(JSON.stringify(items[0])) }) // save undo
+    if (items.length === 1) {
+        undoStackForRemoveRow.push({
+            index: 0,
+            item: JSON.parse(JSON.stringify(items[0])),
+        }) // save undo
 
-        columns.forEach(column => {
+        columns.forEach((column) => {
             items[0][column.name] = ''
         })
 
-    // styles and computed columns are now computed on the fly
-            // styles and computed columns are now computed on the fly
+        // styles and computed columns are now computed on the fly
+        // styles and computed columns are now computed on the fly
     }
 
     undoStackForRemoveRow.push({ index: rowIndex, item: items[rowIndex] }) // save undo
@@ -370,12 +426,14 @@ function deleteRow(rowIndex) {
 
     // move focus to the first focusable cell of the row before the removed row
     let tbody = document.querySelector('.editable-table tbody')
-    if(!tbody) { return }
+    if (!tbody) {
+        return
+    }
     let rows = tbody.querySelectorAll('tr')
     // convert global index to local visible index
     const localIndex = rowIndex - visibleStartIndex
     let bottomRow = rows[localIndex - 1]
-    if(typeof bottomRow !== 'undefined') {
+    if (typeof bottomRow !== 'undefined') {
         let bottomCell = bottomRow.querySelector('div[contenteditable]')
         bottomCell.focus()
     }
@@ -388,8 +446,8 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
     saveCursorPosition()
 
     // insert row
-    if(e.ctrlKey && e.key === 'Enter')  {
-        if(e.shiftKey) {
+    if (e.ctrlKey && e.key === 'Enter') {
+        if (e.shiftKey) {
             insertRow(itemIndex, true)
         } else {
             insertRow(itemIndex, false)
@@ -397,7 +455,7 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
     }
 
     // remove current row
-    if(e.ctrlKey && e.key.toLowerCase() === 'delete') {
+    if (e.ctrlKey && e.key.toLowerCase() === 'delete') {
         e.preventDefault()
         deleteRow(itemIndex)
     }
@@ -416,48 +474,60 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
     }
 
     // move to upper cell
-    if(e.key === 'ArrowUp') {
-        if(getSelectionTextInfo(e.target.closest('td')).atStart === false && e.ctrlKey === false) {
+    if (e.key === 'ArrowUp') {
+        if (
+            getSelectionTextInfo(e.target.closest('td')).atStart === false &&
+            e.ctrlKey === false
+        ) {
             return
         }
         e.preventDefault()
         let rows = e.target.closest('tbody').querySelectorAll('tr')
         let currentColumn = e.target.parentElement.cellIndex
         let upperRow = rows[e.target.parentElement.parentElement.rowIndex - 2]
-        if(typeof upperRow !== 'undefined') {
-            let upperCell = upperRow.querySelector('td:nth-of-type(' + (currentColumn + 1) + ') > div')
+        if (typeof upperRow !== 'undefined') {
+            let upperCell = upperRow.querySelector(
+                'td:nth-of-type(' + (currentColumn + 1) + ') > div',
+            )
             upperCell.focus()
         }
     }
 
     // move to bottom cell
-    if(e.key === 'ArrowDown') {
-        if(getSelectionTextInfo(e.target.closest('td')).atEnd === false && e.ctrlKey === false) {
+    if (e.key === 'ArrowDown') {
+        if (
+            getSelectionTextInfo(e.target.closest('td')).atEnd === false &&
+            e.ctrlKey === false
+        ) {
             return
         }
         e.preventDefault()
         let rows = e.target.closest('tbody').querySelectorAll('tr')
         let currentColumn = e.target.parentElement.cellIndex
         let bottomRow = rows[e.target.parentElement.parentElement.rowIndex]
-        if(typeof bottomRow !== 'undefined') {
-            let bottomCell = bottomRow.querySelector('td:nth-of-type(' + (currentColumn + 1) + ') > div')
+        if (typeof bottomRow !== 'undefined') {
+            let bottomCell = bottomRow.querySelector(
+                'td:nth-of-type(' + (currentColumn + 1) + ') > div',
+            )
             bottomCell.focus()
         }
     }
 
     // copy all content from the above cell to the current cell
-    if(e.ctrlKey && e.key === ';') {
+    if (e.ctrlKey && e.key === ';') {
         e.preventDefault()
         const rows = e.target.closest('tbody').querySelectorAll('tr')
         const currentColumn = e.target.parentElement.cellIndex
         const upperRow = rows[e.target.parentElement.parentElement.rowIndex - 2]
-        if(typeof upperRow !== 'undefined') {
-            const upperCell = upperRow.querySelector('td:nth-of-type(' + (currentColumn + 1) + ') > div')
+        if (typeof upperRow !== 'undefined') {
+            const upperCell = upperRow.querySelector(
+                'td:nth-of-type(' + (currentColumn + 1) + ') > div',
+            )
             document.execCommand('insertHTML', false, upperCell.innerHTML)
         }
     }
 
-    if(e.ctrlKey && e.key.toLowerCase() === 'i') {
+    if (e.ctrlKey && e.key.toLowerCase() === 'i') {
         e.preventDefault()
         currentTd = e.target
         insertFileModalLinkLabel = window.getSelection().toString() // prefill selected text, so that you can convert selected text to a link to an upload file
@@ -465,42 +535,42 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
     }
 
     if (e.key === 'Escape') {
-        e.preventDefault();
-        autocompleteData.show = false;
+        e.preventDefault()
+        autocompleteData.show = false
     }
 }
 
 function handleBlur(event) {
     // Check if the new focus is within the suggestions list
     setTimeout(() => {
-        const activeElement = document.activeElement;
+        const activeElement = document.activeElement
         if (activeElement && activeElement.closest('.suggestions')) {
-            return;
+            return
         }
-        autocompleteData.show = false;
-    }, 0);
+        autocompleteData.show = false
+    }, 0)
 }
 
 function handleUndoStacks(e) {
-    if(e.ctrlKey && e.key.toLowerCase() === 'z') {
-        if(undoStackForRemoveRow.length > 0) {
+    if (e.ctrlKey && e.key.toLowerCase() === 'z') {
+        if (undoStackForRemoveRow.length > 0) {
             e.preventDefault()
             let undo = undoStackForRemoveRow.pop()
-            if(items.length === 1) {
+            if (items.length === 1) {
                 let emptyKeysCount = 0
                 let keys = Object.keys(items[0])
                 let keysCount = keys.length
-                keys.forEach(itemKey => {
-                    if(items[0][itemKey] === '') {
+                keys.forEach((itemKey) => {
+                    if (items[0][itemKey] === '') {
                         emptyKeysCount++
                     }
                 })
-                if(emptyKeysCount === keysCount) {
+                if (emptyKeysCount === keysCount) {
                     items.splice(undo.index, 1, undo.item)
                 } else {
                     items.splice(undo.index, 0, undo.item)
                 }
-            } else if(items.length > 1) {
+            } else if (items.length > 1) {
                 items.splice(undo.index, 0, undo.item)
             }
             items = items
@@ -516,25 +586,25 @@ let column = {
     wrap: '',
     align: '',
     type: '',
-    autocomplete: ''
+    autocomplete: '',
 }
 
-$: if(showAddColumn) {
+$: if (showAddColumn) {
     column = {
         name: '',
         label: '',
         wrap: '',
         align: '',
         type: '',
-        autocomplete: ''
+        autocomplete: '',
     }
     cancelEditColumn()
 }
 
 function addColumn() {
-    let existingColumnNames = columns.map(column => column.name)
-    if(existingColumnNames.includes(column.name)) {
-        alert('You can\'t use an existing column name')
+    let existingColumnNames = columns.map((column) => column.name)
+    if (existingColumnNames.includes(column.name)) {
+        alert("You can't use an existing column name")
         return
     }
 
@@ -544,12 +614,12 @@ function addColumn() {
 
     columns.push(column)
     columns = columns
-    if(items.length === 0) {
+    if (items.length === 0) {
         items.push({
-            [column.name]: ''
+            [column.name]: '',
         })
     } else {
-        items.forEach(item => {
+        items.forEach((item) => {
             item[column.name] = ''
         })
     }
@@ -560,7 +630,7 @@ function addColumn() {
         wrap: '',
         align: '',
         type: '',
-        autocomplete: ''
+        autocomplete: '',
     }
     showAddColumn = false
 }
@@ -572,7 +642,7 @@ function swapElement(array, fromIndex, toIndex) {
 }
 
 function moveUp(index) {
-    if(index > 0) {
+    if (index > 0) {
         swapElement(columns, index, index - 1)
         columns = columns
         items = items // save
@@ -580,7 +650,7 @@ function moveUp(index) {
 }
 
 function moveDown(index) {
-    if(index < columns.length - 1) {
+    if (index < columns.length - 1) {
         swapElement(columns, index, index + 1)
         columns = columns
         items = items // save
@@ -602,17 +672,20 @@ function cancelEditColumn() {
 }
 
 function updateColumn() {
-    if(columnToEditCopy.name === '') {
-        alert('Column name can\'t be be empty')
+    if (columnToEditCopy.name === '') {
+        alert("Column name can't be be empty")
         return
     }
-    let existingColumnNames = columns.map(column => column.name).filter(columnName => columnName != columnToEditReference.name)
-    if(existingColumnNames.includes(columnToEditCopy.name)) {
-        alert('You can\'t use an existing column name')
+    let existingColumnNames = columns
+        .map((column) => column.name)
+        .filter((columnName) => columnName != columnToEditReference.name)
+    if (existingColumnNames.includes(columnToEditCopy.name)) {
+        alert("You can't use an existing column name")
         return
     }
-    if(columnToEditReference.name !== columnToEditCopy.name) { // column name changed, rename column name in items
-        items.forEach(item => {
+    if (columnToEditReference.name !== columnToEditCopy.name) {
+        // column name changed, rename column name in items
+        items.forEach((item) => {
             item[columnToEditCopy.name] = item[columnToEditReference.name]
             delete item[columnToEditReference.name]
         })
@@ -629,11 +702,19 @@ function updateColumn() {
 }
 
 function deleteColumn(columnName) {
-    if(confirm('Deleting a column, will also delete all the items under it. Are you sure you want to delete this column?')) {
-        columns = columns.filter(column => column.name !== columnName)
-        items.forEach(item => {
-            Object.keys(item).forEach(itemColumName => {
-                if(!(columns.map(column => column.name).includes(itemColumName))) {
+    if (
+        confirm(
+            'Deleting a column, will also delete all the items under it. Are you sure you want to delete this column?',
+        )
+    ) {
+        columns = columns.filter((column) => column.name !== columnName)
+        items.forEach((item) => {
+            Object.keys(item).forEach((itemColumName) => {
+                if (
+                    !columns
+                        .map((column) => column.name)
+                        .includes(itemColumName)
+                ) {
                     delete item[itemColumName]
                 }
             })
@@ -661,7 +742,7 @@ function handleKeysInNote(e) {
     defaultKeydownHandlerForContentEditableArea(e)
     saveCursorPosition()
 
-    if(e.ctrlKey && e.key.toLowerCase() === 'i') {
+    if (e.ctrlKey && e.key.toLowerCase() === 'i') {
         e.preventDefault()
         currentTd = noteContainer
         insertFileModalLinkLabel = window.getSelection().toString()
@@ -669,26 +750,30 @@ function handleKeysInNote(e) {
     }
 
     // add 4 spaces when pressing tab instead of its default behavior
-    if(e.key === 'Tab') {
+    if (e.key === 'Tab') {
         e.preventDefault()
         document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;')
     }
 }
 
 function handleNotePaste(event) {
-    var items = (event.clipboardData  || event.originalEvent.clipboardData).items
+    var items = (event.clipboardData || event.originalEvent.clipboardData).items
     // find pasted image among pasted items
     var blob = null
-    for(var i = 0; i < items.length; i++) {
-        if(items[i].type.indexOf('image') === 0) {
+    for (var i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') === 0) {
             blob = items[i].getAsFile()
         }
     }
     // load image if there is a pasted image
-    if(blob !== null) {
+    if (blob !== null) {
         event.preventDefault()
 
-        document.execCommand('insertHTML', false, `<img class="upload-image-loader" style="max-width: 100%" src="/images/loader-rainbow-dog.gif">`)
+        document.execCommand(
+            'insertHTML',
+            false,
+            `<img class="upload-image-loader" style="max-width: 100%" src="/images/loader-rainbow-dog.gif">`,
+        )
 
         var data = new FormData()
         data.append('image', blob)
@@ -696,27 +781,43 @@ function handleNotePaste(event) {
         fetch(`${baseURL}/upload-image/${pageId}`, {
             method: 'POST',
             body: data,
-            headers: { 'Token': localStorage.getItem('token') },
-            credentials: 'include'
-        }).then(response => response.json()).then(response => {
-            document.querySelector('.upload-image-loader').remove()
-            document.execCommand('insertHTML', false, `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`)
+            headers: { Token: localStorage.getItem('token') },
+            credentials: 'include',
         })
+            .then((response) => response.json())
+            .then((response) => {
+                document.querySelector('.upload-image-loader').remove()
+                document.execCommand(
+                    'insertHTML',
+                    false,
+                    `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`,
+                )
+            })
     }
 
     // on a plain text paste, detect links, show confirmation and if yes, convert the
     // detected links to links before the pasted text is inserted into the page
-    if(event.clipboardData.types.includes('text/plain')) {
+    if (event.clipboardData.types.includes('text/plain')) {
         const text = event.clipboardData.getData('text/plain')
         const linksRegex = /(https?:\/\/[^\s]+)/g
         const links = text.match(linksRegex)
         if (links && links.length > 0) {
-            if(confirm(`Do you want to convert ${links.length} links to clickable links?`)) {
+            if (
+                confirm(
+                    `Do you want to convert ${links.length} links to clickable links?`,
+                )
+            ) {
                 event.preventDefault()
 
-                let html = text.split('\n').map(line => {
-                    return line.replace(linksRegex, '<a href="$1" target="_blank" contenteditable="false">$1</a>')
-                }).join('<br>')
+                let html = text
+                    .split('\n')
+                    .map((line) => {
+                        return line.replace(
+                            linksRegex,
+                            '<a href="$1" target="_blank" contenteditable="false">$1</a>',
+                        )
+                    })
+                    .join('<br>')
 
                 if (text.endsWith('\n')) {
                     html += '<br>'
@@ -745,13 +846,17 @@ function copyConfiguration() {
 
 async function pasteConfiguration() {
     const clipboardText = await navigator.clipboard.readText()
-    if(!confirm('Are you sure you want to paste configuration? This will overwrite the current configuration.')) {
+    if (
+        !confirm(
+            'Are you sure you want to paste configuration? This will overwrite the current configuration.',
+        )
+    ) {
         return
     }
     try {
         let parsedClipboardText = JSON.parse(clipboardText)
         columns = parsedClipboardText.columns
-        if(items.length === 0) {
+        if (items.length === 0) {
             items.push({})
         }
         totals = parsedClipboardText.totals
@@ -760,80 +865,86 @@ async function pasteConfiguration() {
         startupScript = parsedClipboardText.startupScript
         customFunctions = parsedClipboardText.customFunctions
         note = parsedClipboardText.note || ''
-    } catch(e) {
+    } catch (e) {
         alert('Invalid configuration')
     }
 }
 
 $: columnSuggestions = {}
 $: {
-    columns.forEach(col => {
+    columns.forEach((col) => {
         if (col.autocomplete === 'Yes') {
-            columnSuggestions[col.name] = [...new Set(items.map(item => item[col.name])
-                .filter(v => v)
-                .map(item => {
-                    const tempDiv = document.createElement('div')
-                    tempDiv.innerHTML = item.trim()
-                    return tempDiv.textContent || ''
-                }))
-            ].filter(item => item !== '')
+            columnSuggestions[col.name] = [
+                ...new Set(
+                    items
+                        .map((item) => item[col.name])
+                        .filter((v) => v)
+                        .map((item) => {
+                            const tempDiv = document.createElement('div')
+                            tempDiv.innerHTML = item.trim()
+                            return tempDiv.textContent || ''
+                        }),
+                ),
+            ].filter((item) => item !== '')
         }
     })
 }
 
 function handleInputInTD(e, itemIndex, columnName) {
     // itemIndex is global index
-    const column = columns.find(col => col.name === columnName);
+    const column = columns.find((col) => col.name === columnName)
     if (column && column.autocomplete === 'Yes') {
-        const value = e.target.textContent;
-        const allSuggestions = columnSuggestions[columnName];
-        const filteredSuggestions = allSuggestions.filter(suggestion =>
-            suggestion.toLowerCase().includes(value.toLowerCase()) && suggestion !== value
-        );
+        const value = e.target.textContent
+        const allSuggestions = columnSuggestions[columnName]
+        const filteredSuggestions = allSuggestions.filter(
+            (suggestion) =>
+                suggestion.toLowerCase().includes(value.toLowerCase()) &&
+                suggestion !== value,
+        )
 
         if (filteredSuggestions.length > 0) {
-            autocompleteData.show = true;
-            autocompleteData.suggestions = filteredSuggestions;
-            autocompleteData.position = getSuggestionPosition(e.target);
-            autocompleteData.itemIndex = itemIndex; // global index for data update
-            autocompleteData.columnName = columnName;
+            autocompleteData.show = true
+            autocompleteData.suggestions = filteredSuggestions
+            autocompleteData.position = getSuggestionPosition(e.target)
+            autocompleteData.itemIndex = itemIndex // global index for data update
+            autocompleteData.columnName = columnName
         } else {
-            autocompleteData.show = false;
+            autocompleteData.show = false
         }
     } else {
-        autocompleteData.show = false;
+        autocompleteData.show = false
     }
 
     // styles and computed columns are computed on demand now
 }
 
 function getSuggestionPosition(element) {
-    const rect = element.getBoundingClientRect();
+    const rect = element.getBoundingClientRect()
     return {
         top: rect.bottom + window.scrollY,
-        left: rect.left + window.scrollX
-    };
+        left: rect.left + window.scrollX,
+    }
 }
 
 function handleSelectSuggestion(event) {
-    const suggestion = event.detail.suggestion;
-    const { itemIndex, columnName } = autocompleteData;
+    const suggestion = event.detail.suggestion
+    const { itemIndex, columnName } = autocompleteData
     if (itemIndex !== null && columnName) {
-        items[itemIndex][columnName] = suggestion;
-        items = items; // Trigger reactivity
+        items[itemIndex][columnName] = suggestion
+        items = items // Trigger reactivity
 
-        autocompleteData.show = false;
+        autocompleteData.show = false
 
         // Update the cell content and focus
         const localIndex = itemIndex - visibleStartIndex
         const cell = editableTable.querySelector(
-            `tbody tr:nth-child(${localIndex + 1}) td:nth-child(${columns.findIndex(col => col.name === columnName) + 1}) div[contenteditable]`
-        );
+            `tbody tr:nth-child(${localIndex + 1}) td:nth-child(${columns.findIndex((col) => col.name === columnName) + 1}) div[contenteditable]`,
+        )
         if (cell) {
-            cell.textContent = suggestion;
-            cell.focus();
+            cell.textContent = suggestion
+            cell.focus()
             // Place cursor at the end
-            document.getSelection().collapse(cell, 1);
+            document.getSelection().collapse(cell, 1)
         }
     }
 }
@@ -856,8 +967,8 @@ import { eventStore } from '../../stores.js'
 import Autocomplete from '../Autocomplete.svelte'
 import { baseURL } from '../../../config.js'
 
-eventStore.subscribe(event => {
-    if(event && event.event === 'configureTable') {
+eventStore.subscribe((event) => {
+    if (event && event.event === 'configureTable') {
         configuration = true
     }
 })
@@ -866,13 +977,28 @@ eventStore.subscribe(event => {
 <div class="pos-r">
     {#if !configuration}
         {#if pageContentOverride === undefined && viewOnly === false}
-            <div class="config" on:click={() => configuration = true}>Configure Table</div>
+            <div class="config" on:click={() => (configuration = true)}>
+                Configure Table
+            </div>
         {/if}
-        <table on:paste={handlePaste} on:keydown={e => handleUndoStacks(e)} class="editable-table {note && note.trim() ? 'has-note' : ''}" bind:this={editableTable} style="{style}">
+        <table
+            on:paste={handlePaste}
+            on:keydown={(e) => handleUndoStacks(e)}
+            class="editable-table {note && note.trim() ? 'has-note' : ''}"
+            bind:this={editableTable}
+            {style}
+        >
             <thead>
                 <tr>
                     {#each columns as column}
-                        <th style="{column.wrap === 'No' ? 'white-space: nowrap;' : ''}">{column.label}<span class="v-h">{column.label === '' ? column.name : ''}</span></th>
+                        <th
+                            style={column.wrap === 'No'
+                                ? 'white-space: nowrap;'
+                                : ''}
+                            >{column.label}<span class="v-h"
+                                >{column.label === '' ? column.name : ''}</span
+                            ></th
+                        >
                     {/each}
                 </tr>
             </thead>
@@ -880,15 +1006,43 @@ eventStore.subscribe(event => {
                 {#each visibleItems as item, localRowIndex (visibleStartIndex + localRowIndex)}
                     <tr>
                         {#each columns as column, columnIndex}
-                            <td style="min-width: {widths[column.name]}; max-width: {widths[column.name]}; {column.wrap === 'No' ? 'white-space: nowrap;' : 'word-break: break-word;'} {column.align ? `text-align: ${column.align};` : 'text-align: left;'} {computeRowStyle(visibleStartIndex + localRowIndex)}; {computeColumnStyle(visibleStartIndex + localRowIndex, columnIndex, column.name)}">
+                            <td
+                                style="min-width: {widths[
+                                    column.name
+                                ]}; max-width: {widths[
+                                    column.name
+                                ]}; {column.wrap === 'No'
+                                    ? 'white-space: nowrap;'
+                                    : 'word-break: break-word;'} {column.align
+                                    ? `text-align: ${column.align};`
+                                    : 'text-align: left;'} {computeRowStyle(
+                                    visibleStartIndex + localRowIndex,
+                                )}; {computeColumnStyle(
+                                    visibleStartIndex + localRowIndex,
+                                    columnIndex,
+                                    column.name,
+                                )}"
+                            >
                                 {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
                                     {#if column.type === '' || column.type === undefined}
                                         <div
                                             contenteditable
                                             spellcheck="false"
                                             bind:innerHTML={item[column.name]}
-                                            on:keydown={(e) => handleKeysInTD(e, visibleStartIndex + localRowIndex, column.name)}
-                                            on:input={(e) => handleInputInTD(e, visibleStartIndex + localRowIndex, column.name)}
+                                            on:keydown={(e) =>
+                                                handleKeysInTD(
+                                                    e,
+                                                    visibleStartIndex +
+                                                        localRowIndex,
+                                                    column.name,
+                                                )}
+                                            on:input={(e) =>
+                                                handleInputInTD(
+                                                    e,
+                                                    visibleStartIndex +
+                                                        localRowIndex,
+                                                    column.name,
+                                                )}
                                             on:blur={handleBlur}
                                         ></div>
                                     {:else}
@@ -896,31 +1050,72 @@ eventStore.subscribe(event => {
                                             contenteditable="plaintext-only"
                                             spellcheck="false"
                                             bind:innerHTML={item[column.name]}
-                                            on:keydown={(e) => handleKeysInTD(e, visibleStartIndex + localRowIndex, column.name)}
-                                            on:input={(e) => handleInputInTD(e, visibleStartIndex + localRowIndex, column.name)}
+                                            on:keydown={(e) =>
+                                                handleKeysInTD(
+                                                    e,
+                                                    visibleStartIndex +
+                                                        localRowIndex,
+                                                    column.name,
+                                                )}
+                                            on:input={(e) =>
+                                                handleInputInTD(
+                                                    e,
+                                                    visibleStartIndex +
+                                                        localRowIndex,
+                                                    column.name,
+                                                )}
                                             on:blur={handleBlur}
                                         ></div>
                                     {/if}
+                                {:else if column.type === 'Computed'}
+                                    <div>
+                                        {@html computeComputedColumn(
+                                            visibleStartIndex + localRowIndex,
+                                            columnIndex,
+                                        )}
+                                    </div>
                                 {:else}
-                                    {#if column.type === 'Computed'}
-                                        <div>{@html computeComputedColumn(visibleStartIndex + localRowIndex, columnIndex)}</div>
-                                    {:else}
-                                        <div>{@html getColumnValue(column.type, item[column.name]) || '<span style="visibility: hidden">cat</span>'}</div>
-                                    {/if}
+                                    <div>
+                                        {@html getColumnValue(
+                                            column.type,
+                                            item[column.name],
+                                        ) ||
+                                            '<span style="visibility: hidden">cat</span>'}
+                                    </div>
                                 {/if}
                             </td>
                         {/each}
                         {#if pageContentOverride === undefined && viewOnly === false}
-                        <td class="table-actions">
-                            <button on:click={() => insertRow(visibleStartIndex + localRowIndex, true)}>↑</button>
-                            <button on:click={() => insertRow(visibleStartIndex + localRowIndex, false)}>↓</button>
-                            <button on:click={() => {
-                                if(!confirm('Are you sure you want to delete this row?')) {
-                                    return
-                                }
-                                deleteRow(visibleStartIndex + localRowIndex)
-                            }}>x</button>
-                        </td>
+                            <td class="table-actions">
+                                <button
+                                    on:click={() =>
+                                        insertRow(
+                                            visibleStartIndex + localRowIndex,
+                                            true,
+                                        )}>↑</button
+                                >
+                                <button
+                                    on:click={() =>
+                                        insertRow(
+                                            visibleStartIndex + localRowIndex,
+                                            false,
+                                        )}>↓</button
+                                >
+                                <button
+                                    on:click={() => {
+                                        if (
+                                            !confirm(
+                                                'Are you sure you want to delete this row?',
+                                            )
+                                        ) {
+                                            return
+                                        }
+                                        deleteRow(
+                                            visibleStartIndex + localRowIndex,
+                                        )
+                                    }}>x</button
+                                >
+                            </td>
                         {/if}
                     </tr>
                 {/each}
@@ -929,7 +1124,17 @@ eventStore.subscribe(event => {
                 <tr>
                     {#each columns as column}
                         {#if totals.hasOwnProperty(column.name)}
-                            <th style="{column.wrap === 'No' ? 'white-space: nowrap;' : ''}">{@html evalulateJS('Totals', totals[column.name], null, column.name) }</th>
+                            <th
+                                style={column.wrap === 'No'
+                                    ? 'white-space: nowrap;'
+                                    : ''}
+                                >{@html evalulateJS(
+                                    'Totals',
+                                    totals[column.name],
+                                    null,
+                                    column.name,
+                                )}</th
+                            >
                         {:else}
                             <th></th>
                         {/if}
@@ -939,8 +1144,14 @@ eventStore.subscribe(event => {
         </table>
         {#if showPagination}
             <div class="pager">
-                <button on:click={() => goToPage(1)} disabled={currentPage === 1}>⏮︎</button>
-                <button on:click={() => goToPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1}>◀︎</button>
+                <button
+                    on:click={() => goToPage(1)}
+                    disabled={currentPage === 1}>⏮︎</button
+                >
+                <button
+                    on:click={() => goToPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}>◀︎</button
+                >
                 <span>Page {currentPage} / {totalPages}</span>
                 <input
                     class="pager-jump"
@@ -949,12 +1160,33 @@ eventStore.subscribe(event => {
                     max={totalPages}
                     placeholder="Go to…"
                     bind:value={gotoPageInput}
-                    on:keydown={(e) => { if (e.key === 'Enter') { gotoPage(gotoPageInput) } }}
-                    on:blur={() => { if (gotoPageInput !== '' && gotoPageInput !== null && gotoPageInput !== undefined) gotoPage(gotoPageInput) }}
+                    on:keydown={(e) => {
+                        if (e.key === 'Enter') {
+                            gotoPage(gotoPageInput)
+                        }
+                    }}
+                    on:blur={() => {
+                        if (
+                            gotoPageInput !== '' &&
+                            gotoPageInput !== null &&
+                            gotoPageInput !== undefined
+                        )
+                            gotoPage(gotoPageInput)
+                    }}
                 />
-                <button on:click={() => gotoPage(gotoPageInput)} disabled={totalPages <= 1}>Go</button>
-                <button on:click={() => goToPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}>▶︎</button>
-                <button on:click={() => goToPage(totalPages)} disabled={currentPage === totalPages}>⏭︎</button>
+                <button
+                    on:click={() => gotoPage(gotoPageInput)}
+                    disabled={totalPages <= 1}>Go</button
+                >
+                <button
+                    on:click={() =>
+                        goToPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}>▶︎</button
+                >
+                <button
+                    on:click={() => goToPage(totalPages)}
+                    disabled={currentPage === totalPages}>⏭︎</button
+                >
             </div>
         {/if}
         {#if note && note.trim()}
@@ -964,9 +1196,15 @@ eventStore.subscribe(event => {
         {/if}
     {:else}
         <div class="config-holder">
-            <div on:click={() => configuration = false}>Exit Configuration</div>
-            <div on:click={copyConfiguration} style="margin-top: 0.5rem">Copy Configuration</div>
-            <div on:click={pasteConfiguration} style="margin-top: 0.25rem">Paste Configuration</div>
+            <div on:click={() => (configuration = false)}>
+                Exit Configuration
+            </div>
+            <div on:click={copyConfiguration} style="margin-top: 0.5rem">
+                Copy Configuration
+            </div>
+            <div on:click={pasteConfiguration} style="margin-top: 0.25rem">
+                Paste Configuration
+            </div>
         </div>
 
         <div class="config-heading">Columns</div>
@@ -986,8 +1224,19 @@ eventStore.subscribe(event => {
                     {#each columns as column, index}
                         {#if columnToEditReference && columnToEditReference.name === column.name}
                             <tr>
-                                <td><input type="text" bind:value={columnToEditCopy.name} use:focus></td>
-                                <td><input type="text" bind:value={columnToEditCopy.label}></td>
+                                <td
+                                    ><input
+                                        type="text"
+                                        bind:value={columnToEditCopy.name}
+                                        use:focus
+                                    /></td
+                                >
+                                <td
+                                    ><input
+                                        type="text"
+                                        bind:value={columnToEditCopy.label}
+                                    /></td
+                                >
                                 <td>
                                     <select bind:value={columnToEditCopy.wrap}>
                                         <option value="">Yes</option>
@@ -1009,16 +1258,27 @@ eventStore.subscribe(event => {
                                     </select>
                                 </td>
                                 <td>
-                                    <select bind:value={columnToEditCopy.autocomplete}>
+                                    <select
+                                        bind:value={
+                                            columnToEditCopy.autocomplete
+                                        }
+                                    >
                                         <option value="">No</option>
                                         <option>Yes</option>
                                     </select>
                                 </td>
                                 <td>
-                                    <button type="button" on:click={updateColumn}>Update</button>
+                                    <button
+                                        type="button"
+                                        on:click={updateColumn}>Update</button
+                                    >
                                 </td>
                                 <td>
-                                    <button type="button" on:click={cancelEditColumn}>Cancel</button>
+                                    <button
+                                        type="button"
+                                        on:click={cancelEditColumn}
+                                        >Cancel</button
+                                    >
                                 </td>
                             </tr>
                         {:else}
@@ -1029,17 +1289,55 @@ eventStore.subscribe(event => {
                                 <td>{column.align || 'Left'}</td>
                                 <td>{column.type || 'Input'}</td>
                                 <td>{column.autocomplete || 'No'}</td>
-                                <td><button type="button" on:click={() => moveUp(index)}>Move Up</button></td>
-                                <td><button type="button" on:click={() => moveDown(index)}>Move Down</button></td>
-                                <td><button type="button" on:click={() => startEditColumn(column)}>Edit</button></td>
-                                <td><button type="button" on:click={() => deleteColumn(column.name)}>Delete</button></td>
+                                <td
+                                    ><button
+                                        type="button"
+                                        on:click={() => moveUp(index)}
+                                        >Move Up</button
+                                    ></td
+                                >
+                                <td
+                                    ><button
+                                        type="button"
+                                        on:click={() => moveDown(index)}
+                                        >Move Down</button
+                                    ></td
+                                >
+                                <td
+                                    ><button
+                                        type="button"
+                                        on:click={() => startEditColumn(column)}
+                                        >Edit</button
+                                    ></td
+                                >
+                                <td
+                                    ><button
+                                        type="button"
+                                        on:click={() =>
+                                            deleteColumn(column.name)}
+                                        >Delete</button
+                                    ></td
+                                >
                             </tr>
                         {/if}
                     {/each}
                     {#if showAddColumn}
                         <tr>
-                            <td><input type="text" bind:value={column.name} required use:focus></td>
-                            <td><input type="text" bind:value={column.label} placeholder="Keep blank to be = name"></td>
+                            <td
+                                ><input
+                                    type="text"
+                                    bind:value={column.name}
+                                    required
+                                    use:focus
+                                /></td
+                            >
+                            <td
+                                ><input
+                                    type="text"
+                                    bind:value={column.label}
+                                    placeholder="Keep blank to be = name"
+                                /></td
+                            >
                             <td>
                                 <select bind:value={column.wrap}>
                                     <option value="">Yes</option>
@@ -1069,7 +1367,12 @@ eventStore.subscribe(event => {
                                 <button>Add</button>
                             </td>
                             <td>
-                                <button class="ml-0_5em" type="button" on:click={() => showAddColumn = false}>Cancel</button>
+                                <button
+                                    class="ml-0_5em"
+                                    type="button"
+                                    on:click={() => (showAddColumn = false)}
+                                    >Cancel</button
+                                >
                             </td>
                         </tr>
                     {/if}
@@ -1077,25 +1380,31 @@ eventStore.subscribe(event => {
             </table>
         </form>
         {#if !showAddColumn}
-            <button class="mt-1em" on:click={() => showAddColumn = true}>Add Column</button>
+            <button class="mt-1em" on:click={() => (showAddColumn = true)}
+                >Add Column</button
+            >
         {/if}
 
-        {#if columns.filter(column => column.type === 'Computed').length > 0}
+        {#if columns.filter((column) => column.type === 'Computed').length > 0}
             <div class="config-heading mt-1em">Computed Columns</div>
             <div class="config-area-font-size">
-                {#each columns.filter(column => column.type === 'Computed') as column}
+                {#each columns.filter((column) => column.type === 'Computed') as column}
                     <div>{column.label ? column.label : column.name}</div>
                     <div>
                         <code-mirror
                             value={column.expression}
-                            on:input={e => { column.expression = e.target.value; save() }}
+                            on:input={(e) => {
+                                column.expression = e.target.value
+                                save()
+                            }}
                             style="border: 1px solid darkgray"
                         ></code-mirror>
                     </div>
                 {/each}
             </div>
             <div class="config-area-note">
-                Available variables: <code>items</code>, <code>rowIndex</code> & <code>item</code>
+                Available variables: <code>items</code>, <code>rowIndex</code> &
+                <code>item</code>
             </div>
         {/if}
 
@@ -1105,8 +1414,8 @@ eventStore.subscribe(event => {
                 <div>{column.label ? column.label : column.name}</div>
                 <div>
                     <code-mirror
-                        value={totals[column.name] ? totals[column.name]: ''}
-                        on:input={(e) => totals[column.name] = e.target.value}
+                        value={totals[column.name] ? totals[column.name] : ''}
+                        on:input={(e) => (totals[column.name] = e.target.value)}
                         style="border: 1px solid darkgray"
                     >
                     </code-mirror>
@@ -1122,7 +1431,11 @@ eventStore.subscribe(event => {
             {#each columns as column}
                 <div>{column.label ? column.label : column.name}</div>
                 <div>
-                    <input type="text" value={widths[column.name] ? widths[column.name]: ''} on:input={(e) => widths[column.name] = e.target.value}>
+                    <input
+                        type="text"
+                        value={widths[column.name] ? widths[column.name] : ''}
+                        on:input={(e) => (widths[column.name] = e.target.value)}
+                    />
                 </div>
             {/each}
         </div>
@@ -1134,7 +1447,10 @@ eventStore.subscribe(event => {
                 <div>
                     <code-mirror
                         value={column.style}
-                        on:input={e => { column.style = e.target.value; save() }}
+                        on:input={(e) => {
+                            column.style = e.target.value
+                            save()
+                        }}
                         style="border: 1px solid darkgray"
                     >
                     </code-mirror>
@@ -1142,9 +1458,14 @@ eventStore.subscribe(event => {
             {/each}
         </div>
         <div class="config-area-note">
-            Available variables: <code>items</code>, <code>rowIndex</code>, <code>item</code> & <code>columnName</code><br>
-            You can add conditions and return a style like:<br>
-            <code>return items[rowIndex][columnName] === 'foo' ? 'color: red' : ''</code>
+            Available variables: <code>items</code>, <code>rowIndex</code>,
+            <code>item</code>
+            & <code>columnName</code><br />
+            You can add conditions and return a style like:<br />
+            <code
+                >return items[rowIndex][columnName] === 'foo' ? 'color: red' :
+                ''</code
+            >
         </div>
 
         <div class="config-heading mt-1em">Row Style</div>
@@ -1152,15 +1473,19 @@ eventStore.subscribe(event => {
             <div>
                 <code-mirror
                     value={rowStyle}
-                    on:input={(e) => rowStyle = e.target.value}
+                    on:input={(e) => (rowStyle = e.target.value)}
                     style="border: 1px solid darkgray"
                 ></code-mirror>
             </div>
         </div>
         <div class="config-area-note">
-            Available variables: <code>items</code>, <code>rowIndex</code> & <code>item</code><br>
-            You can add conditions and return a style like:<br>
-            <code>return items[rowIndex]['My Column Name'] === 'foo' ? 'color: red' : ''</code>
+            Available variables: <code>items</code>, <code>rowIndex</code> &
+            <code>item</code><br />
+            You can add conditions and return a style like:<br />
+            <code
+                >return items[rowIndex]['My Column Name'] === 'foo' ? 'color:
+                red' : ''</code
+            >
         </div>
 
         <div class="config-heading mt-1em">Startup Script</div>
@@ -1168,17 +1493,20 @@ eventStore.subscribe(event => {
             <div>
                 <code-mirror
                     value={startupScript}
-                    on:input={(e) => startupScript = e.target.value}
+                    on:input={(e) => (startupScript = e.target.value)}
                     style="border: 1px solid darkgray"
                 ></code-mirror>
             </div>
         </div>
         <div class="config-area-note">
-            Available variables: <code>rows</code><br>
+            Available variables: <code>rows</code><br />
             <details>
-                <summary style="cursor: pointer; user-select: none;">Click here to see example code on how to modify the rows in the table on startup</summary>
-                <code style="white-space: pre;">{@html
-`// Modify all rows
+                <summary style="cursor: pointer; user-select: none;"
+                    >Click here to see example code on how to modify the rows in
+                    the table on startup</summary
+                >
+                <code style="white-space: pre;"
+                    >{@html `// Modify all rows
 rows.forEach(row => {
     row['Column 1'] = row['Column 1'] + 'foo'
 })
@@ -1190,8 +1518,8 @@ rows.push({
 
 // add a new row at any index
 const insertAtIndex = 1
-rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`
-                }</code>
+rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`}</code
+                >
             </details>
         </div>
 
@@ -1200,13 +1528,14 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`
             <div>
                 <code-mirror
                     value={customFunctions}
-                    on:input={(e) => customFunctions = e.target.value}
+                    on:input={(e) => (customFunctions = e.target.value)}
                     style="border: 1px solid darkgray"
                 ></code-mirror>
             </div>
         </div>
         <div class="config-area-note">
-            Define custom functions here that can be used in any evaluated JS code.
+            Define custom functions here that can be used in any evaluated JS
+            code.
         </div>
 
         <div class="config-heading mt-1em">Note</div>
@@ -1215,7 +1544,7 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`
                 contenteditable
                 bind:innerHTML={note}
                 bind:this={noteContainer}
-                on:input={() => note = note}
+                on:input={() => (note = note)}
                 on:keydown={handleKeysInNote}
                 on:paste={handleNotePaste}
                 spellcheck="false"
@@ -1232,11 +1561,11 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`
 
 {#if showInsertFileModal}
     <InsertFileModal
-        bind:pageId={pageId}
-        bind:savedCursorPosition={savedCursorPosition}
+        bind:pageId
+        bind:savedCursorPosition
         bind:contentEditableDivToFocus={currentTd}
-        bind:insertFileModalLinkLabel={insertFileModalLinkLabel}
-        bind:showInsertFileModal={showInsertFileModal}
+        bind:insertFileModalLinkLabel
+        bind:showInsertFileModal
     ></InsertFileModal>
 {/if}
 
@@ -1285,7 +1614,8 @@ table.config-table > tbody td > input {
     font: inherit;
 }
 
-.config-area-font-size, table.config-table {
+.config-area-font-size,
+table.config-table {
     font-size: 16px;
 }
 
@@ -1297,7 +1627,8 @@ table {
     border-collapse: collapse;
 }
 
-table th, table td {
+table th,
+table td {
     border: 1px solid grey;
     min-width: 3em;
     padding: 2px 5px;
@@ -1392,7 +1723,8 @@ td.table-actions button {
 :global(.editable-table) > thead th {
     border-top: none !important;
     border-bottom: none !important;
-    box-shadow: inset 0 1px 0 grey,
-                inset 0 -1px 0 grey;
+    box-shadow:
+        inset 0 1px 0 grey,
+        inset 0 -1px 0 grey;
 }
 </style>

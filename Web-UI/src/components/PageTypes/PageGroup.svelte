@@ -10,7 +10,7 @@ let activePage = null
 let pageItemContextMenu = {
     left: 0,
     top: 0,
-    page: null
+    page: null,
 }
 let showAddPageModal = false
 
@@ -25,39 +25,51 @@ import { eventStore } from '../../stores.js'
 import PageContextMenu from '../PageContextMenu.svelte'
 import AddPageModal from '../Modals/AddPageModal.svelte'
 
-eventStore.subscribe(event => {
-    if(event && event.event === 'pageAddedToPageGroup' && event.data.pageGroupId === pageId) {
-        fetchPlus.get(`/page-group/${pageId}`).then(response => {
+eventStore.subscribe((event) => {
+    if (
+        event &&
+        event.event === 'pageAddedToPageGroup' &&
+        event.data.pageGroupId === pageId
+    ) {
+        fetchPlus.get(`/page-group/${pageId}`).then((response) => {
             pages = response
             selectPage(pages[pages.length - 1]) // set last page as active page as it has been just added
         })
     }
 
-    if(event && event.event === 'pageRemovedFromPageGroup' && event.data.pageGroupId === pageId) {
+    if (
+        event &&
+        event.event === 'pageRemovedFromPageGroup' &&
+        event.data.pageGroupId === pageId
+    ) {
         fetchPages(pageId)
     }
 })
 
 function fetchPages(pageId) {
-    if(pageId) {
+    if (pageId) {
         Promise.all([
             fetchPlus.get(`/page-group/${pageId}`),
-            fetchPlus.get(`/pages/content/${pageId}`)
+            fetchPlus.get(`/pages/content/${pageId}`),
         ]).then(([pagesData, pageData]) => {
             pages = pagesData
 
-            if(pages.length) {
-                if(activePageId) {
-                    selectPage(pages.find(page => page.id === activePageId))
+            if (pages.length) {
+                if (activePageId) {
+                    selectPage(pages.find((page) => page.id === activePageId))
                     return
                 }
 
-                let parsedResponse = pageData.content ? JSON.parse(pageData.content) : {
-                    activePageId: null
-                }
+                let parsedResponse = pageData.content
+                    ? JSON.parse(pageData.content)
+                    : {
+                          activePageId: null,
+                      }
 
-                if(parsedResponse.activePageId) {
-                    activePage = pages.find(page => page.id === parsedResponse.activePageId)
+                if (parsedResponse.activePageId) {
+                    activePage = pages.find(
+                        (page) => page.id === parsedResponse.activePageId,
+                    )
                 } else {
                     activePage = pages[0]
                 }
@@ -66,18 +78,18 @@ function fetchPages(pageId) {
     }
 }
 
-const updatePageName = debounce(function(e) {
+const updatePageName = debounce(function (e) {
     fetchPlus.put(`/pages/name/${activePage.id}`, {
-        pageName: e.target.innerText
+        pageName: e.target.innerText,
     })
-    const page = pages.find(page => page.id === activePage.id)
+    const page = pages.find((page) => page.id === activePage.id)
     page.name = e.target.innerText
     pages = pages
 }, 500)
 
 function onSort(draggedPage, targetPage) {
-    const draggedIndex = pages.findIndex(page => page.id === draggedPage.id)
-    const targetIndex = pages.findIndex(page => page.id === targetPage.id)
+    const draggedIndex = pages.findIndex((page) => page.id === draggedPage.id)
+    const targetIndex = pages.findIndex((page) => page.id === targetPage.id)
 
     // Remove the dragged item from the array
     pages.splice(draggedIndex, 1)
@@ -91,7 +103,7 @@ function onSort(draggedPage, targetPage) {
     const pageIdsWithSortOrder = pages.map((page, index) => {
         return {
             pageId: String(page.id),
-            sortOrder: index + 1
+            sortOrder: index + 1,
         }
     })
 
@@ -102,8 +114,8 @@ function selectPage(page) {
     activePage = page
     fetchPlus.put(`/pages/${pageId}`, {
         pageContent: JSON.stringify({
-            activePageId: page.id
-        })
+            activePageId: page.id,
+        }),
     })
 }
 
@@ -112,12 +124,12 @@ function handleContextMenu(event, page) {
     pageItemContextMenu = {
         page,
         left: event.clientX,
-        top: event.clientY
+        top: event.clientY,
     }
 }
 
-window.addEventListener('click', e => {
-    if(!e.target.closest('.context-menu')) {
+window.addEventListener('click', (e) => {
+    if (!e.target.closest('.context-menu')) {
         pageItemContextMenu.page = null
     }
 })
@@ -140,40 +152,47 @@ function handleShowAddPageModal() {
         <div>
             There are no pages in this page group.
             {#if !viewOnly}
-                <button on:click={handleShowAddPageModal} style="margin-left: 0.5rem;">Add Page +</button>
+                <button
+                    on:click={handleShowAddPageModal}
+                    style="margin-left: 0.5rem;">Add Page +</button
+                >
             {/if}
         </div>
     {/if}
     <div class="page-group-tabs">
         {#each pages as page}
             <a
-                href="{`/page/${page.id}`}"
+                href={`/page/${page.id}`}
                 on:click|preventDefault={() => selectPage(page)}
-                class:active={ activePage && activePage.id === page.id }
+                class:active={activePage && activePage.id === page.id}
                 use:dragSort={{ item: page, onSort }}
-                on:contextmenu={e => handleContextMenu(e, page)}
-            >{page.name}</a>
+                on:contextmenu={(e) => handleContextMenu(e, page)}
+                >{page.name}</a
+            >
         {/each}
         {#if pages.length > 0 && !viewOnly}
-            <button on:click={handleShowAddPageModal} style="margin-left: 0.5rem;">+</button>
+            <button
+                on:click={handleShowAddPageModal}
+                style="margin-left: 0.5rem;">+</button
+            >
         {/if}
     </div>
 
     {#if activePage && pages.length > 0}
         <div style="margin-bottom: 1rem">
-            <PageNav bind:activePage={activePage}></PageNav>
+            <PageNav bind:activePage></PageNav>
         </div>
         {#key activePage.id}
-            <Page activePage={activePage} updatePageName={updatePageName} viewOnly={viewOnly} />
+            <Page {activePage} {updatePageName} {viewOnly} />
         {/key}
     {/if}
 
     {#if pageItemContextMenu.page || (activePage !== null && activePage.id !== undefined && activePage.id !== null)}
         <PageContextMenu
-            bind:pageItemContextMenu={pageItemContextMenu}
+            bind:pageItemContextMenu
             {fetchPages}
-            bind:pages={pages}
-            bind:activePage={activePage}
+            bind:pages
+            bind:activePage
             {notebooks}
             pageGroupId={pageId}
         ></PageContextMenu>
@@ -181,14 +200,14 @@ function handleShowAddPageModal() {
 
     {#if showAddPageModal}
         <AddPageModal
-            sectionId="{pageGroupPage.section_id}"
-            notebookId="{pageGroupPage.notebook_id}"
-            pages="{pages}"
-            pageGroupId="{pageId}"
-            setPages={setPages}
-            setActivePage={setActivePage}
-            activePage={activePage}
-            onClose={() => showAddPageModal = false}
+            sectionId={pageGroupPage.section_id}
+            notebookId={pageGroupPage.notebook_id}
+            {pages}
+            pageGroupId={pageId}
+            {setPages}
+            {setActivePage}
+            {activePage}
+            onClose={() => (showAddPageModal = false)}
         />
     {/if}
 </div>

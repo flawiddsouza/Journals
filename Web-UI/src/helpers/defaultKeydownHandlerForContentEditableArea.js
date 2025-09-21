@@ -2,7 +2,7 @@ import { format } from 'date-fns'
 
 function surroundSelection(element) {
     let sel = window.getSelection()
-    if(sel.toString() && sel.rangeCount) {
+    if (sel.toString() && sel.rangeCount) {
         var range = sel.getRangeAt(0).cloneRange()
         range.surroundContents(element)
         sel.removeAllRanges()
@@ -11,13 +11,13 @@ function surroundSelection(element) {
 }
 
 function nextNode(node) {
-    if(node.hasChildNodes()) {
+    if (node.hasChildNodes()) {
         return node.firstChild
     } else {
         while (node && !node.nextSibling) {
             node = node.parentNode
         }
-        if(!node) {
+        if (!node) {
             return null
         }
         return node.nextSibling
@@ -29,19 +29,19 @@ function getRangeSelectedNodes(range) {
     var endNode = range.endContainer
 
     // Special case for a range that is contained within a single node
-    if(node == endNode) {
-        return [node];
+    if (node == endNode) {
+        return [node]
     }
 
     // Iterate nodes until we hit the end container
-    var rangeNodes = [];
+    var rangeNodes = []
     while (node && node != endNode) {
-        rangeNodes.push(node = nextNode(node))
+        rangeNodes.push((node = nextNode(node)))
     }
 
     // Add partially selected nodes at the start of the range
     node = range.startContainer
-    while(node && node != range.commonAncestorContainer) {
+    while (node && node != range.commonAncestorContainer) {
         rangeNodes.unshift(node)
         node = node.parentNode
     }
@@ -60,39 +60,57 @@ function getSelectedNodes() {
     return []
 }
 
-export default function(e, disableLinkHandling=false) {
+export default function (e, disableLinkHandling = false) {
     // insert date into the current cell
-    if(e.altKey && e.shiftKey && e.key.toLowerCase() === 'd') {
-        document.execCommand('insertHTML', false, format(new Date(), 'DD-MMM-YY'))
+    if (e.altKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+        document.execCommand(
+            'insertHTML',
+            false,
+            format(new Date(), 'DD-MMM-YY'),
+        )
     }
 
     // insert date into the current cell (for macOS)
-    if(e.metaKey && e.shiftKey && e.key.toLowerCase() === 'd') {
-        document.execCommand('insertHTML', false, format(new Date(), 'DD-MMM-YY'))
+    if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+        document.execCommand(
+            'insertHTML',
+            false,
+            format(new Date(), 'DD-MMM-YY'),
+        )
     }
 
     // insert time into the current cell
-    if(e.key === 'F11') {
+    if (e.key === 'F11') {
         e.preventDefault()
-        document.execCommand('insertHTML', false, format(new Date(), '(hh:mm A) '))
+        document.execCommand(
+            'insertHTML',
+            false,
+            format(new Date(), '(hh:mm A) '),
+        )
     }
 
     // insert date time into the current cell
-    if(e.key === 'F12') {
+    if (e.key === 'F12') {
         e.preventDefault()
-        document.execCommand('insertHTML', false, format(new Date(), 'DD-MMM-YY hh:mm A: '))
+        document.execCommand(
+            'insertHTML',
+            false,
+            format(new Date(), 'DD-MMM-YY hh:mm A: '),
+        )
     }
 
     // create hyperlink from selection
-    if(!disableLinkHandling && e.ctrlKey && e.key.toLowerCase() === 'k') {
+    if (!disableLinkHandling && e.ctrlKey && e.key.toLowerCase() === 'k') {
         e.preventDefault()
 
         // make selected anchor links contenteditable false (copy pasted links
         // are not contenteditable false by default, hence this conversion is useful to make them clickable)
-        let selectedAnchorLinks = getSelectedNodes().filter(element => element.tagName === 'A')
-        if(selectedAnchorLinks.length > 0) {
-            if(confirm('Make selected links clickable?')) {
-                selectedAnchorLinks.forEach(a => {
+        let selectedAnchorLinks = getSelectedNodes().filter(
+            (element) => element.tagName === 'A',
+        )
+        if (selectedAnchorLinks.length > 0) {
+            if (confirm('Make selected links clickable?')) {
+                selectedAnchorLinks.forEach((a) => {
                     a.contentEditable = false
                     a.target = '_blank' // also make it open in a new tab, if it already isn't doing that
                 })
@@ -102,7 +120,7 @@ export default function(e, disableLinkHandling=false) {
         }
 
         let link = prompt('Enter link')
-        if(link) {
+        if (link) {
             let anchorTag = document.createElement('a')
             anchorTag.href = link
             anchorTag.target = '_blank'

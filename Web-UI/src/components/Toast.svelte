@@ -1,13 +1,16 @@
 <script>
 export let message = ''
 export let variant = 'success' // 'success' | 'error' | 'info'
-export let position = 'top'    // 'top' | 'bottom'
-export let align = 'center'     // 'center' | 'left' | 'right'
-export let offset = 8           // px from edge
-export let z = 2                // z-index relative to parent
+export let position = 'top' // 'top' | 'bottom'
+export let align = 'center' // 'center' | 'left' | 'right'
+export let offset = 8 // px from edge
+export let z = 2 // z-index relative to parent
 </script>
 
-<div class="toast-wrapper {position} {align}" style="--offset: {offset}px; z-index: {z};">
+<div
+    class="toast-wrapper {position} {align}"
+    style="--offset: {offset}px; z-index: {z};"
+>
     {#if message}
         <div class="toast {variant}">{message}</div>
     {/if}
@@ -47,7 +50,7 @@ export let z = 2                // z-index relative to parent
     background: #e5f6ff; /* default info */
     color: #0c4a6e;
     border: 1px solid #bae6fd;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
     font-size: 0.85rem;
     animation: fadeSlide 200ms ease-out;
 }
@@ -71,7 +74,13 @@ export let z = 2                // z-index relative to parent
 }
 
 @keyframes fadeSlide {
-    from { opacity: 0; transform: translateY(-6px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 </style>

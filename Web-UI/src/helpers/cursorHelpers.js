@@ -1,13 +1,16 @@
 export function placeCaretAtEnd(element) {
     element.focus()
-    if(typeof window.getSelection != "undefined" && typeof document.createRange != "undefined") {
+    if (
+        typeof window.getSelection != 'undefined' &&
+        typeof document.createRange != 'undefined'
+    ) {
         var range = document.createRange()
         range.selectNodeContents(element)
         range.collapse(false)
         var sel = window.getSelection()
         sel.removeAllRanges()
         sel.addRange(range)
-    } else if(typeof document.body.createTextRange != "undefined") {
+    } else if (typeof document.body.createTextRange != 'undefined') {
         var textRange = document.body.createTextRange()
         textRange.moveToElementText(element)
         textRange.collapse(false)
@@ -16,9 +19,9 @@ export function placeCaretAtEnd(element) {
 }
 
 export function restoreCursorPosition(savedCursorPosition) {
-    if(window.getSelection) {
+    if (window.getSelection) {
         var s = window.getSelection()
-        if(s.rangeCount > 0) {
+        if (s.rangeCount > 0) {
             s.removeAllRanges()
         }
         s.addRange(savedCursorPosition)

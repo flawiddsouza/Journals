@@ -6,7 +6,7 @@ export let style = ''
 
 let pageContent = ''
 
-$: if(pageContentOverride !== undefined) {
+$: if (pageContentOverride !== undefined) {
     pageContent = pageContentOverride
 }
 
@@ -18,8 +18,8 @@ let pageContainer
 let loaded = false
 
 function fetchPage(pageId) {
-    if(pageId) {
-        fetchPlus.get(`/pages/content/${pageId}`).then(response => {
+    if (pageId) {
+        fetchPlus.get(`/pages/content/${pageId}`).then((response) => {
             pageContent = JSON.parse(response.content)
             loaded = true
         })
@@ -28,12 +28,14 @@ function fetchPage(pageId) {
 
 import debounce from '../../helpers/debounce.js'
 
-const savePageContent = debounce(function() {
-    fetchPlus.put(`/pages/${pageId}`, {
-        pageContent: JSON.stringify(pageContent)
-    }).catch(() => {
-        alert('Page Save Failed')
-    })
+const savePageContent = debounce(function () {
+    fetchPlus
+        .put(`/pages/${pageId}`, {
+            pageContent: JSON.stringify(pageContent),
+        })
+        .catch(() => {
+            alert('Page Save Failed')
+        })
 }, 500)
 
 let showInsertFileModal = false
@@ -54,7 +56,7 @@ import DragDrop from 'editorjs-drag-drop'
 import Strikethrough from '@sotaproject/strikethrough'
 import ToggleBlock from 'editorjs-toggle-block'
 import ColorPlugin from 'editorjs-text-color-plugin'
-import Header from '@editorjs/header';
+import Header from '@editorjs/header'
 import edjsHTML from 'editorjs-html'
 import { baseURL } from '../../../config.js'
 
@@ -69,16 +71,16 @@ async function uploadByFile(file) {
     const response = await fetch(`${baseURL}/upload-image/${pageId}`, {
         method: 'POST',
         body: data,
-        headers: { 'Token': localStorage.getItem('token') },
-        credentials: 'include'
-    }).then(response => response.json())
+        headers: { Token: localStorage.getItem('token') },
+        credentials: 'include',
+    }).then((response) => response.json())
 
     return {
         success: 1,
         file: {
             url: baseURL + '/' + response.imageUrl,
             title: file.name,
-        }
+        },
     }
 }
 
@@ -103,16 +105,16 @@ function pageContainerMounted(element) {
                 config: {
                     uploader: {
                         uploadByFile,
-                    }
-                }
+                    },
+                },
             },
             image: {
                 class: ImageTool,
                 config: {
                     uploader: {
                         uploadByFile,
-                    }
-                }
+                    },
+                },
             },
             underline: {
                 class: Underline,
@@ -127,20 +129,44 @@ function pageContainerMounted(element) {
             Color: {
                 class: ColorPlugin,
                 config: {
-                    colorCollections: ['#EC7878','#9C27B0','#673AB7','#3F51B5','#0070FF','#03A9F4','#00BCD4','#4CAF50','#8BC34A','#CDDC39', '#FFF'],
+                    colorCollections: [
+                        '#EC7878',
+                        '#9C27B0',
+                        '#673AB7',
+                        '#3F51B5',
+                        '#0070FF',
+                        '#03A9F4',
+                        '#00BCD4',
+                        '#4CAF50',
+                        '#8BC34A',
+                        '#CDDC39',
+                        '#FFF',
+                    ],
                     defaultColor: '#FF1300',
                     type: 'text',
                     customPicker: true,
-                }
+                },
             },
             Marker: {
                 class: ColorPlugin,
                 config: {
-                    colorCollections: ['#EC7878','#9C27B0','#673AB7','#3F51B5','#0070FF','#03A9F4','#00BCD4','#4CAF50','#8BC34A','#CDDC39', '#FFF'],
+                    colorCollections: [
+                        '#EC7878',
+                        '#9C27B0',
+                        '#673AB7',
+                        '#3F51B5',
+                        '#0070FF',
+                        '#03A9F4',
+                        '#00BCD4',
+                        '#4CAF50',
+                        '#8BC34A',
+                        '#CDDC39',
+                        '#FFF',
+                    ],
                     defaultColor: '#FFBF00',
                     type: 'marker',
                     customPicker: true,
-                }
+                },
             },
             header: {
                 class: Header,
@@ -186,21 +212,28 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
 
 {#if pageContentOverride === undefined && viewOnly === false}
     {#if loaded === false}
-        <div class="page-container loading" style="{style}">Loading...</div>
+        <div class="page-container loading" {style}>Loading...</div>
     {:else}
-        <div class="page-container" spellcheck="false" style="{style}" use:pageContainerMounted></div>
+        <div
+            class="page-container"
+            spellcheck="false"
+            {style}
+            use:pageContainerMounted
+        ></div>
     {/if}
 {:else}
-    <div class="page-container view-only" style="{style}; margin-left: 4.5rem;">{@html pageContentParsed}</div>
+    <div class="page-container view-only" style="{style}; margin-left: 4.5rem;">
+        {@html pageContentParsed}
+    </div>
 {/if}
 
 {#if showInsertFileModal}
     <InsertFileModal
-        bind:pageId={pageId}
-        bind:savedCursorPosition={savedCursorPosition}
+        bind:pageId
+        bind:savedCursorPosition
         bind:contentEditableDivToFocus={pageContainer}
-        bind:insertFileModalLinkLabel={insertFileModalLinkLabel}
-        bind:showInsertFileModal={showInsertFileModal}
+        bind:insertFileModalLinkLabel
+        bind:showInsertFileModal
     ></InsertFileModal>
 {/if}
 
@@ -226,7 +259,8 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
     padding-bottom: 5.4em;
 }
 
-.page-container :global(.codex-editor), .page-container :global(.codex-editor__redactor) {
+.page-container :global(.codex-editor),
+.page-container :global(.codex-editor__redactor) {
     height: 100%;
 }
 
@@ -234,7 +268,10 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
     margin: 0 4rem;
 }
 
-.page-container :global(.codex-editor > .codex-editor__redactor > .ce-block .ce-block__content) {
+.page-container
+    :global(
+        .codex-editor > .codex-editor__redactor > .ce-block .ce-block__content
+    ) {
     margin: 0 4.5rem;
 }
 </style>

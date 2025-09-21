@@ -22,25 +22,29 @@ let showApiKey = false
 const defaultConfig = {
     apiUrl: 'https://openrouter.ai/api/v1/chat/completions',
     model: 'x-ai/grok-code-fast-1',
-    apiKey: ''
+    apiKey: '',
 }
 let config = { ...defaultConfig }
 
 // Derived readiness flag
 let isConfigured = false
-$: isConfigured = Boolean((config.apiUrl || '').trim() && (config.model || '').trim() && (config.apiKey || '').trim())
+$: isConfigured = Boolean(
+    (config.apiUrl || '').trim() &&
+        (config.model || '').trim() &&
+        (config.apiKey || '').trim(),
+)
 
 function loadConfig() {
     const stored = {
         apiUrl: localStorage.getItem('journals.ai.apiUrl'),
         model: localStorage.getItem('journals.ai.model'),
-        apiKey: localStorage.getItem('journals.ai.apiKey')
+        apiKey: localStorage.getItem('journals.ai.apiKey'),
     }
     // Preserve empty strings if explicitly saved; only fall back when null
     config = {
         apiUrl: stored.apiUrl ?? defaultConfig.apiUrl,
         model: stored.model ?? defaultConfig.model,
-        apiKey: stored.apiKey ?? defaultConfig.apiKey
+        apiKey: stored.apiKey ?? defaultConfig.apiKey,
     }
     // includeContext persisted as 'true' | 'false'; default true
     const storedCtx = localStorage.getItem('journals.ai.includeContext')
@@ -54,7 +58,10 @@ function saveConfig() {
 }
 
 function saveIncludeContext() {
-    localStorage.setItem('journals.ai.includeContext', includeContext ? 'true' : 'false')
+    localStorage.setItem(
+        'journals.ai.includeContext',
+        includeContext ? 'true' : 'false',
+    )
 }
 
 function clearConfig() {
@@ -84,9 +91,11 @@ function scrollToLatestDiff() {
     if (!messagesContainer) return
 
     // Find the latest message with diffs
-    const latestMessageWithDiffs = [...messagesContainer.querySelectorAll('.message')].reverse().find(msg =>
-        msg.querySelector('.diff-preview')
-    )
+    const latestMessageWithDiffs = [
+        ...messagesContainer.querySelectorAll('.message'),
+    ]
+        .reverse()
+        .find((msg) => msg.querySelector('.diff-preview'))
 
     if (!latestMessageWithDiffs) return
 
@@ -102,9 +111,14 @@ function scrollToLatestDiff() {
     const applyScroll = () => {
         const containerRect = messagesContainer.getBoundingClientRect()
         const targetRect = targetEl.getBoundingClientRect()
-        const desiredScrollTop = messagesContainer.scrollTop + (targetRect.top - containerRect.top)
-        const maxScroll = messagesContainer.scrollHeight - messagesContainer.clientHeight
-        messagesContainer.scrollTop = Math.max(0, Math.min(desiredScrollTop, maxScroll))
+        const desiredScrollTop =
+            messagesContainer.scrollTop + (targetRect.top - containerRect.top)
+        const maxScroll =
+            messagesContainer.scrollHeight - messagesContainer.clientHeight
+        messagesContainer.scrollTop = Math.max(
+            0,
+            Math.min(desiredScrollTop, maxScroll),
+        )
     }
 
     // Apply immediately
@@ -128,7 +142,7 @@ function focusInput() {
 
 onMount(() => {
     loadConfig()
-    if (!((config.apiUrl && config.model && config.apiKey))) {
+    if (!(config.apiUrl && config.model && config.apiKey)) {
         showSettings = true
     }
     if (open) {
@@ -181,39 +195,64 @@ async function askAI() {
         // Build OpenAI-style messages from local chat state with strong recency rules
         const buildChat = () => {
             const chat = []
-            if (initialContext) chat.push({ role: 'system', content: initialContext })
+            if (initialContext)
+                chat.push({ role: 'system', content: initialContext })
 
             // Split history and the latest user turn
             const msgs = messages
-            const lastIsUser = msgs.length > 0 && msgs[msgs.length - 1]?.role === 'user'
+            const lastIsUser =
+                msgs.length > 0 && msgs[msgs.length - 1]?.role === 'user'
             const lastUser = lastIsUser ? msgs[msgs.length - 1] : null
             const history = lastUser ? msgs.slice(0, -1) : msgs.slice()
 
             // So the model doesn't anchor on stale assistant code, strip code fences from prior assistant turns
-            const stripCode = (t) => (t || '').replace(/```[\s\S]*?```/g, '[code omitted]')
+            const stripCode = (t) =>
+                (t || '').replace(/```[\s\S]*?```/g, '[code omitted]')
             for (const m of history) {
                 if (m.role === 'user') {
                     chat.push({ role: 'user', content: m.content })
                 } else if (m.role === 'assistant') {
-                    chat.push({ role: 'assistant', content: stripCode(m.content) })
+                    chat.push({
+                        role: 'assistant',
+                        content: stripCode(m.content),
+                    })
                 }
                 // (Intentionally omit local system/checkpoint messages from API payload)
             }
 
             // Inject the authoritative, current code snapshot RIGHT BEFORE the latest user prompt
-            if (includeContext && codeContext && (codeContext.html || codeContext.css || codeContext.js || (Array.isArray(codeContext.modules) && codeContext.modules.length))) {
+            if (
+                includeContext &&
+                codeContext &&
+                (codeContext.html ||
+                    codeContext.css ||
+                    codeContext.js ||
+                    (Array.isArray(codeContext.modules) &&
+                        codeContext.modules.length))
+            ) {
                 const parts = []
-                if (codeContext.html) parts.push('```html\n' + codeContext.html + '\n```')
-                if (codeContext.css) parts.push('```css\n' + codeContext.css + '\n```')
-                if (codeContext.js) parts.push('```javascript\n' + codeContext.js + '\n```')
-                if (Array.isArray(codeContext.modules) && codeContext.modules.length) {
-                    const upsert = codeContext.modules.map(m => ({ name: m.name, code: m.code }))
+                if (codeContext.html)
+                    parts.push('```html\n' + codeContext.html + '\n```')
+                if (codeContext.css)
+                    parts.push('```css\n' + codeContext.css + '\n```')
+                if (codeContext.js)
+                    parts.push('```javascript\n' + codeContext.js + '\n```')
+                if (
+                    Array.isArray(codeContext.modules) &&
+                    codeContext.modules.length
+                ) {
+                    const upsert = codeContext.modules.map((m) => ({
+                        name: m.name,
+                        code: m.code,
+                    }))
                     const json = JSON.stringify({ upsert }, null, 2)
                     parts.push('```modules\n' + json + '\n```')
                 }
                 chat.push({
                     role: 'system',
-                    content: 'SOURCE OF TRUTH — Use ONLY the following as the current app code. Ignore any earlier code shown in this conversation. Return only the blocks that need changes, with full contents.\n\n' + parts.join('\n\n')
+                    content:
+                        'SOURCE OF TRUTH — Use ONLY the following as the current app code. Ignore any earlier code shown in this conversation. Return only the blocks that need changes, with full contents.\n\n' +
+                        parts.join('\n\n'),
                 })
             }
 
@@ -230,7 +269,7 @@ async function askAI() {
 
         const headers = {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
+            Authorization: `Bearer ${apiKey}`,
         }
         // Add recommended headers for OpenRouter in browser contexts
         if (endpoint.includes('openrouter.ai')) {
@@ -241,17 +280,25 @@ async function askAI() {
         const body = JSON.stringify({
             model,
             messages: chat,
-            stream: true
+            stream: true,
         })
 
         // Wire up abort to allow stopping streaming requests
         currentAbort = new AbortController()
-        const res = await fetch(endpoint, { method: 'POST', headers, body, signal: currentAbort.signal })
+        const res = await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            body,
+            signal: currentAbort.signal,
+        })
         if (!res.ok) {
             const errText = await res.text().catch(() => `${res.status}`)
             // Replace placeholder with error message
             const updated = [...messages]
-            updated[assistantIndex] = { role: 'assistant', content: `Error: AI request failed (${res.status}): ${errText}` }
+            updated[assistantIndex] = {
+                role: 'assistant',
+                content: `Error: AI request failed (${res.status}): ${errText}`,
+            }
             messages = updated
             busy = false
             currentAbort = null
@@ -260,39 +307,94 @@ async function askAI() {
         }
 
         const ct = res.headers.get('content-type') || ''
-        const isStream = !!res.body && (ct.includes('text/event-stream') || ct.includes('application/x-ndjson') || ct.includes('application/event-stream') || ct.includes('text/plain'))
+        const isStream =
+            !!res.body &&
+            (ct.includes('text/event-stream') ||
+                ct.includes('application/x-ndjson') ||
+                ct.includes('application/event-stream') ||
+                ct.includes('text/plain'))
 
         if (!isStream || !res.body) {
             // Fallback: parse JSON completion
             const data = await res.json()
-            const content = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text || ''
+            const content =
+                data?.choices?.[0]?.message?.content ||
+                data?.choices?.[0]?.text ||
+                ''
             const updated = [...messages]
             updated[assistantIndex] = { role: 'assistant', content }
             // Compute diffs if code blocks present
             const extracted = extractCodeBlocks(content)
-            if (extracted.html || extracted.css || extracted.js || extracted.modules) {
+            if (
+                extracted.html ||
+                extracted.css ||
+                extracted.js ||
+                extracted.modules
+            ) {
                 const modulesDiffText = (() => {
                     if (!extracted.modules) return ''
                     try {
                         const mod = JSON.parse(extracted.modules)
-                        const upserts = Array.isArray(mod.upsert) ? mod.upsert : []
+                        const upserts = Array.isArray(mod.upsert)
+                            ? mod.upsert
+                            : []
                         if (!upserts.length) return ''
-                        const currentIndex = new Map((codeContext.modules || []).map(m => [m.name, m.code]))
+                        const currentIndex = new Map(
+                            (codeContext.modules || []).map((m) => [
+                                m.name,
+                                m.code,
+                            ]),
+                        )
                         const patches = upserts
-                            .filter(x => x && typeof x.name === 'string')
-                            .map(x => ({ name: String(x.name).trim(), code: String(x.code ?? '') }))
-                            .filter(x => x.name && !x.name.includes('/') && x.name.toLowerCase().endsWith('.js'))
-                            .map(x => createPatch(x.name, currentIndex.get(x.name) || '', x.code))
+                            .filter((x) => x && typeof x.name === 'string')
+                            .map((x) => ({
+                                name: String(x.name).trim(),
+                                code: String(x.code ?? ''),
+                            }))
+                            .filter(
+                                (x) =>
+                                    x.name &&
+                                    !x.name.includes('/') &&
+                                    x.name.toLowerCase().endsWith('.js'),
+                            )
+                            .map((x) =>
+                                createPatch(
+                                    x.name,
+                                    currentIndex.get(x.name) || '',
+                                    x.code,
+                                ),
+                            )
                         return patches.join('\n\n')
-                    } catch { return '' }
+                    } catch {
+                        return ''
+                    }
                 })()
                 updated[assistantIndex].diffs = {
-                    html: extracted.html ? createPatch('HTML', codeContext.html || '', extracted.html) : '',
-                    css: extracted.css ? createPatch('CSS', codeContext.css || '', extracted.css) : '',
-                    js: extracted.js ? createPatch('JS', codeContext.js || '', extracted.js) : '',
-                    modules: modulesDiffText
+                    html: extracted.html
+                        ? createPatch(
+                              'HTML',
+                              codeContext.html || '',
+                              extracted.html,
+                          )
+                        : '',
+                    css: extracted.css
+                        ? createPatch(
+                              'CSS',
+                              codeContext.css || '',
+                              extracted.css,
+                          )
+                        : '',
+                    js: extracted.js
+                        ? createPatch('JS', codeContext.js || '', extracted.js)
+                        : '',
+                    modules: modulesDiffText,
                 }
-                updated[assistantIndex].applied = { html: false, css: false, js: false, modules: false }
+                updated[assistantIndex].applied = {
+                    html: false,
+                    css: false,
+                    js: false,
+                    modules: false,
+                }
                 // Scroll to bottom after diffs are rendered
                 tick().then(scrollToLatestDiff)
             }
@@ -301,8 +403,8 @@ async function askAI() {
             return
         }
 
-    const reader = res.body.getReader()
-    currentReader = reader
+        const reader = res.body.getReader()
+        currentReader = reader
         const decoder = new TextDecoder('utf-8')
         let buffer = ''
 
@@ -323,10 +425,16 @@ async function askAI() {
                 }
                 try {
                     const json = JSON.parse(payload)
-                    const delta = json?.choices?.[0]?.delta?.content ?? json?.choices?.[0]?.message?.content ?? ''
+                    const delta =
+                        json?.choices?.[0]?.delta?.content ??
+                        json?.choices?.[0]?.message?.content ??
+                        ''
                     if (delta) {
                         const updated = [...messages]
-                        updated[assistantIndex] = { ...updated[assistantIndex], content: updated[assistantIndex].content + delta }
+                        updated[assistantIndex] = {
+                            ...updated[assistantIndex],
+                            content: updated[assistantIndex].content + delta,
+                        }
                         messages = updated
                     }
                 } catch (_) {
@@ -339,29 +447,70 @@ async function askAI() {
         const updated = [...messages]
         const finalContent = updated[assistantIndex].content
         const extracted = extractCodeBlocks(finalContent)
-        if (extracted.html || extracted.css || extracted.js || extracted.modules) {
+        if (
+            extracted.html ||
+            extracted.css ||
+            extracted.js ||
+            extracted.modules
+        ) {
             const modulesDiffText = (() => {
                 if (!extracted.modules) return ''
                 try {
                     const mod = JSON.parse(extracted.modules)
                     const upserts = Array.isArray(mod.upsert) ? mod.upsert : []
                     if (!upserts.length) return ''
-                    const currentIndex = new Map((codeContext.modules || []).map(m => [m.name, m.code]))
+                    const currentIndex = new Map(
+                        (codeContext.modules || []).map((m) => [
+                            m.name,
+                            m.code,
+                        ]),
+                    )
                     const patches = upserts
-                        .filter(x => x && typeof x.name === 'string')
-                        .map(x => ({ name: String(x.name).trim(), code: String(x.code ?? '') }))
-                        .filter(x => x.name && !x.name.includes('/') && x.name.toLowerCase().endsWith('.js'))
-                        .map(x => createPatch(x.name, currentIndex.get(x.name) || '', x.code))
+                        .filter((x) => x && typeof x.name === 'string')
+                        .map((x) => ({
+                            name: String(x.name).trim(),
+                            code: String(x.code ?? ''),
+                        }))
+                        .filter(
+                            (x) =>
+                                x.name &&
+                                !x.name.includes('/') &&
+                                x.name.toLowerCase().endsWith('.js'),
+                        )
+                        .map((x) =>
+                            createPatch(
+                                x.name,
+                                currentIndex.get(x.name) || '',
+                                x.code,
+                            ),
+                        )
                     return patches.join('\n\n')
-                } catch { return '' }
+                } catch {
+                    return ''
+                }
             })()
             updated[assistantIndex].diffs = {
-                html: extracted.html ? createPatch('HTML', codeContext.html || '', extracted.html) : '',
-                css: extracted.css ? createPatch('CSS', codeContext.css || '', extracted.css) : '',
-                js: extracted.js ? createPatch('JS', codeContext.js || '', extracted.js) : '',
-                modules: modulesDiffText
+                html: extracted.html
+                    ? createPatch(
+                          'HTML',
+                          codeContext.html || '',
+                          extracted.html,
+                      )
+                    : '',
+                css: extracted.css
+                    ? createPatch('CSS', codeContext.css || '', extracted.css)
+                    : '',
+                js: extracted.js
+                    ? createPatch('JS', codeContext.js || '', extracted.js)
+                    : '',
+                modules: modulesDiffText,
             }
-            updated[assistantIndex].applied = { html: false, css: false, js: false, modules: false }
+            updated[assistantIndex].applied = {
+                html: false,
+                css: false,
+                js: false,
+                modules: false,
+            }
             // Scroll to bottom after diffs are rendered
             tick().then(scrollToLatestDiff)
         }
@@ -372,38 +521,60 @@ async function askAI() {
         currentReader = null
     } catch (err) {
         // Special-case aborts: mark as stopped instead of error
-        if (err && (err.name === 'AbortError' || /abort/i.test(err.message || ''))) {
-            const idx = messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && messages[messages.length - 1]?.content !== undefined
-                ? messages.length - 1
-                : -1
+        if (
+            err &&
+            (err.name === 'AbortError' || /abort/i.test(err.message || ''))
+        ) {
+            const idx =
+                messages.length > 0 &&
+                messages[messages.length - 1]?.role === 'assistant' &&
+                messages[messages.length - 1]?.content !== undefined
+                    ? messages.length - 1
+                    : -1
             if (idx >= 0) {
                 const updated = [...messages]
-                updated[idx] = { ...updated[idx], content: (updated[idx].content || '') + '\n\n[stopped]' }
+                updated[idx] = {
+                    ...updated[idx],
+                    content: (updated[idx].content || '') + '\n\n[stopped]',
+                }
                 messages = updated
             }
             busy = false
             currentAbort = null
             if (currentReader) {
-                try { await currentReader.cancel() } catch {}
+                try {
+                    await currentReader.cancel()
+                } catch {}
             }
             currentReader = null
             return
         }
         // If a placeholder assistant exists, try to replace it; else append
-        const idx = messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && messages[messages.length - 1]?.content === ''
-            ? messages.length - 1
-            : -1
+        const idx =
+            messages.length > 0 &&
+            messages[messages.length - 1]?.role === 'assistant' &&
+            messages[messages.length - 1]?.content === ''
+                ? messages.length - 1
+                : -1
         if (idx >= 0) {
             const updated = [...messages]
-            updated[idx] = { ...updated[idx], content: `Error: ${err?.message || err}` }
+            updated[idx] = {
+                ...updated[idx],
+                content: `Error: ${err?.message || err}`,
+            }
             messages = updated
         } else {
-            messages = [...messages, { role: 'assistant', content: `Error: ${err?.message || err}` }]
+            messages = [
+                ...messages,
+                { role: 'assistant', content: `Error: ${err?.message || err}` },
+            ]
         }
         busy = false
         currentAbort = null
         if (currentReader) {
-            try { await currentReader.cancel() } catch {}
+            try {
+                await currentReader.cancel()
+            } catch {}
         }
         currentReader = null
     }
@@ -413,15 +584,30 @@ async function askAI() {
 function extractCodeBlocks(text) {
     const re = /```(\w+)?\n([\s\S]*?)```/g
     let m
-    const out = { html: undefined, css: undefined, js: undefined, modules: undefined, blocks: [] }
+    const out = {
+        html: undefined,
+        css: undefined,
+        js: undefined,
+        modules: undefined,
+        blocks: [],
+    }
     while ((m = re.exec(text))) {
         const lang = (m[1] || '').toLowerCase()
         const code = m[2]
         out.blocks.push({ lang, code })
-        if ((lang === 'html' || lang === 'htm') && out.html === undefined) out.html = code
-        else if ((lang === 'css') && out.css === undefined) out.css = code
-        else if ((lang === 'js' || lang === 'javascript' || lang === 'ts' || lang === 'typescript') && out.js === undefined) out.js = code
-        else if (lang === 'modules' && out.modules === undefined) out.modules = code
+        if ((lang === 'html' || lang === 'htm') && out.html === undefined)
+            out.html = code
+        else if (lang === 'css' && out.css === undefined) out.css = code
+        else if (
+            (lang === 'js' ||
+                lang === 'javascript' ||
+                lang === 'ts' ||
+                lang === 'typescript') &&
+            out.js === undefined
+        )
+            out.js = code
+        else if (lang === 'modules' && out.modules === undefined)
+            out.modules = code
     }
     return out
 }
@@ -430,13 +616,14 @@ function parseDiff(diffText) {
     if (!diffText) return []
     const lines = diffText.split('\n')
     // Hide createPatch headers like "Index: CSS", separator lines, and file markers
-    const isHeaderLine = (line) => /^(Index:\s|={3,}$|---\s|\+\+\+\s)/.test(line)
+    const isHeaderLine = (line) =>
+        /^(Index:\s|={3,}$|---\s|\+\+\+\s)/.test(line)
     return lines
-        .filter(line => !isHeaderLine(line))
-        .map(line => {
-        if (line.startsWith('+')) return { type: 'add', text: line }
-        if (line.startsWith('-')) return { type: 'del', text: line }
-        if (line.startsWith('@@')) return { type: 'hunk', text: line }
+        .filter((line) => !isHeaderLine(line))
+        .map((line) => {
+            if (line.startsWith('+')) return { type: 'add', text: line }
+            if (line.startsWith('-')) return { type: 'del', text: line }
+            if (line.startsWith('@@')) return { type: 'hunk', text: line }
             return { type: 'context', text: line }
         })
 }
@@ -448,11 +635,18 @@ function getModuleNamesFromMessage(m) {
         if (!extracted.modules) return []
         const mod = JSON.parse(extracted.modules)
         const upserts = Array.isArray(mod.upsert) ? mod.upsert : []
-        return upserts.map(x => (x && typeof x.name === 'string' ? x.name : null)).filter(Boolean)
-    } catch { return [] }
+        return upserts
+            .map((x) => (x && typeof x.name === 'string' ? x.name : null))
+            .filter(Boolean)
+    } catch {
+        return []
+    }
 }
 
-function applySelection(m, sel = { html: true, css: true, js: true, modules: true }) {
+function applySelection(
+    m,
+    sel = { html: true, css: true, js: true, modules: true },
+) {
     const extracted = extractCodeBlocks(m.content)
     const delta = {}
     if (sel.html && extracted.html) delta.html = extracted.html
@@ -463,9 +657,17 @@ function applySelection(m, sel = { html: true, css: true, js: true, modules: tru
             const mod = JSON.parse(extracted.modules)
             if (mod && Array.isArray(mod.upsert) && mod.upsert.length) {
                 const sanitized = mod.upsert
-                    .filter(it => it && typeof it.name === 'string')
-                    .map(it => ({ name: String(it.name).trim(), code: String(it.code ?? '') }))
-                    .filter(it => it.name && !it.name.includes('/') && it.name.toLowerCase().endsWith('.js'))
+                    .filter((it) => it && typeof it.name === 'string')
+                    .map((it) => ({
+                        name: String(it.name).trim(),
+                        code: String(it.code ?? ''),
+                    }))
+                    .filter(
+                        (it) =>
+                            it.name &&
+                            !it.name.includes('/') &&
+                            it.name.toLowerCase().endsWith('.js'),
+                    )
                 if (sanitized.length) delta.modulesUpsert = sanitized
             }
         } catch {}
@@ -479,8 +681,13 @@ function applySelection(m, sel = { html: true, css: true, js: true, modules: tru
     for (const k of changed) {
         if (k === 'modulesUpsert') {
             // Capture previous code for each module being changed, so revert can restore them
-            const currentIndex = new Map((codeContext.modules || []).map(m => [m.name, m.code]))
-            prev[k] = (delta.modulesUpsert || []).map(it => ({ name: it.name, code: currentIndex.get(it.name) || '' }))
+            const currentIndex = new Map(
+                (codeContext.modules || []).map((m) => [m.name, m.code]),
+            )
+            prev[k] = (delta.modulesUpsert || []).map((it) => ({
+                name: it.name,
+                code: currentIndex.get(it.name) || '',
+            }))
             next[k] = delta[k]
         } else {
             prev[k] = codeContext?.[k] ?? ''
@@ -498,12 +705,13 @@ function applySelection(m, sel = { html: true, css: true, js: true, modules: tru
         diffs: {
             html: sel.html ? m.diffs.html : '',
             css: sel.css ? m.diffs.css : '',
-            js: sel.js ? m.diffs.js : ''
-        }
+            js: sel.js ? m.diffs.js : '',
+        },
     }
 
     // Mark applied in the message
-    if (!m.applied) m.applied = { html: false, css: false, js: false, modules: false }
+    if (!m.applied)
+        m.applied = { html: false, css: false, js: false, modules: false }
     const isApplyAll = sel.html && sel.css && sel.js && sel.modules
     if (isApplyAll) {
         // For Apply All, mark all as applied
@@ -531,8 +739,8 @@ function applySelection(m, sel = { html: true, css: true, js: true, modules: tru
             role: 'system',
             type: 'checkpoint',
             content: `Applied changes to: ${changed.join(', ') || '—'}`,
-            checkpoint
-        }
+            checkpoint,
+        },
     ]
 
     dispatch('apply', delta)
@@ -555,8 +763,14 @@ function revertCheckpoint(checkpoint) {
     for (const blockName of checkpoint.changed) {
         if (blockName === 'modulesUpsert') {
             // Build upserts to restore previous module contents
-            const prevMods = Array.isArray(checkpoint.prev?.modulesUpsert) ? checkpoint.prev.modulesUpsert : []
-            if (prevMods.length) revertDelta.modulesUpsert = prevMods.map(m => ({ name: m.name, code: m.code }))
+            const prevMods = Array.isArray(checkpoint.prev?.modulesUpsert)
+                ? checkpoint.prev.modulesUpsert
+                : []
+            if (prevMods.length)
+                revertDelta.modulesUpsert = prevMods.map((m) => ({
+                    name: m.name,
+                    code: m.code,
+                }))
         } else {
             revertDelta[blockName] = checkpoint.prev?.[blockName] ?? ''
         }
@@ -566,7 +780,9 @@ function revertCheckpoint(checkpoint) {
     // Dispatch revert to parent
     dispatch('apply', revertDelta)
     // Find the assistant message before this checkpoint and reset applied state
-    const checkpointIndex = messages.findIndex(msg => msg.checkpoint === checkpoint)
+    const checkpointIndex = messages.findIndex(
+        (msg) => msg.checkpoint === checkpoint,
+    )
     if (checkpointIndex > 0) {
         const assistantMsg = messages[checkpointIndex - 1]
         if (assistantMsg.role === 'assistant' && assistantMsg.applied) {
@@ -583,8 +799,8 @@ function revertCheckpoint(checkpoint) {
         {
             role: 'system',
             type: 'revert',
-            content: `Reverted checkpoint (${checkpoint.changed.join(', ')}). The next request will include the current code snapshot as the only source of truth; ignore earlier assistant code.`
-        }
+            content: `Reverted checkpoint (${checkpoint.changed.join(', ')}). The next request will include the current code snapshot as the only source of truth; ignore earlier assistant code.`,
+        },
     ]
 }
 
@@ -596,8 +812,12 @@ function clearChat() {
 let currentAbort = null
 let currentReader = null
 function stop() {
-    try { currentAbort?.abort() } catch {}
-    try { currentReader?.cancel() } catch {}
+    try {
+        currentAbort?.abort()
+    } catch {}
+    try {
+        currentReader?.cancel()
+    } catch {}
 }
 
 // Ensure the modal only closes when a click both starts AND ends on the overlay background
@@ -614,28 +834,44 @@ function onOverlayClick(e) {
 }
 
 function processContent(content, hasDiffs) {
-    if (!hasDiffs) return content;
+    if (!hasDiffs) return content
     // Replace code blocks with a note
-    return content.replace(/```[\s\S]*?```/g, '[code omitted - see diff below]');
+    return content.replace(/```[\s\S]*?```/g, '[code omitted - see diff below]')
 }
-
 </script>
 
 {#if open}
-    <div class="ai-overlay" role="dialog" aria-modal="true" aria-label="AI Assistant" on:mousedown={onOverlayMouseDown} on:click={onOverlayClick}>
+    <div
+        class="ai-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-label="AI Assistant"
+        on:mousedown={onOverlayMouseDown}
+        on:click={onOverlayClick}
+    >
         <div class="ai-panel" bind:this={panelEl} on:click|stopPropagation>
             <div class="ai-header">
                 <div class="title">AI Assistant</div>
                 <div class="spacer"></div>
-                <button class="ghost" on:click={close} aria-label="Close">✕</button>
+                <button class="ghost" on:click={close} aria-label="Close"
+                    >✕</button
+                >
             </div>
             <div class="ai-body">
-                <div class="messages" aria-live="polite" bind:this={messagesContainer}>
+                <div
+                    class="messages"
+                    aria-live="polite"
+                    bind:this={messagesContainer}
+                >
                     {#if initialContext}
                         <div class="message system">
                             <div class="label">Prompt</div>
                             <div class="content">
-                                <textarea class="system-prompt" bind:value={initialContext} readonly></textarea>
+                                <textarea
+                                    class="system-prompt"
+                                    bind:value={initialContext}
+                                    readonly
+                                ></textarea>
                             </div>
                         </div>
                     {/if}
@@ -656,23 +892,40 @@ function processContent(content, hasDiffs) {
                                         <div>
                                             {m.content}
                                             {#if m.checkpoint?.createdAt}
-                                                <span class="muted"> · {new Date(m.checkpoint.createdAt).toLocaleTimeString()}</span>
+                                                <span class="muted">
+                                                    · {new Date(
+                                                        m.checkpoint.createdAt,
+                                                    ).toLocaleTimeString()}</span
+                                                >
                                             {/if}
                                         </div>
                                         <div class="checkpoint-actions">
-                                            <button on:click={() => revertCheckpoint(m.checkpoint)} disabled={m.checkpoint?.reverted}>
-                                                {m.checkpoint?.reverted ? 'Reverted' : 'Revert'}
+                                            <button
+                                                on:click={() =>
+                                                    revertCheckpoint(
+                                                        m.checkpoint,
+                                                    )}
+                                                disabled={m.checkpoint
+                                                    ?.reverted}
+                                            >
+                                                {m.checkpoint?.reverted
+                                                    ? 'Reverted'
+                                                    : 'Revert'}
                                             </button>
                                         </div>
                                     </div>
+                                {:else if m.role === 'assistant' && (!m.content || m.content.trim() === '') && busy && i === messages.length - 1}
+                                    <span
+                                        class="typing"
+                                        aria-label="Assistant is typing"
+                                        role="status"
+                                    >
+                                        <span class="dot"></span><span
+                                            class="dot"
+                                        ></span><span class="dot"></span>
+                                    </span>
                                 {:else}
-                                    {#if m.role === 'assistant' && (!m.content || m.content.trim() === '') && busy && i === messages.length - 1}
-                                        <span class="typing" aria-label="Assistant is typing" role="status">
-                                            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-                                        </span>
-                                    {:else}
-                                        {processContent(m.content, !!m.diffs)}
-                                    {/if}
+                                    {processContent(m.content, !!m.diffs)}
                                 {/if}
                             </div>
                             {#if m.diffs}
@@ -681,11 +934,24 @@ function processContent(content, hasDiffs) {
                                         <div class="diff-section">
                                             <div class="diff-header">
                                                 <h5>HTML Changes</h5>
-                                                <button on:click={() => applySelection(m, { html: true, css: false, js: false })} disabled={m.applied?.html}>Apply</button>
+                                                <button
+                                                    on:click={() =>
+                                                        applySelection(m, {
+                                                            html: true,
+                                                            css: false,
+                                                            js: false,
+                                                        })}
+                                                    disabled={m.applied?.html}
+                                                    >Apply</button
+                                                >
                                             </div>
                                             <div class="diff-view">
                                                 {#each parseDiff(m.diffs.html) as line}
-                                                    <div class="diff-line {line.type}">{line.text}</div>
+                                                    <div
+                                                        class="diff-line {line.type}"
+                                                    >
+                                                        {line.text}
+                                                    </div>
                                                 {/each}
                                             </div>
                                         </div>
@@ -694,11 +960,24 @@ function processContent(content, hasDiffs) {
                                         <div class="diff-section">
                                             <div class="diff-header">
                                                 <h5>CSS Changes</h5>
-                                                <button on:click={() => applySelection(m, { html: false, css: true, js: false })} disabled={m.applied?.css}>Apply</button>
+                                                <button
+                                                    on:click={() =>
+                                                        applySelection(m, {
+                                                            html: false,
+                                                            css: true,
+                                                            js: false,
+                                                        })}
+                                                    disabled={m.applied?.css}
+                                                    >Apply</button
+                                                >
                                             </div>
                                             <div class="diff-view">
                                                 {#each parseDiff(m.diffs.css) as line}
-                                                    <div class="diff-line {line.type}">{line.text}</div>
+                                                    <div
+                                                        class="diff-line {line.type}"
+                                                    >
+                                                        {line.text}
+                                                    </div>
                                                 {/each}
                                             </div>
                                         </div>
@@ -707,11 +986,24 @@ function processContent(content, hasDiffs) {
                                         <div class="diff-section">
                                             <div class="diff-header">
                                                 <h5>JS Changes</h5>
-                                                <button on:click={() => applySelection(m, { html: false, css: false, js: true })} disabled={m.applied?.js}>Apply</button>
+                                                <button
+                                                    on:click={() =>
+                                                        applySelection(m, {
+                                                            html: false,
+                                                            css: false,
+                                                            js: true,
+                                                        })}
+                                                    disabled={m.applied?.js}
+                                                    >Apply</button
+                                                >
                                             </div>
                                             <div class="diff-view">
                                                 {#each parseDiff(m.diffs.js) as line}
-                                                    <div class="diff-line {line.type}">{line.text}</div>
+                                                    <div
+                                                        class="diff-line {line.type}"
+                                                    >
+                                                        {line.text}
+                                                    </div>
                                                 {/each}
                                             </div>
                                         </div>
@@ -720,21 +1012,56 @@ function processContent(content, hasDiffs) {
                                         <div class="diff-section">
                                             <div class="diff-header">
                                                 {#if getModuleNamesFromMessage(m).length}
-                                                    <h5>Modules: {getModuleNamesFromMessage(m).join(', ')}</h5>
+                                                    <h5>
+                                                        Modules: {getModuleNamesFromMessage(
+                                                            m,
+                                                        ).join(', ')}
+                                                    </h5>
                                                 {:else}
                                                     <h5>Module Upserts</h5>
                                                 {/if}
-                                                <button on:click={() => applySelection(m, { html: false, css: false, js: false, modules: true })} disabled={m.applied?.modules}>Apply</button>
+                                                <button
+                                                    on:click={() =>
+                                                        applySelection(m, {
+                                                            html: false,
+                                                            css: false,
+                                                            js: false,
+                                                            modules: true,
+                                                        })}
+                                                    disabled={m.applied
+                                                        ?.modules}>Apply</button
+                                                >
                                             </div>
                                             <div class="diff-view">
                                                 {#each parseDiff(m.diffs.modules) as line}
-                                                    <div class="diff-line {line.type}">{line.text}</div>
+                                                    <div
+                                                        class="diff-line {line.type}"
+                                                    >
+                                                        {line.text}
+                                                    </div>
                                                 {/each}
                                             </div>
                                         </div>
                                     {/if}
                                     <div class="apply-actions">
-                                        <button on:click={() => applySelection(m, { html: true, css: true, js: true, modules: true })} disabled={(m.applied?.html || !m.diffs.html) && (m.applied?.css || !m.diffs.css) && (m.applied?.js || !m.diffs.js) && (m.applied?.modules || !m.diffs.modules)}>Apply All</button>
+                                        <button
+                                            on:click={() =>
+                                                applySelection(m, {
+                                                    html: true,
+                                                    css: true,
+                                                    js: true,
+                                                    modules: true,
+                                                })}
+                                            disabled={(m.applied?.html ||
+                                                !m.diffs.html) &&
+                                                (m.applied?.css ||
+                                                    !m.diffs.css) &&
+                                                (m.applied?.js ||
+                                                    !m.diffs.js) &&
+                                                (m.applied?.modules ||
+                                                    !m.diffs.modules)}
+                                            >Apply All</button
+                                        >
                                     </div>
                                 </div>
                             {/if}
@@ -743,31 +1070,75 @@ function processContent(content, hasDiffs) {
                 </div>
             </div>
             <div class="ai-input">
-                <textarea rows="3" bind:value={input} placeholder="Describe the app or change you want… (Enter to send)" on:keydown={keydown}></textarea>
-                <button class="send" on:click={busy ? stop : send} disabled={!busy && (!input.trim() || !isConfigured)}>{busy ? 'Stop' : 'Send'}</button>
+                <textarea
+                    rows="3"
+                    bind:value={input}
+                    placeholder="Describe the app or change you want… (Enter to send)"
+                    on:keydown={keydown}
+                ></textarea>
+                <button
+                    class="send"
+                    on:click={busy ? stop : send}
+                    disabled={!busy && (!input.trim() || !isConfigured)}
+                    >{busy ? 'Stop' : 'Send'}</button
+                >
             </div>
             <div class="ai-footer">
-                <div style="display:flex; gap:.5rem; align-items:center; justify-content:space-between;">
-                    <span>Configure AI{#if !isConfigured}<span style="margin-left:.4rem; color:#b91c1c;">(required)</span>{/if}</span>
+                <div
+                    style="display:flex; gap:.5rem; align-items:center; justify-content:space-between;"
+                >
+                    <span
+                        >Configure AI{#if !isConfigured}<span
+                                style="margin-left:.4rem; color:#b91c1c;"
+                                >(required)</span
+                            >{/if}</span
+                    >
                     <div style="display:flex; gap:.5rem; align-items:center;">
-                        <button class="ghost" on:click={clearChat} title="Clear chat history">Clear Chat</button>
-                        <button class="ghost" on:click={() => { showSettings = !showSettings }} aria-expanded={showSettings}>{showSettings ? 'Hide' : 'Show'} Settings</button>
+                        <button
+                            class="ghost"
+                            on:click={clearChat}
+                            title="Clear chat history">Clear Chat</button
+                        >
+                        <button
+                            class="ghost"
+                            on:click={() => {
+                                showSettings = !showSettings
+                            }}
+                            aria-expanded={showSettings}
+                            >{showSettings ? 'Hide' : 'Show'} Settings</button
+                        >
                     </div>
                 </div>
                 {#if codeContext && (codeContext.html || codeContext.css || codeContext.js)}
                     <div class="ctx-row">
-                        <label class="ctx-toggle"><input type="checkbox" bind:checked={includeContext} on:change={saveIncludeContext} /> Include current HTML/CSS/JS as context</label>
+                        <label class="ctx-toggle"
+                            ><input
+                                type="checkbox"
+                                bind:checked={includeContext}
+                                on:change={saveIncludeContext}
+                            /> Include current HTML/CSS/JS as context</label
+                        >
                     </div>
                 {/if}
                 {#if showSettings}
                     <div class="settings">
                         <div class="row">
                             <label for="ai-api-url">API URL</label>
-                            <input id="ai-api-url" type="text" bind:value={config.apiUrl} placeholder="https://openrouter.ai/api/v1/chat/completions" />
+                            <input
+                                id="ai-api-url"
+                                type="text"
+                                bind:value={config.apiUrl}
+                                placeholder="https://openrouter.ai/api/v1/chat/completions"
+                            />
                         </div>
                         <div class="row">
                             <label for="ai-model">Model</label>
-                            <input id="ai-model" type="text" bind:value={config.model} placeholder="x-ai/grok-code-fast-1" />
+                            <input
+                                id="ai-model"
+                                type="text"
+                                bind:value={config.model}
+                                placeholder="x-ai/grok-code-fast-1"
+                            />
                         </div>
                         <div class="row">
                             <label for="ai-api-key">API Key</label>
@@ -797,15 +1168,27 @@ function processContent(content, hasDiffs) {
                                     type="button"
                                     class="eye"
                                     on:click={() => (showApiKey = !showApiKey)}
-                                    aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                                    aria-label={showApiKey
+                                        ? 'Hide API key'
+                                        : 'Show API key'}
                                     aria-pressed={showApiKey}
                                     title={showApiKey ? 'Hide' : 'Show'}
-                                >{showApiKey ? '🙈' : '👁'}</button>
+                                    >{showApiKey ? '🙈' : '👁'}</button
+                                >
                             </div>
                         </div>
                         <div class="row actions">
-                            <button on:click={() => { saveConfig(); }}>Save</button>
-                            <button class="ghost" on:click={() => { clearConfig(); }}>Reset</button>
+                            <button
+                                on:click={() => {
+                                    saveConfig()
+                                }}>Save</button
+                            >
+                            <button
+                                class="ghost"
+                                on:click={() => {
+                                    clearConfig()
+                                }}>Reset</button
+                            >
                         </div>
                     </div>
                 {/if}
@@ -818,7 +1201,7 @@ function processContent(content, hasDiffs) {
 .ai-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0,0,0,0.35);
+    background: rgba(0, 0, 0, 0.35);
     display: grid;
     place-items: center;
     z-index: 2;
@@ -831,7 +1214,7 @@ function processContent(content, hasDiffs) {
     border-radius: 8px;
     display: grid;
     grid-template-rows: auto 1fr auto auto;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
 .ai-header {
     display: flex;
@@ -840,10 +1223,17 @@ function processContent(content, hasDiffs) {
     padding: 0.6rem 0.8rem;
     border-bottom: 1px solid #e5e7eb;
 }
-.ai-header .title { font-weight: 700; }
-.ai-header .spacer { flex: 1; }
+.ai-header .title {
+    font-weight: 700;
+}
+.ai-header .spacer {
+    flex: 1;
+}
 .ai-header .ghost {
-    border: 0; background: none; cursor: pointer; font-size: 1.1rem;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    font-size: 1.1rem;
 }
 
 .ai-body {
@@ -859,23 +1249,68 @@ function processContent(content, hasDiffs) {
     border-radius: 6px;
     padding: 0.5rem;
 }
-.message { margin-bottom: 0.5rem; }
-.message .label { font-size: 0.8rem; color: #6b7280; margin-bottom: 0.1rem; }
-.message.user .content { background: #eef2ff; }
-.message.assistant .content { background: #f1f5f9; }
+.message {
+    margin-bottom: 0.5rem;
+}
+.message .label {
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-bottom: 0.1rem;
+}
+.message.user .content {
+    background: #eef2ff;
+}
+.message.assistant .content {
+    background: #f1f5f9;
+}
 .message .content {
     white-space: pre-wrap;
     padding: 0.5rem;
     border-radius: 6px;
     border: 1px solid #e5e7eb;
-    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    font-family:
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        Segoe UI,
+        Roboto,
+        Ubuntu,
+        Cantarell,
+        Noto Sans,
+        Helvetica Neue,
+        Arial,
+        'Apple Color Emoji',
+        'Segoe UI Emoji';
 }
-.message.checkpoint .content { background: #fff7ed; border-color: #fdba74; }
-.message.revert .content { background: #fef2f2; border-color: #fecaca; }
-.checkpoint-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-.checkpoint-actions button { border: 1px solid #d1d5db; background: #fff; padding: .25rem .5rem; border-radius: 6px; cursor: pointer; }
-.checkpoint-actions button[disabled] { opacity: .6; cursor: default; }
-.muted { color: #6b7280; font-size: .8rem; }
+.message.checkpoint .content {
+    background: #fff7ed;
+    border-color: #fdba74;
+}
+.message.revert .content {
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+.checkpoint-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+.checkpoint-actions button {
+    border: 1px solid #d1d5db;
+    background: #fff;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.checkpoint-actions button[disabled] {
+    opacity: 0.6;
+    cursor: default;
+}
+.muted {
+    color: #6b7280;
+    font-size: 0.8rem;
+}
 
 .system-prompt {
     width: 100%;
@@ -889,20 +1324,41 @@ function processContent(content, hasDiffs) {
     background: #f9fafb;
     border: 1px solid #e5e7eb;
     border-radius: 6px;
-    padding: .4rem .5rem;
+    padding: 0.4rem 0.5rem;
 }
 
 /* Inline typing indicator inside assistant bubble */
-.typing { display: inline-flex; gap: 6px; align-items: center; height: 1em; }
+.typing {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    height: 1em;
+}
 .typing .dot {
-    width: 6px; height: 6px; background: #9ca3af; border-radius: 50%; display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: #9ca3af;
+    border-radius: 50%;
+    display: inline-block;
     animation: typing-bounce 1.2s infinite ease-in-out;
 }
-.typing .dot:nth-child(2) { animation-delay: .2s; }
-.typing .dot:nth-child(3) { animation-delay: .4s; }
+.typing .dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+.typing .dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
 @keyframes typing-bounce {
-    0%, 80%, 100% { opacity: .25; transform: translateY(0); }
-    40% { opacity: 1; transform: translateY(-3px); }
+    0%,
+    80%,
+    100% {
+        opacity: 0.25;
+        transform: translateY(0);
+    }
+    40% {
+        opacity: 1;
+        transform: translateY(-3px);
+    }
 }
 
 .ai-input {
@@ -928,7 +1384,10 @@ function processContent(content, hasDiffs) {
     padding: 0 0.9rem;
     cursor: pointer;
 }
-.ai-input .send:disabled { opacity: 0.6; cursor: not-allowed; }
+.ai-input .send:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
 
 .ai-footer {
     padding: 0.4rem 0.6rem;
@@ -936,16 +1395,55 @@ function processContent(content, hasDiffs) {
     color: #6b7280;
     border-top: 1px solid #e5e7eb;
 }
-.ctx-row { margin-top: .4rem; }
-.ctx-toggle { display: inline-flex; gap: .4rem; align-items: center; }
-.settings { margin-top: .5rem; display: grid; gap: .5rem; }
-.settings .row { display: grid; gap: .25rem; }
-.settings .row label { font-size: .8rem; color: #4b5563; }
-.settings .row input { padding: .4rem .5rem; border: 1px solid #d1d5db; border-radius: 6px; font: inherit; }
-.settings .row.actions { display:flex; gap:.5rem; align-items:center; }
-.settings .input-with-toggle { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: center; }
-.settings .input-with-toggle input { width: 100%; }
-.settings .input-with-toggle .eye { margin-left: .4rem; border: 1px solid #d1d5db; background: #f9fafb; border-radius: 6px; padding: .3rem .5rem; cursor: pointer; }
+.ctx-row {
+    margin-top: 0.4rem;
+}
+.ctx-toggle {
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+.settings {
+    margin-top: 0.5rem;
+    display: grid;
+    gap: 0.5rem;
+}
+.settings .row {
+    display: grid;
+    gap: 0.25rem;
+}
+.settings .row label {
+    font-size: 0.8rem;
+    color: #4b5563;
+}
+.settings .row input {
+    padding: 0.4rem 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font: inherit;
+}
+.settings .row.actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+.settings .input-with-toggle {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+}
+.settings .input-with-toggle input {
+    width: 100%;
+}
+.settings .input-with-toggle .eye {
+    margin-left: 0.4rem;
+    border: 1px solid #d1d5db;
+    background: #f9fafb;
+    border-radius: 6px;
+    padding: 0.3rem 0.5rem;
+    cursor: pointer;
+}
 
 .diff-view {
     font-family: monospace;
@@ -958,10 +1456,19 @@ function processContent(content, hasDiffs) {
 .diff-line {
     margin: 0;
 }
-.diff-line.add { color: green; }
-.diff-line.del { color: red; }
-.diff-line.hunk { color: blue; font-weight: bold; }
-.diff-line.context { color: black; }
+.diff-line.add {
+    color: green;
+}
+.diff-line.del {
+    color: red;
+}
+.diff-line.hunk {
+    color: blue;
+    font-weight: bold;
+}
+.diff-line.context {
+    color: black;
+}
 
 .diff-header {
     display: flex;

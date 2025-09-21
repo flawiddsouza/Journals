@@ -24,14 +24,20 @@ function valueType(v) {
 function previewValue(v) {
     const t = valueType(v)
     switch (t) {
-        case 'string': return v.length > 60 ? v.slice(0, 57) + '…' : v
+        case 'string':
+            return v.length > 60 ? v.slice(0, 57) + '…' : v
         case 'number':
         case 'boolean':
-        case 'null': return String(v)
-        case 'array': return `Array(${v.length})`
-        case 'object': return 'Object'
-        case 'undefined': return 'undefined'
-        default: return t
+        case 'null':
+            return String(v)
+        case 'array':
+            return `Array(${v.length})`
+        case 'object':
+            return 'Object'
+        case 'undefined':
+            return 'undefined'
+        default:
+            return t
     }
 }
 
@@ -44,16 +50,18 @@ async function copyToClipboard(text) {
         await navigator.clipboard?.writeText(text)
         copyIsError = false
         copyFeedback = 'Copied to clipboard!'
-        setTimeout(() => copyFeedback = '', 2000)
+        setTimeout(() => (copyFeedback = ''), 2000)
     } catch (_) {
         copyIsError = true
         copyFeedback = 'Failed to copy'
-        setTimeout(() => copyFeedback = '', 2000)
+        setTimeout(() => (copyFeedback = ''), 2000)
     }
 }
 
 function downloadJSON(filename, dataObj) {
-    const blob = new Blob([JSON.stringify(dataObj, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify(dataObj, null, 2)], {
+        type: 'application/json',
+    })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -66,28 +74,50 @@ function downloadJSON(filename, dataObj) {
 
 function handleClearData() {
     if (readOnly) return
-    if (!confirm('Clear this Mini App\'s data?')) return
+    if (!confirm("Clear this Mini App's data?")) return
     dispatch('clearData')
 }
 
-$: kvEntries = Object.entries(kv).sort((a,b) => a[0].localeCompare(b[0]))
-$: filteredEntries = dataFilter.trim() ? kvEntries.filter(([k,v]) => k.toLowerCase().includes(dataFilter.toLowerCase())) : kvEntries
+$: kvEntries = Object.entries(kv).sort((a, b) => a[0].localeCompare(b[0]))
+$: filteredEntries = dataFilter.trim()
+    ? kvEntries.filter(([k, v]) =>
+          k.toLowerCase().includes(dataFilter.toLowerCase()),
+      )
+    : kvEntries
 </script>
 
 <div class="data-viewer" role="region" aria-label="Stored data viewer">
     <div class="data-header">
         <div class="data-title">Stored Data</div>
         <div class="data-actions">
-            <input type="search" placeholder="Filter by key" bind:value={dataFilter} aria-label="Filter stored keys" />
-            <button on:click={() => copyToClipboard(JSON.stringify(kv, null, 2))} title="Copy all as JSON">Copy all</button>
-            <button on:click={() => downloadJSON('miniapp-data.json', kv)} title="Download JSON">Download</button>
+            <input
+                type="search"
+                placeholder="Filter by key"
+                bind:value={dataFilter}
+                aria-label="Filter stored keys"
+            />
+            <button
+                on:click={() => copyToClipboard(JSON.stringify(kv, null, 2))}
+                title="Copy all as JSON">Copy all</button
+            >
+            <button
+                on:click={() => downloadJSON('miniapp-data.json', kv)}
+                title="Download JSON">Download</button
+            >
             {#if !readOnly}
-                <button on:click={handleClearData} class="clear-btn">Clear Data</button>
+                <button on:click={handleClearData} class="clear-btn"
+                    >Clear Data</button
+                >
             {/if}
         </div>
     </div>
 
-    <Toast message={copyFeedback} variant={copyIsError ? 'error' : 'success'} position="top" align="center" />
+    <Toast
+        message={copyFeedback}
+        variant={copyIsError ? 'error' : 'success'}
+        position="top"
+        align="center"
+    />
 
     {#if kvEntries.length === 0}
         <div class="data-empty">No data stored yet.</div>
@@ -103,19 +133,30 @@ $: filteredEntries = dataFilter.trim() ? kvEntries.filter(([k,v]) => k.toLowerCa
                     </div>
                     <div class="data-content">
                         <div class="data-preview">
-                            <span class="preview-text">{previewValue(value)}</span>
+                            <span class="preview-text"
+                                >{previewValue(value)}</span
+                            >
                             {#if valueType(value) === 'object' || valueType(value) === 'array'}
-                                <button class="expand-btn" on:click={() => toggleExpand(key)}>
+                                <button
+                                    class="expand-btn"
+                                    on:click={() => toggleExpand(key)}
+                                >
                                     {expanded[key] ? 'Collapse' : 'Expand'}
                                 </button>
                             {/if}
                         </div>
                         {#if expanded[key]}
-                            <pre class="json-full"><code>{JSON.stringify(value, null, 2)}</code></pre>
+                            <pre class="json-full"><code
+                                    >{JSON.stringify(value, null, 2)}</code
+                                ></pre>
                         {/if}
                     </div>
                     <div class="data-actions">
-                        <button on:click={() => copyToClipboard(JSON.stringify(value, null, 2))} title="Copy value">Copy</button>
+                        <button
+                            on:click={() =>
+                                copyToClipboard(JSON.stringify(value, null, 2))}
+                            title="Copy value">Copy</button
+                        >
                     </div>
                 </div>
             {/each}
@@ -133,7 +174,7 @@ $: filteredEntries = dataFilter.trim() ? kvEntries.filter(([k,v]) => k.toLowerCa
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     position: relative; /* allow floating toast inside */
 }
 
@@ -161,7 +202,7 @@ $: filteredEntries = dataFilter.trim() ? kvEntries.filter(([k,v]) => k.toLowerCa
     align-items: center;
 }
 
-.data-actions input[type="search"] {
+.data-actions input[type='search'] {
     padding: 0.375rem 0.5rem;
     border: 1px solid #d1d5db;
     border-radius: 6px;
@@ -222,7 +263,7 @@ $: filteredEntries = dataFilter.trim() ? kvEntries.filter(([k,v]) => k.toLowerCa
     background: #ffffff;
     border: 1px solid #e5e7eb;
     border-radius: 6px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .data-key {

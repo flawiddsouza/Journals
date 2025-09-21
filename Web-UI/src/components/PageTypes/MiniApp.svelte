@@ -39,22 +39,27 @@ let selectedModuleIndex = -1
 const MAX_MODULES = 12
 
 function validModuleName(name) {
-    return typeof name === 'string'
-        && name.endsWith('.js')
-        && !name.includes('/')
-        && name.trim().length > 0
+    return (
+        typeof name === 'string' &&
+        name.endsWith('.js') &&
+        !name.includes('/') &&
+        name.trim().length > 0
+    )
 }
 
 function addModule(name) {
     if (readOnlyMode) return
-    if (modules.length >= MAX_MODULES) return alert(`Limit ${MAX_MODULES} modules`)
-    const names = new Set(modules.map(m => m.name))
+    if (modules.length >= MAX_MODULES)
+        return alert(`Limit ${MAX_MODULES} modules`)
+    const names = new Set(modules.map((m) => m.name))
     let filename = (name || '').trim()
     if (!filename) return alert('Please provide a filename like utils.js')
     // Ensure .js and simple filename (no folders)
     if (!filename.toLowerCase().endsWith('.js')) filename += '.js'
-    if (!validModuleName(filename)) return alert('Invalid name. Use something like utils.js (no /).')
-    if (names.has(filename)) return alert(`A module named "${filename}" already exists.`)
+    if (!validModuleName(filename))
+        return alert('Invalid name. Use something like utils.js (no /).')
+    if (names.has(filename))
+        return alert(`A module named "${filename}" already exists.`)
 
     modules = [...modules, { name: filename, code: `` }]
     selectedModuleIndex = modules.length - 1
@@ -67,11 +72,16 @@ function renameModule(index) {
     if (readOnlyMode) return
     if (index < 0 || index >= modules.length) return
     const current = modules[index]
-    const next = prompt('Rename module (must end with .js, no folders):', current.name)
+    const next = prompt(
+        'Rename module (must end with .js, no folders):',
+        current.name,
+    )
     if (!next || next === current.name) return
-    if (!validModuleName(next)) return alert('Invalid name. Use something like utils.js (no /).')
-    if (modules.some((m, i) => i !== index && m.name === next)) return alert('A module with this name already exists.')
-    modules = modules.map((m, i) => i === index ? { ...m, name: next } : m)
+    if (!validModuleName(next))
+        return alert('Invalid name. Use something like utils.js (no /).')
+    if (modules.some((m, i) => i !== index && m.name === next))
+        return alert('A module with this name already exists.')
+    modules = modules.map((m, i) => (i === index ? { ...m, name: next } : m))
     modulesKey++
     buildAndRunDebounced()
     savePageContent()
@@ -100,7 +110,9 @@ function handleModuleInput(e) {
     if (readOnlyMode) return
     if (selectedModuleIndex < 0 || selectedModuleIndex >= modules.length) return
     const code = e.target.value
-    modules = modules.map((m, i) => i === selectedModuleIndex ? { ...m, code } : m)
+    modules = modules.map((m, i) =>
+        i === selectedModuleIndex ? { ...m, code } : m,
+    )
     if (autoBuild) buildAndRunDebounced()
     savePageContent()
 }
@@ -123,7 +135,10 @@ const tabOrder = ['html', 'css', 'js', 'modules']
 function onTabKeydown(e) {
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         const idx = tabOrder.indexOf(activeTab)
-        const next = e.key === 'ArrowRight' ? (idx + 1) % tabOrder.length : (idx - 1 + tabOrder.length) % tabOrder.length
+        const next =
+            e.key === 'ArrowRight'
+                ? (idx + 1) % tabOrder.length
+                : (idx - 1 + tabOrder.length) % tabOrder.length
         activeTab = tabOrder[next]
         // move focus to the newly selected tab
         const btn = document.getElementById('tab-' + activeTab)
@@ -169,14 +184,14 @@ Constraints:
 - Do not use external CDNs, images, or libraries.`
 
 let files = {
-        html: `<div id="app">
+    html: `<div id="app">
     <div id="count">0</div>
     <div class="buttons">
         <button id="dec" aria-label="Decrement">-</button>
         <button id="inc" aria-label="Increment">+</button>
     </div>
 </div>`,
-        css: `body {
+    css: `body {
     font-family: Ubuntu, system-ui, sans-serif;
     margin: 0;
 }
@@ -196,7 +211,7 @@ let files = {
 .buttons button {
     padding: 4px 8px;
 }`,
-        js: `let counter = (await Journals.getItem('counter')) || 0
+    js: `let counter = (await Journals.getItem('counter')) || 0
 const countEl = document.getElementById('count')
 const set = async (val) => {
     counter = val
@@ -205,11 +220,10 @@ const set = async (val) => {
 }
 countEl.textContent = counter
 document.getElementById('inc').addEventListener('click', () => set(counter + 1))
-document.getElementById('dec').addEventListener('click', () => set(counter - 1))`
+document.getElementById('dec').addEventListener('click', () => set(counter - 1))`,
 }
 let kv = {}
 // Ensure files.modules persists in payload even if undefined in older pages
-
 
 // If pageContentOverride is provided (history view), load from it and skip fetching/saving
 $: if (pageContentOverride !== undefined) {
@@ -218,10 +232,13 @@ $: if (pageContentOverride !== undefined) {
     if (parsed && parsed.files) {
         files = parsed.files
         kv = parsed.kv || {}
-        modules = (parsed.files && parsed.files.modules) ? parsed.files.modules : []
+        modules =
+            parsed.files && parsed.files.modules ? parsed.files.modules : []
     }
     contentReady = true
-    htmlKey++; cssKey++; jsKey++
+    htmlKey++
+    cssKey++
+    jsKey++
     tick().then(buildAndRun)
 }
 
@@ -229,24 +246,31 @@ $: fetchPage(pageId)
 
 function parseContent(content) {
     if (!content) return null
-    try { return JSON.parse(content) } catch (e) { return null }
+    try {
+        return JSON.parse(content)
+    } catch (e) {
+        return null
+    }
 }
 
 function fetchPage(id) {
     // Don't fetch when we have an override (history preview) or missing id
     if (!id || pageContentOverride !== undefined) return
     contentReady = false
-    fetchPlus.get(`/pages/content/${id}`).then(resp => {
+    fetchPlus.get(`/pages/content/${id}`).then((resp) => {
         const raw = resp.content
         const parsed = parseContent(raw)
         if (parsed && parsed.files) {
             files = parsed.files
             kv = parsed.kv || {}
-            modules = (parsed.files && parsed.files.modules) ? parsed.files.modules : []
+            modules =
+                parsed.files && parsed.files.modules ? parsed.files.modules : []
         }
         contentReady = true
         // External content load -> refresh editors
-        htmlKey++; cssKey++; jsKey++
+        htmlKey++
+        cssKey++
+        jsKey++
         buildAndRun()
     })
 }
@@ -287,11 +311,12 @@ function handleAIApply(e) {
 
     // Handle module upserts if provided: [{ name, code }]
     if (Array.isArray(delta.modulesUpsert) && delta.modulesUpsert.length) {
-        const byName = new Map(modules.map(m => [m.name, m]))
+        const byName = new Map(modules.map((m) => [m.name, m]))
         for (const item of delta.modulesUpsert) {
             if (!item || typeof item.name !== 'string') continue
             const name = item.name.trim()
-            if (!name || /\//.test(name) || !name.toLowerCase().endsWith('.js')) continue
+            if (!name || /\//.test(name) || !name.toLowerCase().endsWith('.js'))
+                continue
             const code = String(item.code ?? '')
             byName.set(name, { name, code })
         }
@@ -304,7 +329,7 @@ function handleAIApply(e) {
 
 function clearData() {
     if (readOnlyMode) return
-    if (!confirm('Clear this Mini App\'s data?')) return
+    if (!confirm("Clear this Mini App's data?")) return
     kv = {}
     savePageContent()
     // inform iframe to clear its cache too (rebuild)
@@ -408,25 +433,42 @@ function buildSrcdoc() {
         if (!src) return ''
         try {
             // static import from
-            src = src.replace(/(import\s+[^;]*?from\s+)(['"])\.\/([^'"\n]+?\.js)\2/g, (m, p1, q, name) => `${p1}${q}${name}${q}`)
+            src = src.replace(
+                /(import\s+[^;]*?from\s+)(['"])\.\/([^'"\n]+?\.js)\2/g,
+                (m, p1, q, name) => `${p1}${q}${name}${q}`,
+            )
             // export from
-            src = src.replace(/(export\s+[^;]*?from\s+)(['"])\.\/([^'"\n]+?\.js)\2/g, (m, p1, q, name) => `${p1}${q}${name}${q}`)
+            src = src.replace(
+                /(export\s+[^;]*?from\s+)(['"])\.\/([^'"\n]+?\.js)\2/g,
+                (m, p1, q, name) => `${p1}${q}${name}${q}`,
+            )
             // dynamic import('...')
-            src = src.replace(/(import\s*\(\s*)(['"])\.\/([^'"\n]+?\.js)\2(\s*\))/g, (m, p1, q, name, p4) => `${p1}${q}${name}${q}${p4}`)
+            src = src.replace(
+                /(import\s*\(\s*)(['"])\.\/([^'"\n]+?\.js)\2(\s*\))/g,
+                (m, p1, q, name, p4) => `${p1}${q}${name}${q}${p4}`,
+            )
         } catch (_) {}
         return src
     }
 
     // Detect if any code references 'vue' via static or dynamic import
     const needsVue = (() => {
-        const test = (s) => /\bfrom\s+['\"]vue['\"]|import\s*\(\s*['\"]vue['\"]\s*\)/.test(s || '')
+        const test = (s) =>
+            /\bfrom\s+['\"]vue['\"]|import\s*\(\s*['\"]vue['\"]\s*\)/.test(
+                s || '',
+            )
         if (test(files.js)) return true
         for (const m of modules || []) if (test(m.code)) return true
         return false
     })()
     const userJsLiteral = JSON.stringify(rewriteRelImports(files.js || ''))
     // Prepare modules payload with rewritten code
-    const modulesPayload = JSON.stringify((modules || []).map(m => ({ name: m.name, code: rewriteRelImports(m.code || '') })))
+    const modulesPayload = JSON.stringify(
+        (modules || []).map((m) => ({
+            name: m.name,
+            code: rewriteRelImports(m.code || ''),
+        })),
+    )
 
     return `<!doctype html>
 <html>
@@ -514,7 +556,7 @@ function handleStorageRequest(ev) {
         try {
             switch (msg.method) {
                 case 'getItem':
-                    result = kv[msg.key];
+                    result = kv[msg.key]
                     break
                 case 'setItem':
                     kv[msg.key] = msg.value
@@ -540,10 +582,20 @@ function handleStorageRequest(ev) {
                 case 'keys':
                     result = Object.keys(kv)
                     break
-                default: result = null
+                default:
+                    result = null
             }
-        } catch (e) { result = null }
-        ev.source.postMessage({ type: 'MiniAppStorageResponse', requestId: msg.requestId, result }, '*')
+        } catch (e) {
+            result = null
+        }
+        ev.source.postMessage(
+            {
+                type: 'MiniAppStorageResponse',
+                requestId: msg.requestId,
+                result,
+            },
+            '*',
+        )
         return
     }
 
@@ -551,18 +603,28 @@ function handleStorageRequest(ev) {
     if (msg.type === 'MiniAppUpload') {
         // Disallow in read-only contexts
         if (readOnlyMode) {
-            ev.source.postMessage({ type: 'MiniAppUploadResponse', requestId: msg.requestId, result: null }, '*')
+            ev.source.postMessage(
+                {
+                    type: 'MiniAppUploadResponse',
+                    requestId: msg.requestId,
+                    result: null,
+                },
+                '*',
+            )
             return
         }
         let filename = msg.filename || 'upload.bin'
         let blob
         if (msg.fileData) {
             // Reconstruct a Blob from transferred bytes
-            blob = new Blob([msg.fileData], { type: msg.mime || 'application/octet-stream' })
+            blob = new Blob([msg.fileData], {
+                type: msg.mime || 'application/octet-stream',
+            })
         } else {
             const fileOrBlob = msg.file
             blob = fileOrBlob
-            if (!filename && fileOrBlob && fileOrBlob.name) filename = fileOrBlob.name
+            if (!filename && fileOrBlob && fileOrBlob.name)
+                filename = fileOrBlob.name
         }
         ;(async () => {
             try {
@@ -571,14 +633,28 @@ function handleStorageRequest(ev) {
                 const resp = await fetch(`${baseURL}/upload-image/${pageId}`, {
                     method: 'POST',
                     body: data,
-                    headers: { 'Token': localStorage.getItem('token') },
-                    credentials: 'include'
-                }).then(r => r.json())
+                    headers: { Token: localStorage.getItem('token') },
+                    credentials: 'include',
+                }).then((r) => r.json())
                 const url = `${baseURL}/${resp.imageUrl}`
-                ev.source.postMessage({ type: 'MiniAppUploadResponse', requestId: msg.requestId, result: url }, '*')
+                ev.source.postMessage(
+                    {
+                        type: 'MiniAppUploadResponse',
+                        requestId: msg.requestId,
+                        result: url,
+                    },
+                    '*',
+                )
             } catch (e) {
                 console.error('MiniAppUpload failed', e)
-                ev.source.postMessage({ type: 'MiniAppUploadResponse', requestId: msg.requestId, result: null }, '*')
+                ev.source.postMessage(
+                    {
+                        type: 'MiniAppUploadResponse',
+                        requestId: msg.requestId,
+                        result: null,
+                    },
+                    '*',
+                )
             }
         })()
         return
@@ -591,14 +667,29 @@ function handleStorageRequest(ev) {
             try {
                 const resp = await fetch(url, {
                     method: 'GET',
-                    headers: { 'Token': localStorage.getItem('token') },
-                    credentials: 'include'
+                    headers: { Token: localStorage.getItem('token') },
+                    credentials: 'include',
                 })
                 const mime = resp.headers.get('Content-Type') || ''
                 const buf = await resp.arrayBuffer()
-                ev.source.postMessage({ type: 'MiniAppFetchAssetResponse', requestId: msg.requestId, result: { buffer: buf, mime } }, '*', [buf])
+                ev.source.postMessage(
+                    {
+                        type: 'MiniAppFetchAssetResponse',
+                        requestId: msg.requestId,
+                        result: { buffer: buf, mime },
+                    },
+                    '*',
+                    [buf],
+                )
             } catch (e) {
-                ev.source.postMessage({ type: 'MiniAppFetchAssetResponse', requestId: msg.requestId, result: null }, '*')
+                ev.source.postMessage(
+                    {
+                        type: 'MiniAppFetchAssetResponse',
+                        requestId: msg.requestId,
+                        result: null,
+                    },
+                    '*',
+                )
             }
         })()
         return
@@ -607,25 +698,49 @@ function handleStorageRequest(ev) {
     // Delete previously uploaded asset by path or URL
     if (msg.type === 'MiniAppDelete') {
         if (readOnlyMode) {
-            ev.source.postMessage({ type: 'MiniAppStorageResponse', requestId: msg.requestId, result: false }, '*')
+            ev.source.postMessage(
+                {
+                    type: 'MiniAppStorageResponse',
+                    requestId: msg.requestId,
+                    result: false,
+                },
+                '*',
+            )
             return
         }
         ;(async () => {
             try {
-                const resp = await fetch(`${baseURL}/page-uploads/delete-by-path`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'Token': localStorage.getItem('token')
+                const resp = await fetch(
+                    `${baseURL}/page-uploads/delete-by-path`,
+                    {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                            Token: localStorage.getItem('token'),
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({ pageId, path: msg.url }),
                     },
-                    credentials: 'include',
-                    body: JSON.stringify({ pageId, path: msg.url })
-                })
+                )
                 const ok = resp.ok
-                ev.source.postMessage({ type: 'MiniAppStorageResponse', requestId: msg.requestId, result: ok }, '*')
+                ev.source.postMessage(
+                    {
+                        type: 'MiniAppStorageResponse',
+                        requestId: msg.requestId,
+                        result: ok,
+                    },
+                    '*',
+                )
             } catch (e) {
-                ev.source.postMessage({ type: 'MiniAppStorageResponse', requestId: msg.requestId, result: false }, '*')
+                ev.source.postMessage(
+                    {
+                        type: 'MiniAppStorageResponse',
+                        requestId: msg.requestId,
+                        result: false,
+                    },
+                    '*',
+                )
             }
         })()
         return
@@ -637,20 +752,41 @@ function handleStorageRequest(ev) {
             try {
                 // Whitelist map; extend as needed. Keep prod build for minimal footprint.
                 const libMap = {
-                    vue: '/libs/vue@3.x/vue.esm-browser.prod.js'
+                    vue: '/libs/vue@3.x/vue.esm-browser.prod.js',
                 }
                 const path = libMap[msg.name]
                 if (!path) {
-                    ev.source.postMessage({ type: 'MiniAppLoadLibraryResponse', requestId: msg.requestId, result: { ok: false } }, '*')
+                    ev.source.postMessage(
+                        {
+                            type: 'MiniAppLoadLibraryResponse',
+                            requestId: msg.requestId,
+                            result: { ok: false },
+                        },
+                        '*',
+                    )
                     return
                 }
                 const resp = await fetch(path, { credentials: 'include' })
-                if (!resp.ok) throw new Error('Failed to fetch '+path)
+                if (!resp.ok) throw new Error('Failed to fetch ' + path)
                 const code = await resp.text()
-                ev.source.postMessage({ type: 'MiniAppLoadLibraryResponse', requestId: msg.requestId, result: { ok: true, code } }, '*')
+                ev.source.postMessage(
+                    {
+                        type: 'MiniAppLoadLibraryResponse',
+                        requestId: msg.requestId,
+                        result: { ok: true, code },
+                    },
+                    '*',
+                )
             } catch (e) {
                 console.error('MiniAppLoadLibrary failed', e)
-                ev.source.postMessage({ type: 'MiniAppLoadLibraryResponse', requestId: msg.requestId, result: { ok: false } }, '*')
+                ev.source.postMessage(
+                    {
+                        type: 'MiniAppLoadLibraryResponse',
+                        requestId: msg.requestId,
+                        result: { ok: false },
+                    },
+                    '*',
+                )
             }
         })()
         return
@@ -659,7 +795,7 @@ function handleStorageRequest(ev) {
 
 onMount(() => {
     window.addEventListener('message', handleStorageRequest)
-    const unsub = eventStore.subscribe(evt => {
+    const unsub = eventStore.subscribe((evt) => {
         if (!evt || !evt.event) return
         // Ignore configuration events when viewing history or explicitly view-only
         if (readOnlyMode) return
@@ -705,24 +841,56 @@ $: if (pendingConfigure && contentReady && !configuration) {
                     <div>Loading mini app…</div>
                 </div>
             {/if}
-            <iframe title="Mini App" sandbox="allow-scripts allow-modals allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox" bind:this={iframe}></iframe>
+            <iframe
+                title="Mini App"
+                sandbox="allow-scripts allow-modals allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox"
+                bind:this={iframe}
+            ></iframe>
         </div>
     {:else}
-    <div class="miniapp" class:hasPanel={showHelp || showData}>
+        <div class="miniapp" class:hasPanel={showHelp || showData}>
             <div class="toolbar">
-                <label class="autobuild-toggle"><input type="checkbox" bind:checked={autoBuild} on:change={() => { if (autoBuild) buildAndRun() }} /> Auto build</label>
-                <button on:click={buildAndRun} disabled={autoBuild} title={autoBuild ? 'Disable Auto build to use Run' : 'Run the mini app'}>Run</button>
-                <button on:click={() => aiOpen = true}>AI Chat</button>
+                <label class="autobuild-toggle"
+                    ><input
+                        type="checkbox"
+                        bind:checked={autoBuild}
+                        on:change={() => {
+                            if (autoBuild) buildAndRun()
+                        }}
+                    /> Auto build</label
+                >
+                <button
+                    on:click={buildAndRun}
+                    disabled={autoBuild}
+                    title={autoBuild
+                        ? 'Disable Auto build to use Run'
+                        : 'Run the mini app'}>Run</button
+                >
+                <button on:click={() => (aiOpen = true)}>AI Chat</button>
                 <div class="spacer"></div>
-                <button class="linklike" title="Show stored data for this mini app" on:click={() => togglePanel('data')}>Stored Data</button>
-                <button class="linklike" title="Show Mini App API help" on:click={() => togglePanel('help')}>Mini App API</button>
+                <button
+                    class="linklike"
+                    title="Show stored data for this mini app"
+                    on:click={() => togglePanel('data')}>Stored Data</button
+                >
+                <button
+                    class="linklike"
+                    title="Show Mini App API help"
+                    on:click={() => togglePanel('help')}>Mini App API</button
+                >
             </div>
             {#if showHelp}
                 <div class="miniapp-help" role="note" aria-label="Mini App API">
-                    <div class="miniapp-help-title">Journals API inside the iframe</div>
+                    <div class="miniapp-help-title">
+                        Journals API inside the iframe
+                    </div>
                     <div class="miniapp-help-body">
-                        <p>Your JS runs in a sandboxed iframe with an async storage object <code>Journals</code>:</p>
-                        <pre><code>// All methods return Promises
+                        <p>
+                            Your JS runs in a sandboxed iframe with an async
+                            storage object <code>Journals</code>:
+                        </p>
+                        <pre><code
+                                >// All methods return Promises
 const n = (await Journals.getItem('counter')) || 0
 await Journals.setItem('counter', n + 1)
 await Journals.removeItem('counter')
@@ -733,7 +901,7 @@ await Journals.clear()
 const input = document.querySelector('input[type=file]')
 const file = input.files[0]
 const url = await Journals.upload(file)
-// e.g. set <img alt="" src=url> or save in storage
+// e.g. set <img alt="" src="url" /> or save in storage
 
 // Resolve a protected file URL/path to a usable blob URL
 const imgUrl = await Journals.getFileUrl('/uploads/images/abc.png')
@@ -742,7 +910,10 @@ const imgUrl = await Journals.getFileUrl('/uploads/images/abc.png')
 await Journals.deleteFile('/uploads/images/abc.png')
 </code></pre>
                         <p>Available methods:</p>
-                        <table class="miniapp-methods" aria-label="Journals API methods">
+                        <table
+                            class="miniapp-methods"
+                            aria-label="Journals API methods"
+                        >
                             <thead>
                                 <tr>
                                     <th scope="col">Method</th>
@@ -753,53 +924,100 @@ await Journals.deleteFile('/uploads/images/abc.png')
                             <tbody>
                                 <tr>
                                     <td><code>getItem(key)</code></td>
-                                    <td>Read a value by <code>key</code>; resolves to <code>undefined</code> if absent.</td>
+                                    <td
+                                        >Read a value by <code>key</code>;
+                                        resolves to <code>undefined</code> if absent.</td
+                                    >
                                     <td><code>any | undefined</code></td>
                                 </tr>
                                 <tr>
                                     <td><code>setItem(key, value)</code></td>
-                                    <td>Save a JSON-serializable <code>value</code> under <code>key</code>.</td>
+                                    <td
+                                        >Save a JSON-serializable <code
+                                            >value</code
+                                        >
+                                        under <code>key</code>.</td
+                                    >
                                     <td><code>true</code></td>
                                 </tr>
                                 <tr>
                                     <td><code>removeItem(key)</code></td>
-                                    <td>Delete the stored entry for <code>key</code>.</td>
+                                    <td
+                                        >Delete the stored entry for <code
+                                            >key</code
+                                        >.</td
+                                    >
                                     <td><code>true</code></td>
                                 </tr>
                                 <tr>
                                     <td><code>clear()</code></td>
-                                    <td>Remove all keys stored by this mini app.</td>
+                                    <td
+                                        >Remove all keys stored by this mini
+                                        app.</td
+                                    >
                                     <td><code>true</code></td>
                                 </tr>
                                 <tr>
                                     <td><code>keys()</code></td>
-                                    <td>List all keys stored by this mini app.</td>
+                                    <td
+                                        >List all keys stored by this mini app.</td
+                                    >
                                     <td><code>string[]</code></td>
                                 </tr>
                                 <tr>
-                                    <td><code>upload(file[, filename])</code></td>
-                                    <td>Upload a <code>File</code> or <code>Blob</code> and receive its URL.</td>
+                                    <td
+                                        ><code>upload(file[, filename])</code
+                                        ></td
+                                    >
+                                    <td
+                                        >Upload a <code>File</code> or
+                                        <code>Blob</code> and receive its URL.</td
+                                    >
                                     <td><code>string (URL) | null</code></td>
                                 </tr>
                                 <tr>
                                     <td><code>getFileUrl(pathOrUrl)</code></td>
-                                    <td>Return a blob URL for protected files (adds auth on your behalf).</td>
-                                    <td><code>string (blob URL) | null</code></td>
+                                    <td
+                                        >Return a blob URL for protected files
+                                        (adds auth on your behalf).</td
+                                    >
+                                    <td
+                                        ><code>string (blob URL) | null</code
+                                        ></td
+                                    >
                                 </tr>
                                 <tr>
                                     <td><code>deleteFile(pathOrUrl)</code></td>
-                                    <td>Delete a previously uploaded file owned by this page.</td>
+                                    <td
+                                        >Delete a previously uploaded file owned
+                                        by this page.</td
+                                    >
                                     <td><code>boolean</code></td>
                                 </tr>
                             </tbody>
                         </table>
                         <p class="miniapp-help-note">
-                            Notes: Storage is persisted per page and scoped to this mini app. Store plain values—no JSON.stringify/parse needed. Values must be JSON-serializable; Dates become strings and BigInt is not supported.
+                            Notes: Storage is persisted per page and scoped to
+                            this mini app. Store plain values—no
+                            JSON.stringify/parse needed. Values must be
+                            JSON-serializable; Dates become strings and BigInt
+                            is not supported.
                         </p>
 
-                        <div class="miniapp-help-title" style="margin-top:0.75rem">Using Vue</div>
-                        <p>Vue 3 ESM is available via a bare import <code>'vue'</code>. No CDN needed. Mount into an element that exists in your HTML.</p>
-                                                <pre><code>// HTML
+                        <div
+                            class="miniapp-help-title"
+                            style="margin-top:0.75rem"
+                        >
+                            Using Vue
+                        </div>
+                        <p>
+                            Vue 3 ESM is available via a bare import <code
+                                >'vue'</code
+                            >. No CDN needed. Mount into an element that exists
+                            in your HTML.
+                        </p>
+                        <pre><code
+                                >// HTML
 // &lt;div id="app"&gt;&lt;/div&gt;
 
 // JS
@@ -817,11 +1035,28 @@ const App = &#123;
 
 createApp(App).mount('#app')
 </code></pre>
-                        <p class="miniapp-help-note">Tips: JS runs as a module with top-level <code>await</code> allowed. Keep imports to 'vue' and your own modules only.</p>
+                        <p class="miniapp-help-note">
+                            Tips: JS runs as a module with top-level <code
+                                >await</code
+                            > allowed. Keep imports to 'vue' and your own modules
+                            only.
+                        </p>
 
-                        <div class="miniapp-help-title" style="margin-top:0.75rem">Modules</div>
-                        <p>Add extra JS files from the Modules tab. Filenames must be flat (no folders) and end with <code>.js</code> (e.g., <code>utils.js</code>).</p>
-                        <pre><code>// In utils.js
+                        <div
+                            class="miniapp-help-title"
+                            style="margin-top:0.75rem"
+                        >
+                            Modules
+                        </div>
+                        <p>
+                            Add extra JS files from the Modules tab. Filenames
+                            must be flat (no folders) and end with <code
+                                >.js</code
+                            >
+                            (e.g., <code>utils.js</code>).
+                        </p>
+                        <pre><code
+                                >// In utils.js
 export function sum(a, b) &#123; return a + b &#125;
 
 // In main JS
@@ -830,16 +1065,29 @@ import &#123; sum &#125; from './utils.js'
 document.getElementById('result').textContent = sum(2, 3)
 </code></pre>
                         <ul>
-                            <li>Import using <code>'./filename.js'</code>. The editor maps these under the hood.</li>
-                            <li>Keep modules simple and self-contained. No network imports or folders.</li>
-                            <li>Rename/delete modules from the Modules list; update your imports accordingly.</li>
+                            <li>
+                                Import using <code>'./filename.js'</code>. The
+                                editor maps these under the hood.
+                            </li>
+                            <li>
+                                Keep modules simple and self-contained. No
+                                network imports or folders.
+                            </li>
+                            <li>
+                                Rename/delete modules from the Modules list;
+                                update your imports accordingly.
+                            </li>
                         </ul>
                     </div>
                 </div>
             {/if}
             {#if showData}
                 <div style="margin-top: 0.5rem;"></div>
-                <DataViewer {kv} readOnly={readOnlyMode} on:clearData={clearData} />
+                <DataViewer
+                    {kv}
+                    readOnly={readOnlyMode}
+                    on:clearData={clearData}
+                />
             {/if}
             <div class="panes">
                 <MiniAppEditors
@@ -852,8 +1100,11 @@ document.getElementById('result').textContent = sum(2, 3)
                     {jsKey}
                     {modulesKey}
                     {selectedModuleIndex}
-                    on:tabChange={(e) => activeTab = e.detail}
-                    on:fileInput={(e) => handleEditorInput(e.detail.kind, { target: { value: e.detail.value } })}
+                    on:tabChange={(e) => (activeTab = e.detail)}
+                    on:fileInput={(e) =>
+                        handleEditorInput(e.detail.kind, {
+                            target: { value: e.detail.value },
+                        })}
                     on:moduleAdd={(e) => addModule(e.detail && e.detail.name)}
                     on:moduleRename={(e) => renameModule(e.detail.index)}
                     on:moduleDelete={(e) => deleteModule(e.detail.index)}
@@ -862,24 +1113,34 @@ document.getElementById('result').textContent = sum(2, 3)
                         const { index, code } = e.detail
                         if (readOnlyMode) return
                         if (index < 0 || index >= modules.length) return
-                        modules = modules.map((m, i) => i === index ? { ...m, code } : m)
+                        modules = modules.map((m, i) =>
+                            i === index ? { ...m, code } : m,
+                        )
                         if (autoBuild) buildAndRunDebounced()
                         savePageContent()
                     }}
                 />
                 <div class="miniapp-frame pos-r" aria-busy={!contentReady}>
                     {#if !contentReady}
-                        <div class="loading-overlay" role="status" aria-live="polite">
+                        <div
+                            class="loading-overlay"
+                            role="status"
+                            aria-live="polite"
+                        >
                             <div class="spinner" aria-hidden="true"></div>
                             <div>Loading mini app…</div>
                         </div>
                     {/if}
-                    <iframe title="Mini App" sandbox="allow-scripts allow-modals allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox" bind:this={iframe}></iframe>
+                    <iframe
+                        title="Mini App"
+                        sandbox="allow-scripts allow-modals allow-downloads allow-forms allow-popups allow-popups-to-escape-sandbox"
+                        bind:this={iframe}
+                    ></iframe>
                 </div>
             </div>
             <AIChatPanel
                 open={aiOpen}
-                on:close={() => aiOpen = false}
+                on:close={() => (aiOpen = false)}
                 on:apply={handleAIApply}
                 initialContext={aiSystemPrompt}
                 codeContext={{ ...files, modules }}
@@ -909,7 +1170,9 @@ document.getElementById('result').textContent = sum(2, 3)
     gap: 0.5rem;
 }
 
-.toolbar .spacer { flex: 1; }
+.toolbar .spacer {
+    flex: 1;
+}
 .toolbar .linklike {
     background: none;
     border: none;
@@ -948,7 +1211,6 @@ iframe {
     position: relative;
 }
 
-
 .miniapp-help {
     margin: 0.25rem 0 0.5rem;
     border: 1px solid #d0d7de;
@@ -974,7 +1236,11 @@ iframe {
     border-radius: 4px;
     overflow: auto;
 }
-.miniapp-help code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+.miniapp-help code {
+    font-family:
+        ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        'Liberation Mono', 'Courier New', monospace;
+}
 
 .miniapp-methods {
     width: auto;
@@ -1020,6 +1286,8 @@ iframe {
     animation: spin 1s linear infinite;
 }
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 </style>

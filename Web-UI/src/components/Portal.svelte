@@ -13,7 +13,6 @@ onMount(() => {
 onDestroy(() => {
     document.body.removeChild(portal)
 })
-
 </script>
 
 <div class="portal-clone">

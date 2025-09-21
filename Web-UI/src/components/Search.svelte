@@ -7,7 +7,7 @@ import fetchPlus from '../helpers/fetchPlus.js'
 let isModalOpen = false
 let query = ''
 let results = []
-let highlightedIndex = -1;
+let highlightedIndex = -1
 
 $: fetchResults(query)
 
@@ -31,14 +31,19 @@ function handleKeyDown(event) {
         highlightedIndex = (highlightedIndex + 1) % results.length
     } else if (isModalOpen && event.key === 'ArrowUp') {
         event.preventDefault()
-        highlightedIndex = (highlightedIndex - 1 + results.length) % results.length
-    } else if (isModalOpen && event.key === 'Enter' && highlightedIndex !== -1) {
+        highlightedIndex =
+            (highlightedIndex - 1 + results.length) % results.length
+    } else if (
+        isModalOpen &&
+        event.key === 'Enter' &&
+        highlightedIndex !== -1
+    ) {
         event.preventDefault()
         navigate()
     }
 }
 
-function navigate(event=null) {
+function navigate(event = null) {
     if (event) {
         event.preventDefault()
     }
@@ -70,31 +75,44 @@ onMount(() => {
 </script>
 
 <div>
-{#if isModalOpen}
-    <Modal on:close-modal={() => closeModal()}>
-        <div style="width: 420px; height: 250px; display: grid; align-content: flex-start;">
-            <div>
-                <input type="text" bind:value={query} style="width: 100%" autofocus>
+    {#if isModalOpen}
+        <Modal on:close-modal={() => closeModal()}>
+            <div
+                style="width: 420px; height: 250px; display: grid; align-content: flex-start;"
+            >
+                <div>
+                    <input
+                        type="text"
+                        bind:value={query}
+                        style="width: 100%"
+                        autofocus
+                    />
+                </div>
+                <div style="margin-top: 0.5rem; overflow: auto;">
+                    {#if query.length === 0}
+                        <div style="margin-top: 0.5rem; text-align: center;">
+                            Start typing to search
+                        </div>
+                    {/if}
+                    {#each results as result, resultIndex}
+                        <a
+                            class="result"
+                            class:selected={resultIndex === highlightedIndex}
+                            on:mouseover={() =>
+                                (highlightedIndex = resultIndex)}
+                            href={`/page/${result.id}`}
+                            on:click={navigate}
+                        >
+                            <div>{result.name}</div>
+                            <div style="color: darkgrey;">
+                                {result.notebook_name} > {result.section_name}
+                            </div>
+                        </a>
+                    {/each}
+                </div>
             </div>
-            <div style="margin-top: 0.5rem; overflow: auto;">
-                {#if query.length === 0}
-                    <div style="margin-top: 0.5rem; text-align: center;">Start typing to search</div>
-                {/if}
-                {#each results as result, resultIndex}
-                    <a
-                        class="result"
-                        class:selected={resultIndex === highlightedIndex} on:mouseover={() => highlightedIndex = resultIndex}
-                        href="{`/page/${result.id}`}"
-                        on:click={navigate}
-                    >
-                        <div>{result.name}</div>
-                        <div style="color: darkgrey;">{result.notebook_name} > {result.section_name}</div>
-                    </a>
-                {/each}
-            </div>
-        </div>
-    </Modal>
-{/if}
+        </Modal>
+    {/if}
 </div>
 
 <style>
@@ -106,7 +124,8 @@ onMount(() => {
     color: inherit;
 }
 
-.result:hover, .result.selected  {
+.result:hover,
+.result.selected {
     background-color: #f0f0f0;
 }
 </style>

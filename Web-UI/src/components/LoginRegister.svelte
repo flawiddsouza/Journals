@@ -14,38 +14,42 @@ let registerPassword = ''
 let error = ''
 
 function login() {
-    fetchPlus.post('/login', {
-        username: loginUsername,
-        password: loginPassword,
-        duration: loginDuration
-    }).then(response => {
-        if(response.hasOwnProperty('error')) {
-            error = response.error
-        } else {
-            if(loginDuration === 'Permanent') {
-                localStorage.setItem('password', loginPassword)
+    fetchPlus
+        .post('/login', {
+            username: loginUsername,
+            password: loginPassword,
+            duration: loginDuration,
+        })
+        .then((response) => {
+            if (response.hasOwnProperty('error')) {
+                error = response.error
+            } else {
+                if (loginDuration === 'Permanent') {
+                    localStorage.setItem('password', loginPassword)
+                }
+                localStorage.setItem('username', loginUsername)
+                localStorage.setItem('token', response.token)
+                location.reload()
             }
-            localStorage.setItem('username', loginUsername)
-            localStorage.setItem('token', response.token)
-            location.reload()
-        }
-    })
+        })
 }
 
 function register() {
-    fetchPlus.post('/register', {
-        username: registerUsername,
-        password: registerPassword
-    }).then(response => {
-        if(response.hasOwnProperty('error')) {
-            error = response.error
-        } else {
-            type = 'login'
-            registerUsername = ''
-            registerPassword = ''
-            alert('Registered Successfully!')
-        }
-    })
+    fetchPlus
+        .post('/register', {
+            username: registerUsername,
+            password: registerPassword,
+        })
+        .then((response) => {
+            if (response.hasOwnProperty('error')) {
+                error = response.error
+            } else {
+                type = 'login'
+                registerUsername = ''
+                registerPassword = ''
+                alert('Registered Successfully!')
+            }
+        })
 }
 
 let accounts = localStorage.getItem('accounts')
@@ -64,20 +68,39 @@ function switchAccount() {
 <div class="container">
     <div class="box">
         <div class="ta-c mb-1em">
-            <a href="#login" on:click|preventDefault={() => type = 'login'}>Login</a> | <a href="#register" on:click|preventDefault={() => type = 'register'}>Register</a>
+            <a href="#login" on:click|preventDefault={() => (type = 'login')}
+                >Login</a
+            >
+            |
+            <a
+                href="#register"
+                on:click|preventDefault={() => (type = 'register')}>Register</a
+            >
         </div>
         {#if type === 'login'}
             <h1 class="ta-c">Login</h1>
             <form on:submit|preventDefault={login}>
                 <label>
-                    Username:<br>
-                    <input type="text" required bind:value={loginUsername} class="w-100p" use:focus>
+                    Username:<br />
+                    <input
+                        type="text"
+                        required
+                        bind:value={loginUsername}
+                        class="w-100p"
+                        use:focus
+                    />
                 </label>
                 <label class="mt-0_5em">
-                    Password:<br>
-                    <input type="password" required bind:value={loginPassword} class="w-100p">
+                    Password:<br />
+                    <input
+                        type="password"
+                        required
+                        bind:value={loginPassword}
+                        class="w-100p"
+                    />
                 </label>
-                <label class="mt-0_5em">Login Duration:<br>
+                <label class="mt-0_5em"
+                    >Login Duration:<br />
                     <select bind:value={loginDuration} class="w-100p">
                         <option>30 Minutes</option>
                         <option>9 Hours</option>
@@ -90,12 +113,21 @@ function switchAccount() {
             <h1 class="ta-c">Register</h1>
             <form on:submit|preventDefault={register}>
                 <label>
-                    Username:<br>
-                    <input type="text" required bind:value={registerUsername} use:focus>
+                    Username:<br />
+                    <input
+                        type="text"
+                        required
+                        bind:value={registerUsername}
+                        use:focus
+                    />
                 </label>
                 <label class="mt-0_5em">
-                    Password:<br>
-                    <input type="password" required bind:value={registerPassword}>
+                    Password:<br />
+                    <input
+                        type="password"
+                        required
+                        bind:value={registerPassword}
+                    />
                 </label>
                 <button class="mt-1em w-100p">Register</button>
             </form>
@@ -114,7 +146,9 @@ function switchAccount() {
                             <option value={index}>{account.username}</option>
                         {/each}
                     </select>
-                    <button style="margin-left: 0.5em;" on:click={switchAccount}>Switch</button>
+                    <button style="margin-left: 0.5em;" on:click={switchAccount}
+                        >Switch</button
+                    >
                 </div>
             </div>
         {/if}

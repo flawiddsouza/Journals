@@ -19,14 +19,14 @@ export let viewOnly = null
 
 let viewOnlyComputed = null
 
-$: if(activePage) {
-    if(viewOnly === null) {
+$: if (activePage) {
+    if (viewOnly === null) {
         viewOnlyComputed = activePage.view_only
     }
 }
 
-$: if(viewOnly !== null) {
-    if(viewOnly === false) {
+$: if (viewOnly !== null) {
+    if (viewOnly === false) {
         viewOnlyComputed = activePage.view_only
     } else {
         viewOnlyComputed = true
@@ -34,7 +34,7 @@ $: if(viewOnly !== null) {
 }
 
 function makeContentEditableSingleLine(e) {
-    if(e.key.toLowerCase() === 'enter')  {
+    if (e.key.toLowerCase() === 'enter') {
         e.preventDefault()
     }
 
@@ -42,44 +42,71 @@ function makeContentEditableSingleLine(e) {
 }
 </script>
 
-<main class="journal-page {className} {`PageType-${activePage.type}`}" style="display: grid; grid-template-rows: auto 1fr; overflow: auto;">
+<main
+    class="journal-page {className} {`PageType-${activePage.type}`}"
+    style="display: grid; grid-template-rows: auto 1fr; overflow: auto;"
+>
     {#if activePage.id !== undefined && activePage.id !== null && activePage.locked === false}
-        <div style="{activePage.type === 'RichText' ? 'margin-left: 4.5rem;' : ''}">
+        <div
+            style={activePage.type === 'RichText' ? 'margin-left: 4.5rem;' : ''}
+        >
             {#if viewOnlyComputed}
-                <h1 class="journal-page-title" style="margin-bottom: 0">{activePage.name}</h1>
+                <h1 class="journal-page-title" style="margin-bottom: 0">
+                    {activePage.name}
+                </h1>
             {:else}
-                <h1 class="journal-page-title" contenteditable on:keydown={makeContentEditableSingleLine} spellcheck="false" on:input={updatePageName} style="margin-bottom: 0">
+                <h1
+                    class="journal-page-title"
+                    contenteditable
+                    on:keydown={makeContentEditableSingleLine}
+                    spellcheck="false"
+                    on:input={updatePageName}
+                    style="margin-bottom: 0"
+                >
                     {activePage.name}
                 </h1>
             {/if}
-            <time style="font-size: 10px; color: darkgrey;">{format(activePage.created_at + 'Z', 'DD-MM-YYYY hh:mm A')}</time>
+            <time style="font-size: 10px; color: darkgrey;"
+                >{format(
+                    activePage.created_at + 'Z',
+                    'DD-MM-YYYY hh:mm A',
+                )}</time
+            >
         </div>
         <div class="journal-page-entries">
             {#if activePage.type === 'Table'}
                 <Table
                     bind:pageId={activePage.id}
-                    style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                    style="font-size: {activePage.font_size ||
+                        '14'}{activePage.font_size_unit ||
+                        'px'}; font-family: {activePage.font || 'Ubuntu'}"
                     bind:viewOnly={viewOnlyComputed}
                 ></Table>
             {/if}
             {#if activePage.type === 'FlatPage'}
                 <FlatPage
                     bind:pageId={activePage.id}
-                    style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                    style="font-size: {activePage.font_size ||
+                        '14'}{activePage.font_size_unit ||
+                        'px'}; font-family: {activePage.font || 'Ubuntu'}"
                     bind:viewOnly={viewOnlyComputed}
                 ></FlatPage>
             {/if}
             {#if activePage.type === 'FlatPageV2'}
                 <FlatPageV2
                     bind:pageId={activePage.id}
-                    style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                    style="font-size: {activePage.font_size ||
+                        '14'}{activePage.font_size_unit ||
+                        'px'}; font-family: {activePage.font || 'Ubuntu'}"
                     bind:viewOnly={viewOnlyComputed}
                 ></FlatPageV2>
             {/if}
             {#if activePage.type === 'RichText'}
                 <RichText
                     bind:pageId={activePage.id}
-                    style="font-size: {activePage.font_size || '14'}{activePage.font_size_unit || 'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                    style="font-size: {activePage.font_size ||
+                        '14'}{activePage.font_size_unit ||
+                        'px'}; font-family: {activePage.font || 'Ubuntu'}"
                     bind:viewOnly={viewOnlyComputed}
                 ></RichText>
             {/if}

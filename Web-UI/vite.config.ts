@@ -12,8 +12,8 @@ const pagePathRewriteMiddleware = {
             }
             next()
         })
-    }
-  }
+    },
+}
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -26,10 +26,10 @@ export default defineConfig({
                 {
                     src: 'node_modules/vue/dist/vue.esm-browser.prod.js',
                     dest: 'libs/vue@3.x',
-                    rename: 'vue.esm-browser.prod.js'
-                }
-            ]
-        })
+                    rename: 'vue.esm-browser.prod.js',
+                },
+            ],
+        }),
     ],
     publicDir: 'public-assets',
     build: {

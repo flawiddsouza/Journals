@@ -6,7 +6,7 @@ export let style = ''
 
 let pageContent = ''
 
-$: if(pageContentOverride !== undefined) {
+$: if (pageContentOverride !== undefined) {
     pageContent = pageContentOverride
 }
 
@@ -18,8 +18,8 @@ let pageContainer
 let loaded = false
 
 function fetchPage(pageId) {
-    if(pageId) {
-        fetchPlus.get(`/pages/content/${pageId}`).then(response => {
+    if (pageId) {
+        fetchPlus.get(`/pages/content/${pageId}`).then((response) => {
             pageContent = JSON.parse(response.content)
             loaded = true
         })
@@ -28,12 +28,14 @@ function fetchPage(pageId) {
 
 import debounce from '../../helpers/debounce.js'
 
-const savePageContent = debounce(function() {
-    fetchPlus.put(`/pages/${pageId}`, {
-        pageContent: JSON.stringify(pageContent)
-    }).catch(() => {
-        alert('Page Save Failed')
-    })
+const savePageContent = debounce(function () {
+    fetchPlus
+        .put(`/pages/${pageId}`, {
+            pageContent: JSON.stringify(pageContent),
+        })
+        .catch(() => {
+            alert('Page Save Failed')
+        })
 }, 500)
 
 let showInsertFileModal = false
@@ -43,19 +45,23 @@ let savedCursorPosition = null
 import { baseURL } from '../../../config.js'
 
 function handlePaste(event) {
-    var items = (event.clipboardData  || event.originalEvent.clipboardData).items
+    var items = (event.clipboardData || event.originalEvent.clipboardData).items
     // find pasted image among pasted items
     var blob = null
-    for(var i = 0; i < items.length; i++) {
-        if(items[i].type.indexOf('image') === 0) {
+    for (var i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') === 0) {
             blob = items[i].getAsFile()
         }
     }
     // load image if there is a pasted image
-    if(blob !== null) {
+    if (blob !== null) {
         event.preventDefault()
 
-        document.execCommand('insertHTML', false, `<img class="upload-image-loader" style="max-width: 100%" src="/images/loader-rainbow-dog.gif">`)
+        document.execCommand(
+            'insertHTML',
+            false,
+            `<img class="upload-image-loader" style="max-width: 100%" src="/images/loader-rainbow-dog.gif">`,
+        )
 
         var data = new FormData()
         data.append('image', blob)
@@ -63,27 +69,43 @@ function handlePaste(event) {
         fetch(`${baseURL}/upload-image/${pageId}`, {
             method: 'POST',
             body: data,
-            headers: { 'Token': localStorage.getItem('token') },
-            credentials: 'include'
-        }).then(response => response.json()).then(response => {
-            document.querySelector('.upload-image-loader').remove()
-            document.execCommand('insertHTML', false, `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`)
+            headers: { Token: localStorage.getItem('token') },
+            credentials: 'include',
         })
+            .then((response) => response.json())
+            .then((response) => {
+                document.querySelector('.upload-image-loader').remove()
+                document.execCommand(
+                    'insertHTML',
+                    false,
+                    `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`,
+                )
+            })
     }
 
     // on a plain text paste, detect links, show confirmation and if yes, convert the
     // detected links to links before the pasted text is inserted into the page
-    if(event.clipboardData.types.includes('text/plain')) {
+    if (event.clipboardData.types.includes('text/plain')) {
         const text = event.clipboardData.getData('text/plain')
         const linksRegex = /(https?:\/\/[^\s]+)/g
         const links = text.match(linksRegex)
         if (links && links.length > 0) {
-            if(confirm(`Do you want to convert ${links.length} links to clickable links?`)) {
+            if (
+                confirm(
+                    `Do you want to convert ${links.length} links to clickable links?`,
+                )
+            ) {
                 event.preventDefault()
 
-                let html = text.split('\n').map(line => {
-                    return line.replace(linksRegex, '<a href="$1" target="_blank" contenteditable="false">$1</a>')
-                }).join('<br>')
+                let html = text
+                    .split('\n')
+                    .map((line) => {
+                        return line.replace(
+                            linksRegex,
+                            '<a href="$1" target="_blank" contenteditable="false">$1</a>',
+                        )
+                    })
+                    .join('<br>')
 
                 if (text.endsWith('\n')) {
                     html += '<br>'
@@ -118,7 +140,11 @@ const extensions = [
             return [{ tag: 'div' }]
         },
         renderHTML({ HTMLAttributes }) {
-            return ['div', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+            return [
+                'div',
+                mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+                0,
+            ]
         },
     }),
 ]
@@ -144,12 +170,15 @@ function pageContainerMounted(element) {
             // From: https://github.com/bluesky-social/social-app/pull/6658/files
             clipboardTextParser(text, context) {
                 const blocks = text.split(/(?:\r\n?|\n)/)
-                const nodes = blocks.map(line => {
+                const nodes = blocks.map((line) => {
                     return Node.fromJSON(
-                    context.doc.type.schema,
-                    line.length > 0
-                        ? {type: 'paragraph', content: [{type: 'text', text: line}]}
-                        : {type: 'paragraph', content: []},
+                        context.doc.type.schema,
+                        line.length > 0
+                            ? {
+                                  type: 'paragraph',
+                                  content: [{ type: 'text', text: line }],
+                              }
+                            : { type: 'paragraph', content: [] },
                     )
                 })
 
@@ -161,11 +190,15 @@ function pageContainerMounted(element) {
 
     editor.commands.focus('end')
 
-    const scrollContainerParent = document.querySelector('main.journal-page > .journal-page-entries .ProseMirror')
+    const scrollContainerParent = document.querySelector(
+        'main.journal-page > .journal-page-entries .ProseMirror',
+    )
 
-    let scrollContainer = scrollContainerParent?.querySelector('div > main.journal-page > .journal-page-entries .ProseMirror')
+    let scrollContainer = scrollContainerParent?.querySelector(
+        'div > main.journal-page > .journal-page-entries .ProseMirror',
+    )
 
-    if(!scrollContainer) {
+    if (!scrollContainer) {
         scrollContainer = scrollContainerParent
     }
 
@@ -214,21 +247,25 @@ function pageContainerMounted(element) {
 function getPageContentHTML() {
     const pageContentCopy = JSON.parse(JSON.stringify(pageContent))
 
-    pageContentCopy.content.forEach(block => {
-        if('content' in block) {
+    pageContentCopy.content.forEach((block) => {
+        if ('content' in block) {
             const hardBreakIndexes = []
 
             block.content?.forEach((content, index) => {
-                if(content.type === 'hardBreak') {
+                if (content.type === 'hardBreak') {
                     hardBreakIndexes.push(index)
                 }
             })
 
-            if(hardBreakIndexes.length > 0) {
-                block.content.splice(hardBreakIndexes[hardBreakIndexes.length - 1],  0, { type: 'hardBreak' })
+            if (hardBreakIndexes.length > 0) {
+                block.content.splice(
+                    hardBreakIndexes[hardBreakIndexes.length - 1],
+                    0,
+                    { type: 'hardBreak' },
+                )
             }
         } else {
-            if(block.type === 'paragraph') {
+            if (block.type === 'paragraph') {
                 block.content = [{ type: 'hardBreak' }]
             }
         }
@@ -255,21 +292,28 @@ import { Fragment, Node, Slice } from '@tiptap/pm/model'
 
 {#if pageContentOverride === undefined && viewOnly === false}
     {#if loaded === false}
-        <div class="page-container" style="{style}">Loading...</div>
+        <div class="page-container" {style}>Loading...</div>
     {:else}
-        <div class="page-container" spellcheck="false" style="{style}" use:pageContainerMounted></div>
+        <div
+            class="page-container"
+            spellcheck="false"
+            {style}
+            use:pageContainerMounted
+        ></div>
     {/if}
 {:else}
-    <div class="page-container view-only" style="{style}">{@html pageContentParsed}</div>
+    <div class="page-container view-only" {style}>
+        {@html pageContentParsed}
+    </div>
 {/if}
 
 {#if showInsertFileModal}
     <InsertFileModal
-        bind:pageId={pageId}
-        bind:savedCursorPosition={savedCursorPosition}
+        bind:pageId
+        bind:savedCursorPosition
         bind:contentEditableDivToFocus={pageContainer}
-        bind:insertFileModalLinkLabel={insertFileModalLinkLabel}
-        bind:showInsertFileModal={showInsertFileModal}
+        bind:insertFileModalLinkLabel
+        bind:showInsertFileModal
     ></InsertFileModal>
 {/if}
 

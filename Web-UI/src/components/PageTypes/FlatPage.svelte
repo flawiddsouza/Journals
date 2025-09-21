@@ -6,7 +6,7 @@ export let style = ''
 
 let pageContent = ''
 
-$: if(pageContentOverride !== undefined) {
+$: if (pageContentOverride !== undefined) {
     pageContent = pageContentOverride
 }
 
@@ -20,28 +20,35 @@ import { tick } from 'svelte'
 let loaded = false
 
 function fetchPage(pageId) {
-    if(pageId) {
-        fetchPlus.get(`/pages/content/${pageId}`).then(response => {
+    if (pageId) {
+        fetchPlus.get(`/pages/content/${pageId}`).then((response) => {
             pageContent = response.content
             loaded = true
-            if(!viewOnly) {
+            if (!viewOnly) {
                 tick().then(() => {
                     pageContainer.focus()
                     document.execCommand('selectAll', false, null)
                     try {
                         document.getSelection().collapseToEnd()
-                    } catch(e) {}
+                    } catch (e) {}
 
-                    const scrollContainerParent = document.querySelector('main.journal-page > .journal-page-entries')
+                    const scrollContainerParent = document.querySelector(
+                        'main.journal-page > .journal-page-entries',
+                    )
 
-                    let scrollContainer = scrollContainerParent?.querySelector('div > main.journal-page > .journal-page-entries')
+                    let scrollContainer = scrollContainerParent?.querySelector(
+                        'div > main.journal-page > .journal-page-entries',
+                    )
 
-                    if(!scrollContainer) {
+                    if (!scrollContainer) {
                         scrollContainer = scrollContainerParent
                     }
 
-                    const paddingBottom = 5.4 * parseFloat(getComputedStyle(scrollContainer).fontSize)
-                    scrollContainer.scrollTop = scrollContainer.scrollHeight + paddingBottom
+                    const paddingBottom =
+                        5.4 *
+                        parseFloat(getComputedStyle(scrollContainer).fontSize)
+                    scrollContainer.scrollTop =
+                        scrollContainer.scrollHeight + paddingBottom
                 })
             }
         })
@@ -50,12 +57,14 @@ function fetchPage(pageId) {
 
 import debounce from '../../helpers/debounce.js'
 
-const savePageContent = debounce(function() {
-    fetchPlus.put(`/pages/${pageId}`, {
-        pageContent
-    }).catch(() => {
-        alert('Page Save Failed')
-    })
+const savePageContent = debounce(function () {
+    fetchPlus
+        .put(`/pages/${pageId}`, {
+            pageContent,
+        })
+        .catch(() => {
+            alert('Page Save Failed')
+        })
 }, 500)
 
 import defaultKeydownHandlerForContentEditableArea from '../../helpers/defaultKeydownHandlerForContentEditableArea.js'
@@ -64,14 +73,14 @@ function handleKeysInPageContainer(e) {
     defaultKeydownHandlerForContentEditableArea(e)
     saveCursorPosition()
 
-    if(e.ctrlKey && e.key.toLowerCase() === 'i') {
+    if (e.ctrlKey && e.key.toLowerCase() === 'i') {
         e.preventDefault()
         insertFileModalLinkLabel = window.getSelection().toString() // prefill selected text, so that you can convert selected text to a link to an upload file
         showInsertFileModal = true
     }
 
     // add 4 spaces when pressing tab instead of its default behavior
-    if(e.key === 'Tab') {
+    if (e.key === 'Tab') {
         e.preventDefault()
         document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;')
     }
@@ -90,19 +99,23 @@ function focus(element) {
 import { baseURL } from '../../../config.js'
 
 function handlePaste(event) {
-    var items = (event.clipboardData  || event.originalEvent.clipboardData).items
+    var items = (event.clipboardData || event.originalEvent.clipboardData).items
     // find pasted image among pasted items
     var blob = null
-    for(var i = 0; i < items.length; i++) {
-        if(items[i].type.indexOf('image') === 0) {
+    for (var i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') === 0) {
             blob = items[i].getAsFile()
         }
     }
     // load image if there is a pasted image
-    if(blob !== null) {
+    if (blob !== null) {
         event.preventDefault()
 
-        document.execCommand('insertHTML', false, `<img class="upload-image-loader" style="max-width: 100%" src="/images/loader-rainbow-dog.gif">`)
+        document.execCommand(
+            'insertHTML',
+            false,
+            `<img class="upload-image-loader" style="max-width: 100%" src="/images/loader-rainbow-dog.gif">`,
+        )
 
         var data = new FormData()
         data.append('image', blob)
@@ -110,27 +123,43 @@ function handlePaste(event) {
         fetch(`${baseURL}/upload-image/${pageId}`, {
             method: 'POST',
             body: data,
-            headers: { 'Token': localStorage.getItem('token') },
-            credentials: 'include'
-        }).then(response => response.json()).then(response => {
-            document.querySelector('.upload-image-loader').remove()
-            document.execCommand('insertHTML', false, `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`)
+            headers: { Token: localStorage.getItem('token') },
+            credentials: 'include',
         })
+            .then((response) => response.json())
+            .then((response) => {
+                document.querySelector('.upload-image-loader').remove()
+                document.execCommand(
+                    'insertHTML',
+                    false,
+                    `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`,
+                )
+            })
     }
 
     // on a plain text paste, detect links, show confirmation and if yes, convert the
     // detected links to links before the pasted text is inserted into the page
-    if(event.clipboardData.types.includes('text/plain')) {
+    if (event.clipboardData.types.includes('text/plain')) {
         const text = event.clipboardData.getData('text/plain')
         const linksRegex = /(https?:\/\/[^\s]+)/g
         const links = text.match(linksRegex)
         if (links && links.length > 0) {
-            if(confirm(`Do you want to convert ${links.length} links to clickable links?`)) {
+            if (
+                confirm(
+                    `Do you want to convert ${links.length} links to clickable links?`,
+                )
+            ) {
                 event.preventDefault()
 
-                let html = text.split('\n').map(line => {
-                    return line.replace(linksRegex, '<a href="$1" target="_blank" contenteditable="false">$1</a>')
-                }).join('<br>')
+                let html = text
+                    .split('\n')
+                    .map((line) => {
+                        return line.replace(
+                            linksRegex,
+                            '<a href="$1" target="_blank" contenteditable="false">$1</a>',
+                        )
+                    })
+                    .join('<br>')
 
                 if (text.endsWith('\n')) {
                     html += '<br>'
@@ -155,21 +184,31 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
 
 {#if pageContentOverride === undefined && viewOnly === false}
     {#if loaded === false}
-        <div class="page-container" style="{style}">Loading...</div>
+        <div class="page-container" {style}>Loading...</div>
     {:else}
-        <div class="page-container" contenteditable bind:innerHTML={pageContent} on:keydown={(e) => handleKeysInPageContainer(e)} spellcheck="false" on:input={onInput} bind:this={pageContainer} on:paste={handlePaste} style="{style}"></div>
+        <div
+            class="page-container"
+            contenteditable
+            bind:innerHTML={pageContent}
+            on:keydown={(e) => handleKeysInPageContainer(e)}
+            spellcheck="false"
+            on:input={onInput}
+            bind:this={pageContainer}
+            on:paste={handlePaste}
+            {style}
+        ></div>
     {/if}
 {:else}
-    <div class="page-container view-only" style="{style}">{@html pageContent}</div>
+    <div class="page-container view-only" {style}>{@html pageContent}</div>
 {/if}
 
 {#if showInsertFileModal}
     <InsertFileModal
-        bind:pageId={pageId}
-        bind:savedCursorPosition={savedCursorPosition}
+        bind:pageId
+        bind:savedCursorPosition
         bind:contentEditableDivToFocus={pageContainer}
-        bind:insertFileModalLinkLabel={insertFileModalLinkLabel}
-        bind:showInsertFileModal={showInsertFileModal}
+        bind:insertFileModalLinkLabel
+        bind:showInsertFileModal
     ></InsertFileModal>
 {/if}
 
