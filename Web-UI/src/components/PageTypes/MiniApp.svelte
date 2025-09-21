@@ -11,6 +11,7 @@ import { onMount, tick } from 'svelte'
 import { eventStore } from '../../stores.js'
 
 import 'code-mirror-custom-element'
+import MiniAppEditors from '../MiniAppEditors.svelte'
 import AIChatPanel from '../../components/AIChatPanel.svelte'
 import DataViewer from '../../components/DataViewer.svelte'
 import { baseURL } from '../../../config.js'
@@ -28,8 +29,81 @@ let activeTab = 'html'
 let htmlKey = 0
 let cssKey = 0
 let jsKey = 0
+let modulesKey = 0
 // Derived flag to unify read-only conditions
 $: readOnlyMode = viewOnly || pageContentOverride !== undefined
+
+// JS-only flat modules (no folders). Each: { name: string, code: string }
+let modules = []
+let selectedModuleIndex = -1
+const MAX_MODULES = 12
+
+function validModuleName(name) {
+    return typeof name === 'string'
+        && name.endsWith('.js')
+        && !name.includes('/')
+        && name.trim().length > 0
+}
+
+function addModule(name) {
+    if (readOnlyMode) return
+    if (modules.length >= MAX_MODULES) return alert(`Limit ${MAX_MODULES} modules`)
+    const names = new Set(modules.map(m => m.name))
+    let filename = (name || '').trim()
+    if (!filename) return alert('Please provide a filename like utils.js')
+    // Ensure .js and simple filename (no folders)
+    if (!filename.toLowerCase().endsWith('.js')) filename += '.js'
+    if (!validModuleName(filename)) return alert('Invalid name. Use something like utils.js (no /).')
+    if (names.has(filename)) return alert(`A module named "${filename}" already exists.`)
+
+    modules = [...modules, { name: filename, code: `` }]
+    selectedModuleIndex = modules.length - 1
+    modulesKey++
+    buildAndRunDebounced()
+    savePageContent()
+}
+
+function renameModule(index) {
+    if (readOnlyMode) return
+    if (index < 0 || index >= modules.length) return
+    const current = modules[index]
+    const next = prompt('Rename module (must end with .js, no folders):', current.name)
+    if (!next || next === current.name) return
+    if (!validModuleName(next)) return alert('Invalid name. Use something like utils.js (no /).')
+    if (modules.some((m, i) => i !== index && m.name === next)) return alert('A module with this name already exists.')
+    modules = modules.map((m, i) => i === index ? { ...m, name: next } : m)
+    modulesKey++
+    buildAndRunDebounced()
+    savePageContent()
+}
+
+function deleteModule(index) {
+    if (readOnlyMode) return
+    if (index < 0 || index >= modules.length) return
+    const m = modules[index]
+    if (!confirm(`Delete module ${m.name}?`)) return
+    const arr = modules.slice()
+    arr.splice(index, 1)
+    modules = arr
+    if (selectedModuleIndex === index) selectedModuleIndex = -1
+    else if (selectedModuleIndex > index) selectedModuleIndex--
+    modulesKey++
+    buildAndRunDebounced()
+    savePageContent()
+}
+
+function onModuleSelect(index) {
+    selectedModuleIndex = index
+}
+
+function handleModuleInput(e) {
+    if (readOnlyMode) return
+    if (selectedModuleIndex < 0 || selectedModuleIndex >= modules.length) return
+    const code = e.target.value
+    modules = modules.map((m, i) => i === selectedModuleIndex ? { ...m, code } : m)
+    if (autoBuild) buildAndRunDebounced()
+    savePageContent()
+}
 
 // Ensure only one of the info panels is open at a time
 function togglePanel(panel) {
@@ -45,7 +119,7 @@ function togglePanel(panel) {
 }
 
 // Tabs keyboard support (Left/Right arrows)
-const tabOrder = ['html', 'css', 'js']
+const tabOrder = ['html', 'css', 'js', 'modules']
 function onTabKeydown(e) {
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         const idx = tabOrder.indexOf(activeTab)
@@ -66,6 +140,7 @@ const aiSystemPrompt = `You are an assistant that generates or edits small, self
 - Persistent storage is available via a global async object Journals with methods: getItem(key), setItem(key, value), removeItem(key), clear(), keys(); plus file helpers: upload(file[, filename?]) and getFileUrl(pathOrUrl). All return Promises.
 - Storage semantics: getItem/setItem accept and return JSON-serializable values via structured clone over postMessage. Do NOT JSON.stringify or JSON.parse; pass plain objects/arrays/primitives. Avoid functions, symbols, DOM nodes, and BigInt. Dates will be stored as strings.
  - You may use ESM imports for whitelisted libraries via an import map. For example, Vue is available as: import { createApp, ref, onMounted } from 'vue'.
+ - You may import user modules via relative paths to flat files (JS only): import x from './utils.js'. The editor rewrites these to work in the sandbox.
  - No external network resources or CDNs. Only bare specifiers provided by the import map are allowed (e.g., 'vue'). No relative/absolute URLs in import.
 
  Uploads:
@@ -79,6 +154,11 @@ const aiSystemPrompt = `You are an assistant that generates or edits small, self
 
  Output format (strict):
  - Reply with fenced code blocks labeled exactly: html, css, javascript. Example: \`\`\`html ...\`\`\`.
+ - To create or edit additional JS modules, include ONE extra fenced block labeled exactly: modules. Its content must be JSON with an array property "upsert" listing objects of shape { "name": "utils.js", "code": "export ..." }. Example:
+     \`\`\`modules
+     { "upsert": [ { "name": "utils.js", "code": "export const add=(a,b)=>a+b" } ] }
+     \`\`\`
+     Filenames must be flat (no folders) and end with .js. Upsert means create new or replace existing by name.
  - When editing existing code, return ONLY the blocks that need changes; omit blocks that are unchanged. For any block you include, provide the FULL updated content of that block (not a diff or patch). Keep explanations very brief, after the code.
  - JS should attach event listeners with addEventListener and can use await directly at top-level (module script). If you import from 'vue', use the ESM API.
 
@@ -128,6 +208,8 @@ document.getElementById('inc').addEventListener('click', () => set(counter + 1))
 document.getElementById('dec').addEventListener('click', () => set(counter - 1))`
 }
 let kv = {}
+// Ensure files.modules persists in payload even if undefined in older pages
+
 
 // If pageContentOverride is provided (history view), load from it and skip fetching/saving
 $: if (pageContentOverride !== undefined) {
@@ -136,6 +218,7 @@ $: if (pageContentOverride !== undefined) {
     if (parsed && parsed.files) {
         files = parsed.files
         kv = parsed.kv || {}
+        modules = (parsed.files && parsed.files.modules) ? parsed.files.modules : []
     }
     contentReady = true
     htmlKey++; cssKey++; jsKey++
@@ -159,6 +242,7 @@ function fetchPage(id) {
         if (parsed && parsed.files) {
             files = parsed.files
             kv = parsed.kv || {}
+            modules = (parsed.files && parsed.files.modules) ? parsed.files.modules : []
         }
         contentReady = true
         // External content load -> refresh editors
@@ -170,7 +254,7 @@ function fetchPage(id) {
 const savePageContent = debounce(async function () {
     // Do not save when viewing history or explicitly view-only
     if (readOnlyMode) return
-    const payload = JSON.stringify({ files, kv })
+    const payload = JSON.stringify({ files: { ...files, modules }, kv })
     try {
         await fetchPlus.put(`/pages/${pageId}`, { pageContent: payload })
     } catch (e) {
@@ -189,11 +273,31 @@ function handleEditorInput(kind, e) {
 function handleAIApply(e) {
     if (readOnlyMode) return
     const delta = e.detail || {}
-    files = { ...files, ...delta }
-    // Only refresh editors for blocks that changed
-    if ('html' in delta) htmlKey++
-    if ('css' in delta) cssKey++
-    if ('js' in delta) jsKey++
+    // Apply html/css/js edits
+    const fileDelta = {}
+    if ('html' in delta) fileDelta.html = delta.html
+    if ('css' in delta) fileDelta.css = delta.css
+    if ('js' in delta) fileDelta.js = delta.js
+    if (Object.keys(fileDelta).length) {
+        files = { ...files, ...fileDelta }
+        if ('html' in fileDelta) htmlKey++
+        if ('css' in fileDelta) cssKey++
+        if ('js' in fileDelta) jsKey++
+    }
+
+    // Handle module upserts if provided: [{ name, code }]
+    if (Array.isArray(delta.modulesUpsert) && delta.modulesUpsert.length) {
+        const byName = new Map(modules.map(m => [m.name, m]))
+        for (const item of delta.modulesUpsert) {
+            if (!item || typeof item.name !== 'string') continue
+            const name = item.name.trim()
+            if (!name || /\//.test(name) || !name.toLowerCase().endsWith('.js')) continue
+            const code = String(item.code ?? '')
+            byName.set(name, { name, code })
+        }
+        modules = Array.from(byName.values())
+        modulesKey++
+    }
     buildAndRun()
     savePageContent()
 }
@@ -299,9 +403,30 @@ function buildSrcdoc() {
 })();
 <\/script>`
 
-    // Detect if user code references 'vue' via static or dynamic import
-    const needsVue = /\bfrom\s+['\"]vue['\"]|import\s*\(\s*['\"]vue['\"]\s*\)/.test(files.js || '')
-    const userJsLiteral = JSON.stringify(files.js || '')
+    // Helper: rewrite relative imports "./name.js" to bare "name.js" for flat modules
+    function rewriteRelImports(src) {
+        if (!src) return ''
+        try {
+            // static import from
+            src = src.replace(/(import\s+[^;]*?from\s+)(['"])\.\/([^'"\n]+?\.js)\2/g, (m, p1, q, name) => `${p1}${q}${name}${q}`)
+            // export from
+            src = src.replace(/(export\s+[^;]*?from\s+)(['"])\.\/([^'"\n]+?\.js)\2/g, (m, p1, q, name) => `${p1}${q}${name}${q}`)
+            // dynamic import('...')
+            src = src.replace(/(import\s*\(\s*)(['"])\.\/([^'"\n]+?\.js)\2(\s*\))/g, (m, p1, q, name, p4) => `${p1}${q}${name}${q}${p4}`)
+        } catch (_) {}
+        return src
+    }
+
+    // Detect if any code references 'vue' via static or dynamic import
+    const needsVue = (() => {
+        const test = (s) => /\bfrom\s+['\"]vue['\"]|import\s*\(\s*['\"]vue['\"]\s*\)/.test(s || '')
+        if (test(files.js)) return true
+        for (const m of modules || []) if (test(m.code)) return true
+        return false
+    })()
+    const userJsLiteral = JSON.stringify(rewriteRelImports(files.js || ''))
+    // Prepare modules payload with rewritten code
+    const modulesPayload = JSON.stringify((modules || []).map(m => ({ name: m.name, code: rewriteRelImports(m.code || '') })))
 
     return `<!doctype html>
 <html>
@@ -316,17 +441,43 @@ function buildSrcdoc() {
     (async () => {
         try {
             const NEEDS_VUE = ${needsVue ? 'true' : 'false'};
+            const MODULES = ${modulesPayload};
             // If Vue is needed, request its ESM code from parent and set an import map to a blob URL created inside the iframe
             if (NEEDS_VUE && typeof window.__MiniAppCallLoadLibrary === 'function') {
                 const res = await window.__MiniAppCallLoadLibrary('vue');
                 if (res && res.ok && res.code) {
                     const libBlob = new Blob([res.code], { type: 'text/javascript' });
                     const libUrl = URL.createObjectURL(libBlob);
+                    // Build combined imports map (vue + modules)
+                    const imports = { vue: libUrl };
+                    for (const m of MODULES) {
+                        try {
+                            const b = new Blob([m.code || ''], { type: 'text/javascript' });
+                            const u = URL.createObjectURL(b);
+                            // Map bare filename (e.g., 'utils.js')
+                            imports[m.name] = u;
+                        } catch (_) {}
+                    }
                     const im = document.createElement('script');
                     im.type = 'importmap';
-                    im.textContent = JSON.stringify({ imports: { vue: libUrl } });
+                    im.textContent = JSON.stringify({ imports });
                     document.head.appendChild(im);
                 }
+            }
+            // If Vue isn't needed, we may still need an import map for modules
+            if (!NEEDS_VUE && Array.isArray(MODULES) && MODULES.length > 0) {
+                const imports = {};
+                for (const m of MODULES) {
+                    try {
+                        const b = new Blob([m.code || ''], { type: 'text/javascript' });
+                        const u = URL.createObjectURL(b);
+                        imports[m.name] = u;
+                    } catch (_) {}
+                }
+                const im = document.createElement('script');
+                im.type = 'importmap';
+                im.textContent = JSON.stringify({ imports });
+                document.head.appendChild(im);
             }
             // Now run the user's JS as a module so static imports work
             const userCode = ${userJsLiteral};
@@ -645,6 +796,44 @@ await Journals.deleteFile('/uploads/images/abc.png')
                         <p class="miniapp-help-note">
                             Notes: Storage is persisted per page and scoped to this mini app. Store plain values—no JSON.stringify/parse needed. Values must be JSON-serializable; Dates become strings and BigInt is not supported.
                         </p>
+
+                        <div class="miniapp-help-title" style="margin-top:0.75rem">Using Vue</div>
+                        <p>Vue 3 ESM is available via a bare import <code>'vue'</code>. No CDN needed. Mount into an element that exists in your HTML.</p>
+                                                <pre><code>// HTML
+// &lt;div id="app"&gt;&lt;/div&gt;
+
+// JS
+import &#123; createApp, ref, onMounted &#125; from 'vue'
+
+const App = &#123;
+    setup() &#123;
+        const count = ref((await Journals.getItem('count')) || 0)
+        const inc = async () =&gt; &#123; count.value++; await Journals.setItem('count', count.value) &#125;
+        onMounted(() =&gt; console.log('mounted'))
+        return &#123; count, inc &#125;
+    &#125;,
+    template: `&lt;button @click="inc" aria-label="Increment"&gt;Count: &#123;&#123; count &#125;&#125;&lt;button&gt;`
+&#125;
+
+createApp(App).mount('#app')
+</code></pre>
+                        <p class="miniapp-help-note">Tips: JS runs as a module with top-level <code>await</code> allowed. Keep imports to 'vue' and your own modules only.</p>
+
+                        <div class="miniapp-help-title" style="margin-top:0.75rem">Modules</div>
+                        <p>Add extra JS files from the Modules tab. Filenames must be flat (no folders) and end with <code>.js</code> (e.g., <code>utils.js</code>).</p>
+                        <pre><code>// In utils.js
+export function sum(a, b) &#123; return a + b &#125;
+
+// In main JS
+import &#123; sum &#125; from './utils.js'
+
+document.getElementById('result').textContent = sum(2, 3)
+</code></pre>
+                        <ul>
+                            <li>Import using <code>'./filename.js'</code>. The editor maps these under the hood.</li>
+                            <li>Keep modules simple and self-contained. No network imports or folders.</li>
+                            <li>Rename/delete modules from the Modules list; update your imports accordingly.</li>
+                        </ul>
                     </div>
                 </div>
             {/if}
@@ -653,58 +842,31 @@ await Journals.deleteFile('/uploads/images/abc.png')
                 <DataViewer {kv} readOnly={readOnlyMode} on:clearData={clearData} />
             {/if}
             <div class="panes">
-                <div class="editors">
-                    <div class="tabs" role="tablist" aria-label="Mini App editors" tabindex="0" on:keydown={onTabKeydown}>
-                        <button
-                            id="tab-html"
-                            class="tab"
-                            role="tab"
-                            aria-selected={activeTab === 'html'}
-                            aria-controls="panel-html"
-                            tabindex={activeTab === 'html' ? 0 : -1}
-                            on:click={() => (activeTab = 'html')}
-                        >HTML</button>
-                        <button
-                            id="tab-css"
-                            class="tab"
-                            role="tab"
-                            aria-selected={activeTab === 'css'}
-                            aria-controls="panel-css"
-                            tabindex={activeTab === 'css' ? 0 : -1}
-                            on:click={() => (activeTab = 'css')}
-                        >CSS</button>
-                        <button
-                            id="tab-js"
-                            class="tab"
-                            role="tab"
-                            aria-selected={activeTab === 'js'}
-                            aria-controls="panel-js"
-                            tabindex={activeTab === 'js' ? 0 : -1}
-                            on:click={() => (activeTab = 'js')}
-                        >JS</button>
-                    </div>
-                    <div class="tab-panels">
-                        {#if activeTab === 'html'}
-                            <div role="tabpanel" id="panel-html" aria-labelledby="tab-html" class="editor-panel">
-                                {#key htmlKey}
-                                    <code-mirror language="html" value={files.html} on:input={(e) => handleEditorInput('html', e)} style="border:1px solid #aaa"></code-mirror>
-                                {/key}
-                            </div>
-                        {:else if activeTab === 'css'}
-                            <div role="tabpanel" id="panel-css" aria-labelledby="tab-css" class="editor-panel">
-                                {#key cssKey}
-                                    <code-mirror language="css" value={files.css} on:input={(e) => handleEditorInput('css', e)} style="border:1px solid #aaa"></code-mirror>
-                                {/key}
-                            </div>
-                        {:else}
-                            <div role="tabpanel" id="panel-js" aria-labelledby="tab-js" class="editor-panel">
-                                {#key jsKey}
-                                    <code-mirror language="javascript" value={files.js} on:input={(e) => handleEditorInput('js', e)} style="border:1px solid #aaa"></code-mirror>
-                                {/key}
-                            </div>
-                        {/if}
-                    </div>
-                </div>
+                <MiniAppEditors
+                    {files}
+                    {modules}
+                    readOnly={readOnlyMode}
+                    {activeTab}
+                    {htmlKey}
+                    {cssKey}
+                    {jsKey}
+                    {modulesKey}
+                    {selectedModuleIndex}
+                    on:tabChange={(e) => activeTab = e.detail}
+                    on:fileInput={(e) => handleEditorInput(e.detail.kind, { target: { value: e.detail.value } })}
+                    on:moduleAdd={(e) => addModule(e.detail && e.detail.name)}
+                    on:moduleRename={(e) => renameModule(e.detail.index)}
+                    on:moduleDelete={(e) => deleteModule(e.detail.index)}
+                    on:moduleSelect={(e) => onModuleSelect(e.detail.index)}
+                    on:moduleInput={(e) => {
+                        const { index, code } = e.detail
+                        if (readOnlyMode) return
+                        if (index < 0 || index >= modules.length) return
+                        modules = modules.map((m, i) => i === index ? { ...m, code } : m)
+                        if (autoBuild) buildAndRunDebounced()
+                        savePageContent()
+                    }}
+                />
                 <div class="miniapp-frame pos-r" aria-busy={!contentReady}>
                     {#if !contentReady}
                         <div class="loading-overlay" role="status" aria-live="polite">
@@ -720,7 +882,7 @@ await Journals.deleteFile('/uploads/images/abc.png')
                 on:close={() => aiOpen = false}
                 on:apply={handleAIApply}
                 initialContext={aiSystemPrompt}
-                codeContext={files}
+                codeContext={{ ...files, modules }}
             />
         </div>
     {/if}
@@ -763,57 +925,6 @@ await Journals.deleteFile('/uploads/images/abc.png')
     gap: 0.5rem;
     height: 100%;
     overflow: hidden;
-}
-
-.editors {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-    margin-top: 1rem;
-    margin-bottom: 1rem;
-}
-
-.tabs {
-    display: flex;
-    gap: 0.25rem;
-    border-bottom: 1px solid #e5e7eb;
-}
-.tab {
-    appearance: none;
-    border: none;
-    background: none;
-    padding: 0.4rem 0.6rem;
-    margin: 0;
-    border-bottom: 2px solid transparent;
-    cursor: pointer;
-}
-.tab[aria-selected="true"] {
-    border-color: #0b65c2;
-    color: #0b65c2;
-    font-weight: 600;
-}
-.tab:focus-visible {
-    outline: 2px solid #0b65c2;
-    outline-offset: 2px;
-}
-.tab-panels {
-    position: relative;
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: hidden;
-}
-.editor-panel {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-.editor-panel code-mirror {
-    flex: 1 1 auto;
-    min-height: 0;
-    height: 100%;
 }
 
 iframe {

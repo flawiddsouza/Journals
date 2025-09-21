@@ -6,7 +6,7 @@ import Modal from './Modal.svelte'
 export let open = false
 export let initialContext = ''
 // Optional: pass current editor code so AI can propose edits
-export let codeContext = { html: '', css: '', js: '' }
+export let codeContext = { html: '', css: '', js: '', modules: [] }
 // Allow user to toggle whether to include code context in the request
 export let includeContext = true
 
@@ -201,11 +201,16 @@ async function askAI() {
             }
 
             // Inject the authoritative, current code snapshot RIGHT BEFORE the latest user prompt
-            if (includeContext && codeContext && (codeContext.html || codeContext.css || codeContext.js)) {
+            if (includeContext && codeContext && (codeContext.html || codeContext.css || codeContext.js || (Array.isArray(codeContext.modules) && codeContext.modules.length))) {
                 const parts = []
                 if (codeContext.html) parts.push('```html\n' + codeContext.html + '\n```')
                 if (codeContext.css) parts.push('```css\n' + codeContext.css + '\n```')
                 if (codeContext.js) parts.push('```javascript\n' + codeContext.js + '\n```')
+                if (Array.isArray(codeContext.modules) && codeContext.modules.length) {
+                    const upsert = codeContext.modules.map(m => ({ name: m.name, code: m.code }))
+                    const json = JSON.stringify({ upsert }, null, 2)
+                    parts.push('```modules\n' + json + '\n```')
+                }
                 chat.push({
                     role: 'system',
                     content: 'SOURCE OF TRUTH — Use ONLY the following as the current app code. Ignore any earlier code shown in this conversation. Return only the blocks that need changes, with full contents.\n\n' + parts.join('\n\n')
@@ -265,13 +270,29 @@ async function askAI() {
             updated[assistantIndex] = { role: 'assistant', content }
             // Compute diffs if code blocks present
             const extracted = extractCodeBlocks(content)
-            if (extracted.html || extracted.css || extracted.js) {
+            if (extracted.html || extracted.css || extracted.js || extracted.modules) {
+                const modulesDiffText = (() => {
+                    if (!extracted.modules) return ''
+                    try {
+                        const mod = JSON.parse(extracted.modules)
+                        const upserts = Array.isArray(mod.upsert) ? mod.upsert : []
+                        if (!upserts.length) return ''
+                        const currentIndex = new Map((codeContext.modules || []).map(m => [m.name, m.code]))
+                        const patches = upserts
+                            .filter(x => x && typeof x.name === 'string')
+                            .map(x => ({ name: String(x.name).trim(), code: String(x.code ?? '') }))
+                            .filter(x => x.name && !x.name.includes('/') && x.name.toLowerCase().endsWith('.js'))
+                            .map(x => createPatch(x.name, currentIndex.get(x.name) || '', x.code))
+                        return patches.join('\n\n')
+                    } catch { return '' }
+                })()
                 updated[assistantIndex].diffs = {
                     html: extracted.html ? createPatch('HTML', codeContext.html || '', extracted.html) : '',
                     css: extracted.css ? createPatch('CSS', codeContext.css || '', extracted.css) : '',
-                    js: extracted.js ? createPatch('JS', codeContext.js || '', extracted.js) : ''
+                    js: extracted.js ? createPatch('JS', codeContext.js || '', extracted.js) : '',
+                    modules: modulesDiffText
                 }
-                updated[assistantIndex].applied = { html: false, css: false, js: false }
+                updated[assistantIndex].applied = { html: false, css: false, js: false, modules: false }
                 // Scroll to bottom after diffs are rendered
                 tick().then(scrollToLatestDiff)
             }
@@ -318,13 +339,29 @@ async function askAI() {
         const updated = [...messages]
         const finalContent = updated[assistantIndex].content
         const extracted = extractCodeBlocks(finalContent)
-        if (extracted.html || extracted.css || extracted.js) {
+        if (extracted.html || extracted.css || extracted.js || extracted.modules) {
+            const modulesDiffText = (() => {
+                if (!extracted.modules) return ''
+                try {
+                    const mod = JSON.parse(extracted.modules)
+                    const upserts = Array.isArray(mod.upsert) ? mod.upsert : []
+                    if (!upserts.length) return ''
+                    const currentIndex = new Map((codeContext.modules || []).map(m => [m.name, m.code]))
+                    const patches = upserts
+                        .filter(x => x && typeof x.name === 'string')
+                        .map(x => ({ name: String(x.name).trim(), code: String(x.code ?? '') }))
+                        .filter(x => x.name && !x.name.includes('/') && x.name.toLowerCase().endsWith('.js'))
+                        .map(x => createPatch(x.name, currentIndex.get(x.name) || '', x.code))
+                    return patches.join('\n\n')
+                } catch { return '' }
+            })()
             updated[assistantIndex].diffs = {
                 html: extracted.html ? createPatch('HTML', codeContext.html || '', extracted.html) : '',
                 css: extracted.css ? createPatch('CSS', codeContext.css || '', extracted.css) : '',
-                js: extracted.js ? createPatch('JS', codeContext.js || '', extracted.js) : ''
+                js: extracted.js ? createPatch('JS', codeContext.js || '', extracted.js) : '',
+                modules: modulesDiffText
             }
-            updated[assistantIndex].applied = { html: false, css: false, js: false }
+            updated[assistantIndex].applied = { html: false, css: false, js: false, modules: false }
             // Scroll to bottom after diffs are rendered
             tick().then(scrollToLatestDiff)
         }
@@ -372,11 +409,11 @@ async function askAI() {
     }
 }
 
-// Extract first set of html/css/js blocks from a message content
+// Extract first set of html/css/js/modules blocks from a message content
 function extractCodeBlocks(text) {
     const re = /```(\w+)?\n([\s\S]*?)```/g
     let m
-    const out = { html: undefined, css: undefined, js: undefined, blocks: [] }
+    const out = { html: undefined, css: undefined, js: undefined, modules: undefined, blocks: [] }
     while ((m = re.exec(text))) {
         const lang = (m[1] || '').toLowerCase()
         const code = m[2]
@@ -384,6 +421,7 @@ function extractCodeBlocks(text) {
         if ((lang === 'html' || lang === 'htm') && out.html === undefined) out.html = code
         else if ((lang === 'css') && out.css === undefined) out.css = code
         else if ((lang === 'js' || lang === 'javascript' || lang === 'ts' || lang === 'typescript') && out.js === undefined) out.js = code
+        else if (lang === 'modules' && out.modules === undefined) out.modules = code
     }
     return out
 }
@@ -403,12 +441,35 @@ function parseDiff(diffText) {
         })
 }
 
-function applySelection(m, sel = { html: true, css: true, js: true }) {
+// Extract module names from a message's modules code block
+function getModuleNamesFromMessage(m) {
+    try {
+        const extracted = extractCodeBlocks(m?.content || '')
+        if (!extracted.modules) return []
+        const mod = JSON.parse(extracted.modules)
+        const upserts = Array.isArray(mod.upsert) ? mod.upsert : []
+        return upserts.map(x => (x && typeof x.name === 'string' ? x.name : null)).filter(Boolean)
+    } catch { return [] }
+}
+
+function applySelection(m, sel = { html: true, css: true, js: true, modules: true }) {
     const extracted = extractCodeBlocks(m.content)
     const delta = {}
     if (sel.html && extracted.html) delta.html = extracted.html
     if (sel.css && extracted.css) delta.css = extracted.css
     if (sel.js && extracted.js) delta.js = extracted.js
+    if (sel.modules && extracted.modules) {
+        try {
+            const mod = JSON.parse(extracted.modules)
+            if (mod && Array.isArray(mod.upsert) && mod.upsert.length) {
+                const sanitized = mod.upsert
+                    .filter(it => it && typeof it.name === 'string')
+                    .map(it => ({ name: String(it.name).trim(), code: String(it.code ?? '') }))
+                    .filter(it => it.name && !it.name.includes('/') && it.name.toLowerCase().endsWith('.js'))
+                if (sanitized.length) delta.modulesUpsert = sanitized
+            }
+        } catch {}
+    }
     if (Object.keys(delta).length === 0) return
 
     // Directly apply without confirmation
@@ -416,8 +477,15 @@ function applySelection(m, sel = { html: true, css: true, js: true }) {
     const prev = {}
     const next = {}
     for (const k of changed) {
-        prev[k] = codeContext?.[k] ?? ''
-        next[k] = delta[k]
+        if (k === 'modulesUpsert') {
+            // Capture previous code for each module being changed, so revert can restore them
+            const currentIndex = new Map((codeContext.modules || []).map(m => [m.name, m.code]))
+            prev[k] = (delta.modulesUpsert || []).map(it => ({ name: it.name, code: currentIndex.get(it.name) || '' }))
+            next[k] = delta[k]
+        } else {
+            prev[k] = codeContext?.[k] ?? ''
+            next[k] = delta[k]
+        }
     }
 
     const checkpoint = {
@@ -435,18 +503,20 @@ function applySelection(m, sel = { html: true, css: true, js: true }) {
     }
 
     // Mark applied in the message
-    if (!m.applied) m.applied = { html: false, css: false, js: false }
-    const isApplyAll = sel.html && sel.css && sel.js
+    if (!m.applied) m.applied = { html: false, css: false, js: false, modules: false }
+    const isApplyAll = sel.html && sel.css && sel.js && sel.modules
     if (isApplyAll) {
         // For Apply All, mark all as applied
-        m.applied.html = true
-        m.applied.css = true
-        m.applied.js = true
+        m.applied.html = !!extracted.html
+        m.applied.css = !!extracted.css
+        m.applied.js = !!extracted.js
+        m.applied.modules = !!extracted.modules
     } else {
         // For specific applies
         if (delta.html) m.applied.html = true
         if (delta.css) m.applied.css = true
         if (delta.js) m.applied.js = true
+        if (delta.modulesUpsert) m.applied.modules = true
     }
 
     // Find the index and reassign to trigger reactivity
@@ -483,7 +553,13 @@ function revertCheckpoint(checkpoint) {
     if (!checkpoint || checkpoint.reverted) return
     const revertDelta = {}
     for (const blockName of checkpoint.changed) {
-        revertDelta[blockName] = checkpoint.prev?.[blockName] ?? ''
+        if (blockName === 'modulesUpsert') {
+            // Build upserts to restore previous module contents
+            const prevMods = Array.isArray(checkpoint.prev?.modulesUpsert) ? checkpoint.prev.modulesUpsert : []
+            if (prevMods.length) revertDelta.modulesUpsert = prevMods.map(m => ({ name: m.name, code: m.code }))
+        } else {
+            revertDelta[blockName] = checkpoint.prev?.[blockName] ?? ''
+        }
     }
     // Mark as reverted locally
     checkpoint.reverted = true
@@ -556,7 +632,12 @@ function processContent(content, hasDiffs) {
             <div class="ai-body">
                 <div class="messages" aria-live="polite" bind:this={messagesContainer}>
                     {#if initialContext}
-                        <div class="message system">{initialContext}</div>
+                        <div class="message system">
+                            <div class="label">Prompt</div>
+                            <div class="content">
+                                <textarea class="system-prompt" bind:value={initialContext} readonly></textarea>
+                            </div>
+                        </div>
                     {/if}
                     {#each messages as m, i}
                         <div class="message {m.role} {m.type || ''}">
@@ -635,8 +716,25 @@ function processContent(content, hasDiffs) {
                                             </div>
                                         </div>
                                     {/if}
+                                    {#if m.diffs.modules}
+                                        <div class="diff-section">
+                                            <div class="diff-header">
+                                                {#if getModuleNamesFromMessage(m).length}
+                                                    <h5>Modules: {getModuleNamesFromMessage(m).join(', ')}</h5>
+                                                {:else}
+                                                    <h5>Module Upserts</h5>
+                                                {/if}
+                                                <button on:click={() => applySelection(m, { html: false, css: false, js: false, modules: true })} disabled={m.applied?.modules}>Apply</button>
+                                            </div>
+                                            <div class="diff-view">
+                                                {#each parseDiff(m.diffs.modules) as line}
+                                                    <div class="diff-line {line.type}">{line.text}</div>
+                                                {/each}
+                                            </div>
+                                        </div>
+                                    {/if}
                                     <div class="apply-actions">
-                                        <button on:click={() => applySelection(m, { html: true, css: true, js: true })} disabled={m.applied?.html && m.applied?.css && m.applied?.js}>Apply All</button>
+                                        <button on:click={() => applySelection(m, { html: true, css: true, js: true, modules: true })} disabled={(m.applied?.html || !m.diffs.html) && (m.applied?.css || !m.diffs.css) && (m.applied?.js || !m.diffs.js) && (m.applied?.modules || !m.diffs.modules)}>Apply All</button>
                                     </div>
                                 </div>
                             {/if}
@@ -778,6 +876,21 @@ function processContent(content, hasDiffs) {
 .checkpoint-actions button { border: 1px solid #d1d5db; background: #fff; padding: .25rem .5rem; border-radius: 6px; cursor: pointer; }
 .checkpoint-actions button[disabled] { opacity: .6; cursor: default; }
 .muted { color: #6b7280; font-size: .8rem; }
+
+.system-prompt {
+    width: 100%;
+    height: 10rem;
+    height: 10rem;
+    resize: none;
+    overflow: auto;
+    font: inherit;
+    line-height: 1.2;
+    color: #111827;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: .4rem .5rem;
+}
 
 /* Inline typing indicator inside assistant bubble */
 .typing { display: inline-flex; gap: 6px; align-items: center; height: 1em; }
