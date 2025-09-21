@@ -17,6 +17,7 @@ let busy = false
 let panelEl
 let showSettings = false
 let showApiKey = false
+let messageInputEl
 
 // Minimal config managed by the component itself
 const defaultConfig = {
@@ -136,8 +137,10 @@ function close() {
 }
 
 function focusInput() {
-    const el = panelEl?.querySelector('textarea')
-    if (el) el.focus()
+    if (messageInputEl) {
+        messageInputEl.focus()
+        return
+    }
 }
 
 onMount(() => {
@@ -1072,6 +1075,7 @@ function processContent(content, hasDiffs) {
             <div class="ai-input">
                 <textarea
                     rows="3"
+                    bind:this={messageInputEl}
                     bind:value={input}
                     placeholder="Describe the app or change you want… (Enter to send)"
                     on:keydown={keydown}
