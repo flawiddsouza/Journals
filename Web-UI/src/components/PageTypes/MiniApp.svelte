@@ -17,6 +17,8 @@ import DataViewer from '../../components/DataViewer.svelte'
 import { baseURL } from '../../../config.js'
 
 let iframe
+// Track the current blob URL set on the iframe so we can revoke it on rebuild
+let iframeSrcUrl = null
 let configuration = false
 let pendingConfigure = false
 let showHelp = false
@@ -540,7 +542,20 @@ function buildSrcdoc() {
 
 function buildAndRun() {
     if (!iframe || !contentReady) return
-    iframe.srcdoc = buildSrcdoc()
+    // Swap from about:srcdoc to a blob URL so DevTools can open it as a resource
+    try {
+        const html = buildSrcdoc()
+        const blob = new Blob([html], { type: 'text/html' })
+        const url = URL.createObjectURL(blob)
+        // Revoke previous blob URL to avoid leaks
+        if (iframeSrcUrl) {
+            try { URL.revokeObjectURL(iframeSrcUrl) } catch (_) {}
+        }
+        iframeSrcUrl = url
+        iframe.src = url
+    } catch (e) {
+        console.error('Failed to build iframe content', e)
+    }
 }
 
 const buildAndRunDebounced = debounce(buildAndRun, 200)
@@ -821,6 +836,11 @@ onMount(() => {
     return () => {
         window.removeEventListener('message', handleStorageRequest)
         if (typeof unsub === 'function') unsub()
+        // Cleanup any blob URL allocated for the iframe
+        if (iframeSrcUrl) {
+            try { URL.revokeObjectURL(iframeSrcUrl) } catch (_) {}
+            iframeSrcUrl = null
+        }
     }
 })
 
