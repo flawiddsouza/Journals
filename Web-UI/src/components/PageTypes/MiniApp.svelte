@@ -43,7 +43,7 @@ const MAX_MODULES = 12
 function validModuleName(name) {
     return (
         typeof name === 'string' &&
-        name.endsWith('.js') &&
+        name.toLowerCase().endsWith('.js') &&
         !name.includes('/') &&
         name.trim().length > 0
     )
@@ -178,6 +178,7 @@ const aiSystemPrompt = `You are an assistant that generates or edits small, self
      Filenames must be flat (no folders) and end with .js. Upsert means create new or replace existing by name.
  - When editing existing code, return ONLY the blocks that need changes; omit blocks that are unchanged. For any block you include, provide the FULL updated content of that block (not a diff or patch). Keep explanations very brief, after the code.
  - JS should attach event listeners with addEventListener and can use await directly at top-level (module script). If you import from 'vue', use the ESM API.
+ - Style: use single quotes for strings, avoid semicolons, and format with readable multi-line code using 4-space indentation (no one-liners).
 
 Constraints:
 - Keep code minimal, accessible, and self-contained.
@@ -241,6 +242,7 @@ $: if (pageContentOverride !== undefined) {
     htmlKey++
     cssKey++
     jsKey++
+    modulesKey++
     tick().then(buildAndRun)
 }
 
@@ -273,6 +275,7 @@ function fetchPage(id) {
         htmlKey++
         cssKey++
         jsKey++
+        modulesKey++
         buildAndRun()
     })
 }
@@ -352,7 +355,8 @@ function buildSrcdoc() {
             ev.data.type !== 'MiniAppStorageResponse' &&
             ev.data.type !== 'MiniAppUploadResponse' &&
             ev.data.type !== 'MiniAppFetchAssetResponse' &&
-            ev.data.type !== 'MiniAppLoadLibraryResponse'
+            ev.data.type !== 'MiniAppLoadLibraryResponse' &&
+            ev.data.type !== 'MiniAppDeleteResponse'
         ) return;
         const { requestId, result } = ev.data;
         const resolver = pending.get(requestId);
@@ -549,7 +553,9 @@ function buildAndRun() {
         const url = URL.createObjectURL(blob)
         // Revoke previous blob URL to avoid leaks
         if (iframeSrcUrl) {
-            try { URL.revokeObjectURL(iframeSrcUrl) } catch (_) {}
+            try {
+                URL.revokeObjectURL(iframeSrcUrl)
+            } catch (_) {}
         }
         iframeSrcUrl = url
         iframe.src = url
@@ -685,6 +691,7 @@ function handleStorageRequest(ev) {
                     headers: { Token: localStorage.getItem('token') },
                     credentials: 'include',
                 })
+                if (!resp.ok) throw new Error('Failed to fetch asset: ' + url)
                 const mime = resp.headers.get('Content-Type') || ''
                 const buf = await resp.arrayBuffer()
                 ev.source.postMessage(
@@ -715,7 +722,7 @@ function handleStorageRequest(ev) {
         if (readOnlyMode) {
             ev.source.postMessage(
                 {
-                    type: 'MiniAppStorageResponse',
+                    type: 'MiniAppDeleteResponse',
                     requestId: msg.requestId,
                     result: false,
                 },
@@ -741,7 +748,7 @@ function handleStorageRequest(ev) {
                 const ok = resp.ok
                 ev.source.postMessage(
                     {
-                        type: 'MiniAppStorageResponse',
+                        type: 'MiniAppDeleteResponse',
                         requestId: msg.requestId,
                         result: ok,
                     },
@@ -750,7 +757,7 @@ function handleStorageRequest(ev) {
             } catch (e) {
                 ev.source.postMessage(
                     {
-                        type: 'MiniAppStorageResponse',
+                        type: 'MiniAppDeleteResponse',
                         requestId: msg.requestId,
                         result: false,
                     },
@@ -838,7 +845,9 @@ onMount(() => {
         if (typeof unsub === 'function') unsub()
         // Cleanup any blob URL allocated for the iframe
         if (iframeSrcUrl) {
-            try { URL.revokeObjectURL(iframeSrcUrl) } catch (_) {}
+            try {
+                URL.revokeObjectURL(iframeSrcUrl)
+            } catch (_) {}
             iframeSrcUrl = null
         }
     }

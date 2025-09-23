@@ -82,6 +82,9 @@ $: if (pageContentOverride) {
     setTimeout(() => {
         focusLastEditableCell()
     }, 0)
+
+    // External content change -> refresh editors
+    editorKey++
 }
 
 $: fetchPage(pageId)
@@ -157,6 +160,9 @@ function fetchPage(pageId) {
         setTimeout(() => {
             focusLastEditableCell()
         }, 0)
+
+        // External content change -> refresh editors
+        editorKey++
     })
 }
 
@@ -865,6 +871,7 @@ async function pasteConfiguration() {
         startupScript = parsedClipboardText.startupScript
         customFunctions = parsedClipboardText.customFunctions
         note = parsedClipboardText.note || ''
+        editorKey++
     } catch (e) {
         alert('Invalid configuration')
     }
@@ -966,6 +973,116 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
 import { eventStore } from '../../stores.js'
 import Autocomplete from '../Autocomplete.svelte'
 import { baseURL } from '../../../config.js'
+import AIChatPanel from '../../components/AIChatPanel.svelte'
+
+// AI panel state for configuring code editors
+let aiOpen = false
+let aiInitialContext = ''
+let aiCodeContext = { html: '', css: '', js: '', modules: [] }
+let aiTarget = null // { type: 'computed'|'total'|'colStyle'|'rowStyle'|'startup'|'customFns', columnIndex?, columnName? }
+// Single key to force-refresh all code-mirror editors when external updates occur
+let editorKey = 0
+
+// Helpers to provide schema + small sample of rows to the AI
+const SAMPLE_ROWS_LIMIT = 3
+function stripHtml(v) {
+    try {
+        return String(v ?? '').replace(/<[^>]*>/g, '')
+    } catch {
+        return ''
+    }
+}
+function sampleRowsForAI() {
+    if (!Array.isArray(items) || items.length === 0) return []
+    const n = Math.min(SAMPLE_ROWS_LIMIT, items.length)
+    const cols = columns.map((c) => c.name)
+    const out = []
+    for (let i = 0; i < n; i++) {
+        const row = items[i]
+        const obj = {}
+        for (const k of cols) {
+            const text = stripHtml(row?.[k])
+            obj[k] = text.length > 120 ? text.slice(0, 117) + '…' : text
+        }
+        out.push(obj)
+    }
+    return out
+}
+
+function openAIFor(target) {
+    aiTarget = target
+    // Base guidance for all table config code blocks
+    const base = `You are assisting with editing a Journals Table configuration field. Output rules:\n- Reply with a single fenced code block labeled exactly: javascript\n- Provide the FULL replacement for this field. Do not send diffs.\n- Do not include html, css, or modules blocks.\n- Use single quotes for strings.\n- Do not use semicolons.\n- Format code with readable multi-line style and 4-space indentation (no one-liners).\n- Keep any explanation to 1-2 short lines after the code.\n\nData model:\n- Each row is an object keyed by column names (e.g., item['Status'], item['Amount']).\n- Many cell values are strings that may include HTML markup. When comparing text or parsing numbers, derive text via: const text = String(value ?? '').replace(/<[^>]*>/g, '').trim(); const num = parseFloat(text) || 0.`
+
+    let ctx = ''
+    let current = ''
+    const colList = columns.map((c) => c.name)
+    const sample = sampleRowsForAI()
+    const schema = `\nSchema:\n- Columns: ${JSON.stringify(colList)}\n- Example rows (sanitized): ${JSON.stringify(sample, null, 2)}`
+    if (target.type === 'computed') {
+        const col = columns[target.columnIndex]
+        ctx = `Field: Computed Column Expression\nColumn: ${col.label || col.name} (${col.name})\nRuntime: The code runs as new Function('items','rowIndex','item','columnName', customFunctions + code) and executes per visible cell.\nVariables: items (array of rows), rowIndex (number), item (items[rowIndex]), columnName (string).\nAccessing other columns: use item['Other Column Name'] (sanitized as needed).\nContract: Return the computed display value as a string/number/HTML. Avoid DOM access.` + schema
+        current = col.expression || ''
+    } else if (target.type === 'total') {
+        const col = columns[target.columnIndex]
+        ctx = `Field: Totals Expression\nColumn: ${col.label || col.name} (${col.name})\nRuntime: The code runs as new Function('items','rowIndex','item','columnName', customFunctions + code) with rowIndex=null and item=null.\nVariables: items (array of rows), columnName (string).\nAccessing other columns: iterate items and read row['Other']. Derive text/number as needed.\nContract: Return the footer/total content (string/number/HTML).` + schema;
+        current = totals[col.name] || ''
+    } else if (target.type === 'colStyle') {
+        const col = columns[target.columnIndex]
+        ctx = `Field: Column Style\nColumn: ${col.label || col.name} (${col.name})\nRuntime: The code runs as new Function('items','rowIndex','item','columnName', customFunctions + code) per visible cell.\nVariables: items, rowIndex, item, columnName.\nCell value is item[columnName]. You may also reference other columns via item['Other'].\nContract: Return an inline CSS string (e.g., "color: red; font-weight: bold").\nExample: return (String(item?.[columnName] ?? '').replace(/<[^>]*>/g,'').trim().toLowerCase() === 'red') ? 'background-color: red;' : '';` + schema;
+        current = col.style || ''
+    } else if (target.type === 'rowStyle') {
+        ctx = `Field: Row Style\nRuntime: The code runs as new Function('items','rowIndex','item', customFunctions + code) per visible row.\nVariables: items, rowIndex, item.\nAccessing columns: use item['Column Name'] for any column needed; derive text/number as needed.\nContract: Return an inline CSS string (e.g., "background: #fee").` + schema;
+        current = rowStyle || ''
+    } else if (target.type === 'startup') {
+        ctx = `Field: Startup Script\nRuntime: The code runs once on load as new Function('rows', code).\nVariables: rows (array of row objects) – mutate this array to add/update/remove rows.\nSchema columns available: ${JSON.stringify(colList)}. Example rows are provided below.\nContract: Perform setup logic; do not return a value; avoid external network.` + schema;
+        current = startupScript || ''
+    } else if (target.type === 'customFns') {
+        ctx = `Field: Custom Functions\nRuntime: This code is prepended to all evaluated expressions (computed/totals/styles).\nGuidance: Write small pure helpers that operate on raw values. Callers may pass HTML-containing strings; consider providing helpers like asText(v) and asNumber(v).\nContract: Define pure helper functions only (e.g., function sum(a,b){return a+b}). Do not execute side effects on load.` + schema;
+        current = customFunctions || ''
+    }
+
+    aiInitialContext = `${base}\n\n${ctx}`
+    aiCodeContext = { html: '', css: '', js: current, modules: [] }
+    aiOpen = true
+}
+
+function handleAIApply(event) {
+    const delta = event.detail || {}
+    const js = (delta.js ?? '').toString()
+    if (!js.trim() || !aiTarget) return
+    if (aiTarget.type === 'computed') {
+        const idx = aiTarget.columnIndex
+        if (idx != null && columns[idx]) {
+            columns[idx].expression = js
+            columns = columns // trigger reactivity
+            save() // persist
+            editorKey++
+        }
+    } else if (aiTarget.type === 'total') {
+        const col = columns[aiTarget.columnIndex]
+        if (col) totals[col.name] = js
+        totals = totals
+        editorKey++
+    } else if (aiTarget.type === 'colStyle') {
+        const idx = aiTarget.columnIndex
+        if (idx != null && columns[idx]) {
+            columns[idx].style = js
+            columns = columns
+            save() // persist
+            editorKey++
+        }
+    } else if (aiTarget.type === 'rowStyle') {
+        rowStyle = js
+        editorKey++
+    } else if (aiTarget.type === 'startup') {
+        startupScript = js
+        editorKey++
+    } else if (aiTarget.type === 'customFns') {
+        customFunctions = js
+        editorKey++
+    }
+}
 
 eventStore.subscribe((event) => {
     if (event && event.event === 'configureTable') {
@@ -1389,16 +1506,18 @@ eventStore.subscribe((event) => {
             <div class="config-heading mt-1em">Computed Columns</div>
             <div class="config-area-font-size">
                 {#each columns.filter((column) => column.type === 'Computed') as column}
-                    <div>{column.label ? column.label : column.name}</div>
+                    <div class="editor-row"><span>{column.label ? column.label : column.name}</span><button type="button" on:click={() => openAIFor({ type: 'computed', columnIndex: columns.findIndex(c => c.name === column.name) })}>Ask AI</button></div>
                     <div>
-                        <code-mirror
-                            value={column.expression}
-                            on:input={(e) => {
-                                column.expression = e.target.value
-                                save()
-                            }}
-                            style="border: 1px solid darkgray"
-                        ></code-mirror>
+                        {#key editorKey + 'computed:' + column.name}
+                            <code-mirror
+                                value={column.expression}
+                                on:input={(e) => {
+                                    column.expression = e.target.value
+                                    save()
+                                }}
+                                style="border: 1px solid darkgray"
+                            ></code-mirror>
+                        {/key}
                     </div>
                 {/each}
             </div>
@@ -1411,14 +1530,16 @@ eventStore.subscribe((event) => {
         <div class="config-heading mt-1em">Totals</div>
         <div class="config-area-font-size">
             {#each columns as column}
-                <div>{column.label ? column.label : column.name}</div>
+                <div class="editor-row"><span>{column.label ? column.label : column.name}</span><button type="button" on:click={() => openAIFor({ type: 'total', columnIndex: columns.findIndex(c => c.name === column.name) })}>Ask AI</button></div>
                 <div>
-                    <code-mirror
-                        value={totals[column.name] ? totals[column.name] : ''}
-                        on:input={(e) => (totals[column.name] = e.target.value)}
-                        style="border: 1px solid darkgray"
-                    >
-                    </code-mirror>
+                    {#key editorKey + 'total:' + column.name}
+                        <code-mirror
+                            value={totals[column.name] ? totals[column.name] : ''}
+                            on:input={(e) => (totals[column.name] = e.target.value)}
+                            style="border: 1px solid darkgray"
+                        >
+                        </code-mirror>
+                    {/key}
                 </div>
             {/each}
         </div>
@@ -1443,17 +1564,19 @@ eventStore.subscribe((event) => {
         <div class="config-heading mt-1em">Column Styles</div>
         <div class="config-area-font-size">
             {#each columns as column}
-                <div>{column.label ? column.label : column.name}</div>
+                <div class="editor-row"><span>{column.label ? column.label : column.name}</span><button type="button" on:click={() => openAIFor({ type: 'colStyle', columnIndex: columns.findIndex(c => c.name === column.name) })}>Ask AI</button></div>
                 <div>
-                    <code-mirror
-                        value={column.style}
-                        on:input={(e) => {
-                            column.style = e.target.value
-                            save()
-                        }}
-                        style="border: 1px solid darkgray"
-                    >
-                    </code-mirror>
+                    {#key editorKey + 'colStyle:' + column.name}
+                        <code-mirror
+                            value={column.style}
+                            on:input={(e) => {
+                                column.style = e.target.value
+                                save()
+                            }}
+                            style="border: 1px solid darkgray"
+                        >
+                        </code-mirror>
+                    {/key}
                 </div>
             {/each}
         </div>
@@ -1468,14 +1591,16 @@ eventStore.subscribe((event) => {
             >
         </div>
 
-        <div class="config-heading mt-1em">Row Style</div>
+        <div class="config-heading mt-1em editor-row"><span>Row Style</span><button type="button" on:click={() => openAIFor({ type: 'rowStyle' })}>Ask AI</button></div>
         <div class="config-area-font-size">
             <div>
-                <code-mirror
-                    value={rowStyle}
-                    on:input={(e) => (rowStyle = e.target.value)}
-                    style="border: 1px solid darkgray"
-                ></code-mirror>
+                {#key editorKey + ':rowStyle'}
+                    <code-mirror
+                        value={rowStyle}
+                        on:input={(e) => (rowStyle = e.target.value)}
+                        style="border: 1px solid darkgray"
+                    ></code-mirror>
+                {/key}
             </div>
         </div>
         <div class="config-area-note">
@@ -1488,14 +1613,16 @@ eventStore.subscribe((event) => {
             >
         </div>
 
-        <div class="config-heading mt-1em">Startup Script</div>
+        <div class="config-heading mt-1em editor-row"><span>Startup Script</span><button type="button" on:click={() => openAIFor({ type: 'startup' })}>Ask AI</button></div>
         <div class="config-area-font-size">
             <div>
-                <code-mirror
-                    value={startupScript}
-                    on:input={(e) => (startupScript = e.target.value)}
-                    style="border: 1px solid darkgray"
-                ></code-mirror>
+                {#key editorKey + ':startup'}
+                    <code-mirror
+                        value={startupScript}
+                        on:input={(e) => (startupScript = e.target.value)}
+                        style="border: 1px solid darkgray"
+                    ></code-mirror>
+                {/key}
             </div>
         </div>
         <div class="config-area-note">
@@ -1523,14 +1650,16 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`}</code
             </details>
         </div>
 
-        <div class="config-heading mt-1em">Custom Functions</div>
+        <div class="config-heading mt-1em editor-row"><span>Custom Functions</span><button type="button" on:click={() => openAIFor({ type: 'customFns' })}>Ask AI</button></div>
         <div class="config-area-font-size">
             <div>
-                <code-mirror
-                    value={customFunctions}
-                    on:input={(e) => (customFunctions = e.target.value)}
-                    style="border: 1px solid darkgray"
-                ></code-mirror>
+                {#key editorKey + ':customFns'}
+                    <code-mirror
+                        value={customFunctions}
+                        on:input={(e) => (customFunctions = e.target.value)}
+                        style="border: 1px solid darkgray"
+                    ></code-mirror>
+                {/key}
             </div>
         </div>
         <div class="config-area-note">
@@ -1576,6 +1705,15 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`}</code
     on:select={handleSelectSuggestion}
 />
 
+<AIChatPanel
+    open={aiOpen}
+    on:close={() => (aiOpen = false)}
+    initialContext={aiInitialContext}
+    codeContext={aiCodeContext}
+    on:apply={handleAIApply}
+    includeContext={true}
+/>
+
 <style>
 .pos-r {
     position: relative;
@@ -1604,6 +1742,12 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`}</code
     font-size: 18px;
     font-weight: bold;
     margin-bottom: 0.5em;
+}
+
+.editor-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 table.config-table > tbody td {
