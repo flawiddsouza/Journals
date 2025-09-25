@@ -21,15 +21,7 @@ case "$1" in
 esac
 
 # Run the Docker command with dependency installation and the chosen command
-docker run -i -t --rm -v $(pwd):/app -w /app $([ "$1" = "run" ] && echo "-p 9900:9900") crystallang/crystal:1.17 bash -c "
-  # Check if libsqlite3-dev is already installed
-  if ! dpkg -l | grep -q libsqlite3-dev; then
-    echo 'Installing libsqlite3-dev...'
-    apt update && apt install -y libsqlite3-dev
-  else
-    echo 'libsqlite3-dev is already installed, skipping package installation'
-  fi
-  
-  # Run the specified command
-  $COMMAND
-"
+OPTIONS="-i"
+# if interactive terminal, add -t
+[ -t 0 ] && OPTIONS="$OPTIONS -t"
+docker run $OPTIONS --rm -v $(pwd):/app -w /app $([ "$1" = "run" ] && echo "-p 9900:9900") ghcr.io/flawiddsouza/useful-docker-images/crystal-sqlite:1.17 $COMMAND

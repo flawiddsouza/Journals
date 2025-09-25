@@ -49,8 +49,14 @@ require "./cors"
 require "./auth_handler"
 add_handler AuthHandler.new
 
+# cache helpers
+require "./cache_helpers"
+
 # routes
 require "./routes"
+
+# mini app routes
+require "./miniapp_routes"
 
 Kemal.config.port = 9900
 Kemal.run

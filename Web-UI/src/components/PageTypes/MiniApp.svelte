@@ -12,6 +12,7 @@ import { eventStore } from '../../stores.js'
 
 import 'code-mirror-custom-element'
 import MiniAppEditors from '../MiniAppEditors.svelte'
+import MiniAppTemplates from '../MiniAppTemplates.svelte'
 import AIChatPanel from '../../components/AIChatPanel.svelte'
 import DataViewer from '../../components/DataViewer.svelte'
 import { baseURL } from '../../../config.js'
@@ -23,6 +24,7 @@ let configuration = false
 let pendingConfigure = false
 let showHelp = false
 let showData = false
+let showTemplates = false
 let autoBuild = true
 let contentReady = false
 let aiOpen = false
@@ -124,11 +126,24 @@ function togglePanel(panel) {
     if (panel === 'data') {
         const next = !showData
         showData = next
-        if (next) showHelp = false
+        if (next) {
+            showHelp = false
+            showTemplates = false
+        }
     } else if (panel === 'help') {
         const next = !showHelp
         showHelp = next
-        if (next) showData = false
+        if (next) {
+            showData = false
+            showTemplates = false
+        }
+    } else if (panel === 'templates') {
+        const next = !showTemplates
+        showTemplates = next
+        if (next) {
+            showData = false
+            showHelp = false
+        }
     }
 }
 
@@ -226,6 +241,42 @@ document.getElementById('inc').addEventListener('click', () => set(counter + 1))
 document.getElementById('dec').addEventListener('click', () => set(counter - 1))`,
 }
 let kv = {}
+// Template linkage state
+let templateLink = {
+    templateId: null,
+    templateName: '',
+    lastPulledRevision: null,
+    latestRevision: null,
+}
+
+async function loadTemplateLink() {
+    if (!pageId) return
+    try {
+        const d = await fetchPlus.get(`/miniapp/pages/${pageId}/template`)
+        templateLink = {
+            templateId: d.templateId || null,
+            templateName: d.templateName || '',
+            lastPulledRevision: d.lastPulledRevision || null,
+            latestRevision: d.latestRevision || null,
+        }
+    } catch (e) {
+        // ignore
+    }
+}
+
+async function pullTemplate(revision = null) {
+    if (!templateLink.templateId) return
+    try {
+        const body = {}
+        if (revision) body.revision = revision
+        await fetchPlus.post(`/miniapp/pages/${pageId}/pull`, body)
+        await fetchPage(pageId)
+        await loadTemplateLink()
+        buildAndRun()
+    } catch (e) {
+        alert('Failed to pull template update')
+    }
+}
 // Ensure files.modules persists in payload even if undefined in older pages
 
 // If pageContentOverride is provided (history view), load from it and skip fetching/saving
@@ -840,6 +891,7 @@ onMount(() => {
             tick().then(buildAndRun)
         }
     })
+    loadTemplateLink()
     return () => {
         window.removeEventListener('message', handleStorageRequest)
         if (typeof unsub === 'function') unsub()
@@ -877,7 +929,10 @@ $: if (pendingConfigure && contentReady && !configuration) {
             ></iframe>
         </div>
     {:else}
-        <div class="miniapp" class:hasPanel={showHelp || showData}>
+        <div
+            class="miniapp"
+            class:hasPanel={showHelp || showData || showTemplates}
+        >
             <div class="toolbar">
                 <label class="autobuild-toggle"
                     ><input
@@ -896,6 +951,21 @@ $: if (pendingConfigure && contentReady && !configuration) {
                         : 'Run the mini app'}>Run</button
                 >
                 <button on:click={() => (aiOpen = true)}>AI Chat</button>
+                {#if templateLink.templateId}
+                    <div class="template-badge" title="Linked template">
+                        <span class="name">{templateLink.templateName}</span>
+                        <span class="rev"
+                            >rev {templateLink.lastPulledRevision} / {templateLink.latestRevision}</span
+                        >
+                        {#if templateLink.latestRevision && templateLink.lastPulledRevision && templateLink.latestRevision > templateLink.lastPulledRevision}
+                            <button
+                                class="linklike"
+                                on:click={() => pullTemplate(null)}
+                                >Pull latest</button
+                            >
+                        {/if}
+                    </div>
+                {/if}
                 <div class="spacer"></div>
                 <button
                     class="linklike"
@@ -906,6 +976,11 @@ $: if (pendingConfigure && contentReady && !configuration) {
                     class="linklike"
                     title="Show Mini App API help"
                     on:click={() => togglePanel('help')}>Mini App API</button
+                >
+                <button
+                    class="linklike"
+                    title="Browse and apply Mini App templates"
+                    on:click={() => togglePanel('templates')}>Templates</button
                 >
             </div>
             {#if showHelp}
@@ -1110,6 +1185,20 @@ document.getElementById('result').textContent = sum(2, 3)
                     </div>
                 </div>
             {/if}
+            {#if showTemplates}
+                <div
+                    style="margin-top: 1rem; margin-bottom: 1rem; overflow: auto;"
+                >
+                    <MiniAppTemplates
+                        {pageId}
+                        on:applied={() => {
+                            fetchPage(pageId)
+                            loadTemplateLink()
+                            showTemplates = false
+                        }}
+                    />
+                </div>
+            {/if}
             {#if showData}
                 <div style="margin-top: 0.5rem;"></div>
                 <DataViewer
@@ -1201,6 +1290,23 @@ document.getElementById('result').textContent = sum(2, 3)
 
 .toolbar .spacer {
     flex: 1;
+}
+.template-badge {
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: center;
+    padding: 0 0.4rem;
+    background: #eef6ff;
+    border: 1px solid #c7e1ff;
+    border-radius: 4px;
+    color: #0b65c2;
+    font-size: 0.9rem;
+}
+.template-badge .name {
+    font-weight: 600;
+}
+.template-badge .rev {
+    color: #2563eb;
 }
 .toolbar .linklike {
     background: none;

@@ -75,7 +75,7 @@ end
 
 class HTTP::Server
   class Context
-    property! auth_id : Float64 | Int64 | Slice(UInt8) | String | Nil
+    property! auth_id : Int64
   end
 end
 
@@ -131,7 +131,7 @@ class AuthHandler < Kemal::Handler
       env.response << {"error": "Authentication Failed: Invalid Token"}.to_json
       return env
     else
-      env.auth_id = db.scalar("SELECT id FROM users WHERE username = ?", token_decoded[0]["username"].as_s)
+      env.auth_id = db.scalar("SELECT id FROM users WHERE username = ?", token_decoded[0]["username"].as_s).as(Int64)
       return call_next(env)
     end
   end

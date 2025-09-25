@@ -1,5 +1,3 @@
-require "./cache_helpers"
-
 get "/" do
   "Journals API"
 end
@@ -138,6 +136,81 @@ get "/install" do
     db.exec "ALTER TABLE pages ADD COLUMN parent_id INTEGER REFERENCES pages(id)"
     db.exec "PRAGMA user_version = 7"
     user_version = 7
+  end
+
+  if user_version === 7
+    db.exec "
+      CREATE TABLE IF NOT EXISTS mini_app_templates (
+          id INTEGER,
+          user_id INTEGER,
+          name TEXT,
+          description TEXT,
+          is_public INTEGER DEFAULT 0,
+          revision_counter INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY(id),
+          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    "
+
+    db.exec "
+      CREATE TABLE IF NOT EXISTS mini_app_template_revisions (
+          id INTEGER,
+          template_id INTEGER,
+          revision_number INTEGER,
+          content TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY(id),
+          FOREIGN KEY(template_id) REFERENCES mini_app_templates(id) ON DELETE CASCADE
+      );
+    "
+
+    db.exec "
+      CREATE TABLE IF NOT EXISTS mini_app_stars (
+          id INTEGER,
+          template_id INTEGER,
+          user_id INTEGER,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY(id),
+          FOREIGN KEY(template_id) REFERENCES mini_app_templates(id) ON DELETE CASCADE,
+          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    "
+
+    db.exec "
+      CREATE TABLE IF NOT EXISTS page_template_links (
+          id INTEGER,
+          page_id INTEGER,
+          template_id INTEGER,
+          last_revision_number INTEGER,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY(id),
+          FOREIGN KEY(page_id) REFERENCES pages(id) ON DELETE CASCADE,
+          FOREIGN KEY(template_id) REFERENCES mini_app_templates(id) ON DELETE CASCADE
+      );
+    "
+
+    db.exec "PRAGMA user_version = 8"
+    user_version = 8
+  end
+
+  if user_version === 8
+    # Add high impact indexes for performance
+    db.exec "CREATE INDEX IF NOT EXISTS idx_pages_top_level ON pages(section_id, user_id, sort_order) WHERE parent_id IS NULL"
+    db.exec "CREATE INDEX IF NOT EXISTS idx_pages_children ON pages(parent_id, user_id, sort_order)"
+    db.exec "CREATE INDEX IF NOT EXISTS idx_page_history_list ON page_history(page_id, user_id, created_at DESC)"
+    db.exec "CREATE INDEX IF NOT EXISTS idx_page_uploads_list ON page_uploads(page_id, user_id, created_at DESC)"
+    db.exec "CREATE INDEX IF NOT EXISTS idx_notebooks_user_profile ON notebooks(user_id, profile_id)"
+    db.exec "CREATE INDEX IF NOT EXISTS idx_notebooks_user_default ON notebooks(user_id) WHERE profile_id IS NULL"
+    db.exec "CREATE INDEX IF NOT EXISTS idx_sections_notebook_user ON sections(notebook_id, user_id)"
+    db.exec "CREATE UNIQUE INDEX IF NOT EXISTS ux_mini_app_stars_template_user ON mini_app_stars(template_id, user_id)"
+    db.exec "CREATE INDEX IF NOT EXISTS idx_mini_app_stars_user_template ON mini_app_stars(user_id, template_id)"
+    db.exec "CREATE INDEX IF NOT EXISTS idx_mini_app_template_revisions ON mini_app_template_revisions(template_id, revision_number)"
+    db.exec "CREATE UNIQUE INDEX IF NOT EXISTS ux_page_template_links_page ON page_template_links(page_id)"
+    db.exec "PRAGMA user_version = 9"
+    user_version = 9
   end
 
   "Installation Complete!"
