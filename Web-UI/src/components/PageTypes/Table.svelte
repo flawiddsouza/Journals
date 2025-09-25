@@ -4,6 +4,8 @@ export let viewOnly = false
 export let pageContentOverride = undefined
 export let style = ''
 
+let loaded = false
+
 let columns = []
 let items = []
 let totals = {}
@@ -64,6 +66,7 @@ function computeComputedColumn(rowIndex, columnIndex) {
 
 $: if (pageContentOverride) {
     let parsedPage = JSON.parse(pageContentOverride)
+    loaded = false
     columns = parsedPage.columns
     items = parsedPage.items
     totals = parsedPage.totals
@@ -83,6 +86,8 @@ $: if (pageContentOverride) {
         focusLastEditableCell()
     }, 0)
 
+    loaded = true
+
     // External content change -> refresh editors
     editorKey++
 }
@@ -97,6 +102,7 @@ function fetchPage(pageId) {
     if (pageId === null) {
         return
     }
+    loaded = false
     // reset variables on page change
     configuration = false
     showAddColumn = false
@@ -159,6 +165,7 @@ function fetchPage(pageId) {
         // set focus to the last cell in the table (both paginated and non-paginated)
         setTimeout(() => {
             focusLastEditableCell()
+            loaded = true
         }, 0)
 
         // External content change -> refresh editors
@@ -1104,8 +1111,11 @@ eventStore.subscribe((event) => {
 </script>
 
 <div class="pos-r">
+    {#if !loaded}
+        <div>Loading…</div>
+    {/if}
     {#if !configuration}
-        {#if pageContentOverride === undefined && viewOnly === false}
+        {#if pageContentOverride === undefined && viewOnly === false && loaded}
             <div class="config" on:click={() => (configuration = true)}>
                 Configure Table
             </div>
