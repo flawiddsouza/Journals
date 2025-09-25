@@ -562,6 +562,18 @@ function handleBlur(event) {
         }
         autocompleteData.show = false
     }, 0)
+
+    normalizeEditableDiv(event.target)
+}
+
+// Normalize a contenteditable div on blur: remove stray <br>
+function normalizeEditableDiv(el) {
+    const text = el.textContent
+    if (text === '' && el.innerHTML !== '') {
+        el.innerHTML = ''
+        const inputEvent = new Event('input')
+        el.dispatchEvent(inputEvent)
+    }
 }
 
 function handleUndoStacks(e) {
