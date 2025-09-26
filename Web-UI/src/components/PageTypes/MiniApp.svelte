@@ -1191,6 +1191,7 @@ document.getElementById('result').textContent = sum(2, 3)
                 >
                     <MiniAppTemplates
                         {pageId}
+                        {templateLink}
                         on:applied={() => {
                             fetchPage(pageId)
                             loadTemplateLink()

@@ -1,6 +1,5 @@
 class MiniAppPageNotFoundError < Exception; end
 class MiniAppPageTypeError < Exception; end
-class MiniAppContentMissingError < Exception; end
 
 # Helper: update page content and save history (last 100)
 def update_page_content_with_history(db, page_id : Int64, auth_id : Int64, new_content : String)
@@ -35,26 +34,31 @@ def sanitized_miniapp_content!(db, page_id : Int64, auth_id : Int64) : String
   sanitize_miniapp_content(page["content"]?)
 end
 
-def resolve_miniapp_template_content(db, auth_id : Int64, page_id : Int64?, content_param : String?) : String
-  if page_id
-    sanitized_miniapp_content!(db, page_id, auth_id)
-  elsif content_param && !content_param.strip.empty?
-    sanitize_miniapp_content(content_param)
+def upsert_page_template_link(db, page_id : Int64, template_id : Int64, revision_number : Int64)
+  existing_link = db.query_one?("SELECT id FROM page_template_links WHERE page_id = ?", page_id, as: {id: Int64})
+  if existing_link
+    db.exec "UPDATE page_template_links SET template_id=?, last_revision_number=?, updated_at=CURRENT_TIMESTAMP WHERE id = ?", template_id, revision_number, existing_link["id"]
   else
-    raise MiniAppContentMissingError.new
+    db.exec "INSERT INTO page_template_links(page_id, template_id, last_revision_number) VALUES(?, ?, ?)", page_id, template_id, revision_number
   end
 end
 
-# Create a new template from a MiniApp page or raw payload
+# Create a new template from a MiniApp page
 post "/miniapp/templates" do |env|
   name = env.params.json["name"].as(String)
   description = env.params.json["description"]?.try &.as(String) || ""
   is_public = env.params.json["isPublic"]?.try &.as(Bool) || false
-  page_id = env.params.json["pageId"]?.try &.as(Int64)
-  content_param = env.params.json["content"]?.try &.as(String)
+  page_id_param = env.params.json["pageId"]?.try &.as(Int64)
+  if page_id_param.nil?
+    env.response.status_code = 400
+    env.response.content_type = "application/json"
+    env.response << {error: "pageId is required"}.to_json
+    next
+  end
+  page_id = page_id_param.not_nil!
 
   begin
-    content = resolve_miniapp_template_content(db, env.auth_id, page_id, content_param)
+    content = sanitized_miniapp_content!(db, page_id, env.auth_id)
   rescue MiniAppPageNotFoundError
     env.response.status_code = 404
     env.response.content_type = "application/json"
@@ -65,20 +69,16 @@ post "/miniapp/templates" do |env|
     env.response.content_type = "application/json"
     env.response << {error: "Page is not a MiniApp"}.to_json
     next
-  rescue MiniAppContentMissingError
-    env.response.status_code = 400
-    env.response.content_type = "application/json"
-    env.response << {error: "Provide a pageId or content payload"}.to_json
-    next
   end
 
   pub_flag = is_public ? 1 : 0
   result = db.exec "INSERT INTO mini_app_templates(user_id, name, description, is_public, revision_counter) VALUES(?, ?, ?, ?, 0)", env.auth_id, name, description, pub_flag
-  template_id = result.last_insert_id
+  template_id = result.last_insert_id.to_i64
 
   # Create initial revision 1
   db.exec "INSERT INTO mini_app_template_revisions(template_id, revision_number, content) VALUES(?, ?, ?)", template_id, 1, content
   db.exec "UPDATE mini_app_templates SET revision_counter = 1, updated_at=CURRENT_TIMESTAMP WHERE id = ?", template_id
+  upsert_page_template_link(db, page_id, template_id, 1_i64)
 
   env.response.content_type = "application/json"
   {insertedRowId: template_id}.to_json
@@ -264,7 +264,7 @@ delete "/miniapp/templates/:id/star" do |env|
   {success: true}.to_json
 end
 
-# Add a new revision from a page or explicit content (owner only)
+# Add a new revision from a page
 post "/miniapp/templates/:id/revisions" do |env|
   id = env.params.url["id"].to_i64
   owner = db.scalar("SELECT user_id FROM mini_app_templates WHERE id = ?", id).as(Int64 | Nil)
@@ -275,11 +275,17 @@ post "/miniapp/templates/:id/revisions" do |env|
     next
   end
 
-  page_id = env.params.json["pageId"]?.try &.as(Int64)
-  content_param = env.params.json["content"]?.try &.as(String)
+  page_id_param = env.params.json["pageId"]?.try &.as(Int64)
+  if page_id_param.nil?
+    env.response.status_code = 400
+    env.response.content_type = "application/json"
+    env.response << {error: "pageId is required"}.to_json
+    next
+  end
+  page_id = page_id_param.not_nil!
 
   begin
-    content = resolve_miniapp_template_content(db, env.auth_id, page_id, content_param)
+    content = sanitized_miniapp_content!(db, page_id, env.auth_id)
   rescue MiniAppPageNotFoundError
     env.response.status_code = 404
     env.response.content_type = "application/json"
@@ -290,17 +296,13 @@ post "/miniapp/templates/:id/revisions" do |env|
     env.response.content_type = "application/json"
     env.response << {error: "Page is not a MiniApp"}.to_json
     next
-  rescue MiniAppContentMissingError
-    env.response.status_code = 400
-    env.response.content_type = "application/json"
-    env.response << {error: "Provide a pageId or content payload"}.to_json
-    next
   end
 
   rev_no = db.scalar("SELECT revision_counter FROM mini_app_templates WHERE id = ?", id).as(Int64)
   new_rev = (rev_no + 1).to_i
   db.exec "INSERT INTO mini_app_template_revisions(template_id, revision_number, content) VALUES(?, ?, ?)", id, new_rev, content
   db.exec "UPDATE mini_app_templates SET revision_counter = ?, updated_at=CURRENT_TIMESTAMP WHERE id = ?", new_rev, id
+  upsert_page_template_link(db, page_id, id, new_rev.to_i64)
 
   env.response.content_type = "application/json"
   {revisionNumber: new_rev}.to_json

@@ -128,6 +128,26 @@ function buildPerFileDiffs(previousStr, currentStr) {
     perFileDiffs = sections
 }
 
+function resetDiffState() {
+    revDiff = null
+    perFileDiffs = []
+    revOpen = null
+}
+
+function resetEditState() {
+    editOpen = false
+    editName = ''
+    editDescription = ''
+    editBusy = false
+    editError = ''
+}
+
+function exitDetailView() {
+    detail = null
+    resetDiffState()
+    resetEditState()
+}
+
 let publishOpen = false
 let publish = { name: '', description: '', isPublic: true }
 // Publish modes: create brand new template or add a revision to existing one
@@ -136,6 +156,8 @@ let yourTemplates = []
 let selectedTemplateId = null
 let publishBusy = false
 let publishError = ''
+
+export let templateLink = null
 
 async function loadYourTemplates() {
     try {
@@ -146,6 +168,14 @@ async function loadYourTemplates() {
         // Preselect first template if none chosen
         if (!selectedTemplateId && yourTemplates.length) {
             selectedTemplateId = yourTemplates[0].id
+        }
+        // If there's a template link, ensure it's selected if available
+        if (
+            templateLink &&
+            templateLink.templateId &&
+            yourTemplates.some((t) => t.id === templateLink.templateId)
+        ) {
+            selectedTemplateId = templateLink.templateId
         }
     } catch (e) {
         yourTemplates = []
@@ -159,6 +189,22 @@ function closePublishPanel() {
     selectedTemplateId = null
     publishBusy = false
     publishError = ''
+}
+
+function togglePublish() {
+    publishOpen = !publishOpen
+    if (publishOpen) {
+        activeTab = 'yours'
+        if (templateLink && templateLink.templateId) {
+            publishMode = 'existing'
+            selectedTemplateId = templateLink.templateId
+            loadYourTemplates()
+        } else {
+            publishMode = 'new'
+        }
+    } else {
+        closePublishPanel()
+    }
 }
 
 async function loadList() {
@@ -189,28 +235,17 @@ $: if (activeTab && sortAll) loadList()
 function switchTab(tab) {
     if (activeTab === tab) return
     activeTab = tab
-    // Leave detail view and clear any diff/edit UI state
-    detail = null
-    revDiff = null
-    perFileDiffs = []
-    revOpen = null
-    editOpen = false
+    exitDetailView()
 }
 
 async function openDetail(item) {
     try {
-        revDiff = null
-        revOpen = null
+        resetDiffState()
+        resetEditState()
         detail = await fetchPlus.get(`/miniapp/templates/${item.id}`)
         revisions = await fetchPlus.get(
             `/miniapp/templates/${item.id}/revisions`,
         )
-        // Reset edit state when opening a new detail
-        editOpen = false
-        editName = ''
-        editDescription = ''
-        editBusy = false
-        editError = ''
     } catch (e) {
         error = 'Failed to load template details'
     }
@@ -237,7 +272,7 @@ async function deleteTemplate(item) {
     if (!confirm('Delete this template and all its revisions?')) return
     await fetchPlus.delete(`/miniapp/templates/${item.id}`)
     await loadList()
-    if (detail && detail.id === item.id) detail = null
+    if (detail && detail.id === item.id) exitDetailView()
 }
 
 async function star(item) {
@@ -289,9 +324,7 @@ async function showDiff(templateId, revNumber) {
         revOpen.templateId === templateId &&
         revOpen.revisionNumber === revNumber
     ) {
-        revDiff = null
-        perFileDiffs = []
-        revOpen = null
+        resetDiffState()
         return
     }
     revOpen = { templateId, revisionNumber: revNumber }
@@ -304,9 +337,7 @@ async function showDiff(templateId, revNumber) {
 }
 
 function closeDiff() {
-    revDiff = null
-    perFileDiffs = []
-    revOpen = null
+    resetDiffState()
 }
 
 async function publishFromCurrentPage() {
@@ -341,9 +372,9 @@ async function publishFromCurrentPage() {
             await fetchPlus.post('/miniapp/templates', body)
             activeTab = 'yours'
             await loadList()
-            publish = { name: '', description: '', isPublic: true }
         }
-        publishOpen = false
+        closePublishPanel()
+        dispatch('applied')
     } catch (e) {
         publishError = 'Failed to publish. Please try again.'
     } finally {
@@ -428,9 +459,7 @@ async function saveEdit() {
                     <option value="alpha">A → Z</option>
                 </select>
             </label>
-            <button on:click={() => { publishOpen = !publishOpen; if (publishOpen) activeTab = 'yours'; }}
-                >Publish current mini app</button
-            >
+            <button on:click={togglePublish}>Publish current mini app</button>
         </div>
     </div>
 
@@ -551,7 +580,7 @@ async function saveEdit() {
                                 <button on:click={openEdit}>Edit</button>
                             {/if}
                         {/if}
-                        <button on:click={() => (detail = null)}>Back</button>
+                        <button on:click={exitDetailView}>Back</button>
                     </div>
                 </div>
                 {#if editOpen}
