@@ -128,12 +128,18 @@ function handlePaste(event) {
         })
             .then((response) => response.json())
             .then((response) => {
-                document.querySelector('.upload-image-loader').remove()
-                document.execCommand(
-                    'insertHTML',
-                    false,
-                    `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`,
-                )
+                const img = document.createElement('img')
+                img.style.maxWidth = '100%'
+                img.loading = 'lazy'
+                img.src = `${baseURL}/${response.imageUrl}`
+                const loader = document.querySelector('.upload-image-loader')
+                loader.replaceWith(img)
+                const range = document.createRange()
+                range.setStartAfter(img)
+                range.setEndAfter(img)
+                const selection = window.getSelection()
+                selection.removeAllRanges()
+                selection.addRange(range)
             })
     }
 
