@@ -943,17 +943,58 @@ $: {
     })
 }
 
+// Prefer prefix matches, then word-boundary hits, finally other substrings for autocomplete.
+function scoreSuggestion(query, suggestion) {
+    const normalizedQuery = query.toLowerCase()
+    const normalizedSuggestion = suggestion.toLowerCase()
+    if (normalizedQuery === '') {
+        return 0
+    }
+    const index = normalizedSuggestion.indexOf(normalizedQuery)
+
+    if (index === -1) {
+        return Number.POSITIVE_INFINITY
+    }
+
+    if (normalizedSuggestion.startsWith(normalizedQuery)) {
+        return index // stays 0 so prefixes rank first
+    }
+
+    const wordBoundaryRegex = new RegExp(`\\b${normalizedQuery.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}`)
+    if (wordBoundaryRegex.test(normalizedSuggestion)) {
+        return index + 1 // word boundary hits come next
+    }
+
+    return index + 2 // fallback on substring position to keep results stable
+}
+
 function handleInputInTD(e, itemIndex, columnName) {
     // itemIndex is global index
     const column = columns.find((col) => col.name === columnName)
     if (column && column.autocomplete === 'Yes') {
         const value = e.target.textContent
-        const allSuggestions = columnSuggestions[columnName]
-        const filteredSuggestions = allSuggestions.filter(
-            (suggestion) =>
-                suggestion.toLowerCase().includes(value.toLowerCase()) &&
-                suggestion !== value,
-        )
+        const query = value.trim()
+        const lowerQuery = query.toLowerCase()
+        const allSuggestions = columnSuggestions[columnName] || []
+        const filteredSuggestions = allSuggestions
+            .filter((suggestion) => {
+                const lowerSuggestion = suggestion.toLowerCase()
+                return (
+                    lowerSuggestion.includes(lowerQuery) &&
+                    lowerSuggestion !== lowerQuery
+                )
+            })
+            .map((suggestion) => ({
+                suggestion,
+                score: scoreSuggestion(query, suggestion),
+            }))
+            .sort((a, b) => {
+                if (a.score !== b.score) {
+                    return a.score - b.score
+                }
+                return a.suggestion.localeCompare(b.suggestion)
+            })
+            .map((entry) => entry.suggestion)
 
         if (filteredSuggestions.length > 0) {
             autocompleteData.show = true
