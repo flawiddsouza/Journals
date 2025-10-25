@@ -320,7 +320,30 @@ function focusLastEditableCell() {
 }
 
 function evalulateJS(source, jsString, rowIndex = null, columnName = null) {
-    console.log('evaluating', source)
+    // Track evaluation stats instead of logging each call
+    if (source.includes('Row Style')) {
+        evalStats.rowStyle++
+    } else if (source.includes('Column Style')) {
+        evalStats.columnStyle++
+    } else if (source.includes('Computed Column')) {
+        evalStats.computedColumn++
+    }
+    evalStats.total++
+
+    // Debounce consolidated log (only log once after evaluations settle)
+    clearTimeout(evalStatsTimer)
+    evalStatsTimer = setTimeout(() => {
+        if (evalStats.total > 0) {
+            console.log('Evaluated expressions:', {
+                'Row Styles': evalStats.rowStyle,
+                'Column Styles': evalStats.columnStyle,
+                'Computed Columns': evalStats.computedColumn,
+                'Total': evalStats.total
+            })
+            evalStats = { rowStyle: 0, columnStyle: 0, computedColumn: 0, total: 0 }
+        }
+    }, 100)
+
     try {
         const customFunctionsCode = customFunctions
             ? customFunctions + '\n'
@@ -345,6 +368,10 @@ function evalulateJS(source, jsString, rowIndex = null, columnName = null) {
 }
 
 let undoStackForRemoveRow = []
+
+// Consolidated logging for evalulateJS calls
+let evalStats = { rowStyle: 0, columnStyle: 0, computedColumn: 0, total: 0 }
+let evalStatsTimer = null
 
 import defaultKeydownHandlerForContentEditableArea from '../../helpers/defaultKeydownHandlerForContentEditableArea.js'
 
