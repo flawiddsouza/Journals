@@ -1056,6 +1056,104 @@ get "/page-group/:page_id" do |env|
   pages.to_json
 end
 
+get "/favorites-pages" do |env|
+  # Get all Favorites pages for the user
+  favorites_pages = db.query_all("
+    SELECT
+      pages.id,
+      pages.name,
+      pages.section_id,
+      sections.notebook_id
+    FROM pages
+    JOIN sections ON sections.id = pages.section_id
+    WHERE pages.user_id = ? AND pages.type = 'Favorites'
+    ORDER BY pages.name
+  ", env.auth_id, as: {
+    id: Int64,
+    name: String,
+    section_id: Int64,
+    notebook_id: Int64
+  })
+
+  env.response.content_type = "application/json"
+  favorites_pages.to_json
+end
+
+get "/favorites/:favorites_page_id" do |env|
+  favorites_page_id = env.params.url["favorites_page_id"]
+
+  # Get the favorites page content to retrieve the pageRefs
+  favorites_content = db.query_one?(
+    "SELECT content FROM pages WHERE id = ? AND user_id = ? AND type = 'Favorites'",
+    favorites_page_id,
+    env.auth_id,
+    as: {content: String | Nil}
+  )
+
+  if favorites_content.nil? || favorites_content["content"].nil?
+    env.response.content_type = "application/json"
+    next "[]"
+  end
+
+  begin
+    parsed_content = JSON.parse(favorites_content["content"].as(String))
+    page_refs = parsed_content["pageRefs"]?.try &.as_a.map(&.as_i64) || [] of Int64
+  rescue
+    env.response.content_type = "application/json"
+    next "[]"
+  end
+
+  if page_refs.empty?
+    env.response.content_type = "application/json"
+    next "[]"
+  end
+
+  # Get pages in the order specified by pageRefs
+  pages = page_refs.compact_map do |page_id|
+    db.query_one?(
+      "
+      SELECT
+        pages.id,
+        pages.name,
+        pages.type,
+        pages.font_size,
+        pages.font_size_unit,
+        pages.font,
+        pages.view_only,
+        (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as password_exists,
+        (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as locked,
+        pages.sort_order,
+        pages.section_id,
+        pages.created_at,
+        sections.notebook_id
+      FROM pages
+      JOIN sections ON sections.id = pages.section_id
+      WHERE pages.id = ? AND pages.user_id = ?
+      ",
+      page_id,
+      env.auth_id,
+      as: {
+        id:   Int64,
+        name: String,
+        type: String,
+        font_size: String | Nil,
+        font_size_unit: String | Nil,
+        font: String | Nil,
+        view_only: Bool,
+        password_exists: Bool,
+        locked: Bool,
+        sort_order: Int64 | Nil,
+        section_id: Int64,
+        created_at: String,
+        notebook_id: Int64
+      }
+    )
+  end
+
+  env.response.content_type = "application/json"
+  pages.to_json
+end
+
 error 404 do
   "404: The page you're looking for doesn't exist"
 end

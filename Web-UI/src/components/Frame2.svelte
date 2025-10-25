@@ -18,7 +18,7 @@ async function getPageInfo() {
 
     try {
         activePage = await fetchPlus.get(`/pages/info/${activePageId}`)
-        if (activePage.locked === false && activePage.type !== 'PageGroup') {
+        if (activePage.locked === false && activePage.type !== 'PageGroup' && activePage.type !== 'Favorites') {
             gridTemplateRowsMainDiv = `grid-template-rows: auto 1fr`
         } else {
             gridTemplateRowsMainDiv = `grid-template-rows: 1fr`
@@ -53,7 +53,7 @@ getPageInfo()
     </div>
 {:else}
     <div style="display: grid; height: 100svh; {gridTemplateRowsMainDiv}">
-        {#if activePage.locked === false && activePage.type !== 'PageGroup'}
+        {#if activePage.locked === false && activePage.type !== 'PageGroup' && activePage.type !== 'Favorites'}
             <div class="page-header">
                 <div style="margin-left: 2em">
                     <PageNav bind:activePage></PageNav>

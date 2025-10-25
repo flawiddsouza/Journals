@@ -6,6 +6,7 @@ import RichText from './PageTypes/RichText.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
 import PageGroup from './PageTypes/PageGroup.svelte'
+import Favorites from './PageTypes/Favorites.svelte'
 import Kanban from './PageTypes/Kanban.svelte'
 import MiniApp from './PageTypes/MiniApp.svelte'
 import { format } from 'date-fns'
@@ -130,6 +131,14 @@ function makeContentEditableSingleLine(e) {
                     bind:viewOnly={viewOnlyComputed}
                     activePageId={activePage.activePageId}
                 ></PageGroup>
+            {/if}
+            {#if activePage.type === 'Favorites'}
+                <Favorites
+                    {notebooks}
+                    bind:pageId={activePage.id}
+                    bind:viewOnly={viewOnlyComputed}
+                    activePageId={activePage.activePageId}
+                ></Favorites>
             {/if}
             {#if activePage.type === 'Kanban'}
                 <Kanban

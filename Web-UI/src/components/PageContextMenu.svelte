@@ -5,8 +5,10 @@ export let pages
 export let activePage
 export let notebooks
 export let pageGroupId = null
+export let favoritesPageId = null
 
 import fetchPlus from '../helpers/fetchPlus.js'
+import { addPageToFavorites, removePageFromFavorites } from '../helpers/favorites.js'
 import Portal from './Portal.svelte'
 import Modal from './Modal.svelte'
 import { eventStore } from '../stores.js'
@@ -17,6 +19,12 @@ let showMovePageModalSelectedNotebook = null
 let showMovePageModalSelectedSectionId = null
 let showMovePageModalSelectedPageGroupId = null
 let pageGroupsForShowMovePageModalSelectedSectionId = []
+let showAddToFavoritesModal = false
+let favoritesPagesForAddModal = []
+let pageToAddToFavorites = null
+let showManageFavoritesModal = false
+let favoritesContainingPage = []
+let pageToManageFavorites = null
 
 function openPageNewTab() {
     window.open(`/page/${pageItemContextMenu.page.id}`)
@@ -63,6 +71,104 @@ async function duplicatePage() {
     }
 }
 
+async function removeFromFavorites() {
+    if (confirm('Are you sure you want to remove this page from favorites?')) {
+        await removePageFromFavorites(favoritesPageId, pageItemContextMenu.page.id)
+
+        pages = pages.filter((page) => page.id !== pageItemContextMenu.page.id)
+
+        if (activePage.id === pageItemContextMenu.page.id) {
+            if (pages.length) {
+                activePage = pages[0]
+            } else {
+                activePage = {}
+            }
+        }
+
+        eventStore.set({
+            event: 'pageRemovedFromFavorites',
+            data: {
+                favoritesPageId,
+            },
+        })
+    }
+
+    pageItemContextMenu.page = null
+}
+
+async function startAddToFavorites() {
+    // Store the page to add
+    pageToAddToFavorites = pageItemContextMenu.page
+
+    // Fetch all Favorites pages for the user (across all sections)
+    favoritesPagesForAddModal = await fetchPlus.get('/favorites-pages')
+
+    if (favoritesPagesForAddModal.length === 0) {
+        alert('No favorites pages found. Create a Favorites page first.')
+        pageItemContextMenu.page = null
+        return
+    }
+
+    showAddToFavoritesModal = true
+    pageItemContextMenu.page = null
+}
+
+async function addToFavorites(favoritesPage) {
+    await addPageToFavorites(favoritesPage.id, pageToAddToFavorites.id)
+
+    eventStore.set({
+        event: 'pageAddedToFavorites',
+        data: {
+            favoritesPageId: favoritesPage.id,
+        },
+    })
+
+    showAddToFavoritesModal = false
+    pageToAddToFavorites = null
+}
+
+async function startManageFavorites() {
+    // Store the page to manage
+    pageToManageFavorites = pageItemContextMenu.page
+
+    // Fetch all Favorites pages
+    const allFavoritesPages = await fetchPlus.get('/favorites-pages')
+
+    // Check which ones contain this page
+    favoritesContainingPage = []
+    for (const favPage of allFavoritesPages) {
+        const content = await fetchPlus.get(`/pages/content/${favPage.id}`)
+        const parsedContent = content.content ? JSON.parse(content.content) : { pageRefs: [] }
+        const pageRefs = parsedContent.pageRefs || []
+
+        if (pageRefs.includes(pageItemContextMenu.page.id)) {
+            favoritesContainingPage.push(favPage)
+        }
+    }
+
+    showManageFavoritesModal = true
+    pageItemContextMenu.page = null
+}
+
+async function removeFromFavoritesPage(favoritesPage) {
+    await removePageFromFavorites(favoritesPage.id, pageToManageFavorites.id)
+
+    // Update the list
+    favoritesContainingPage = favoritesContainingPage.filter(f => f.id !== favoritesPage.id)
+
+    eventStore.set({
+        event: 'pageRemovedFromFavorites',
+        data: {
+            favoritesPageId: favoritesPage.id,
+        },
+    })
+
+    // Close modal if no more favorites
+    if (favoritesContainingPage.length === 0) {
+        showManageFavoritesModal = false
+        pageToManageFavorites = null
+    }
+}
 function startMovePage() {
     showMovePageModalData = JSON.parse(JSON.stringify(pageItemContextMenu.page))
     showMovePageModalSelectedNotebook = {
@@ -326,13 +432,71 @@ $: fetchPageGroupsForSectionId(showMovePageModalSelectedSectionId)
                     <div on:click={changePagePassword}>Change Password</div>
                     <div on:click={removePagePassword}>Remove Password</div>
                 {/if}
-                <div on:click={duplicatePage}>Duplicate page</div>
-                <div on:click={startMovePage}>Move page</div>
-                <div on:click={deletePage}>Delete page</div>
+                {#if favoritesPageId !== null}
+                    <div on:click={removeFromFavorites}>Remove from Favorites</div>
+                {:else}
+                    <div on:click={duplicatePage}>Duplicate page</div>
+                    {#if pageItemContextMenu.page.type !== 'Favorites'}
+                        <div on:click={startAddToFavorites}>Add to Favorites</div>
+                        <div on:click={startManageFavorites}>Manage Favorites</div>
+                    {/if}
+                    <div on:click={startMovePage}>Move page</div>
+                    <div on:click={deletePage}>Delete page</div>
+                {/if}
             {:else}
                 <div on:click={unlockPage}>Unlock Page</div>
             {/if}
         </div>
+    {/if}
+
+    {#if showAddToFavoritesModal}
+        <Modal on:close-modal={() => (showAddToFavoritesModal = false)}>
+            <h2 class="heading">Add to Favorites</h2>
+            <div>
+                <p>Select a favorites page to add this page to:</p>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    {#each favoritesPagesForAddModal as favoritesPage}
+                        <div
+                            style="padding: 0.5rem; cursor: pointer; border: 1px solid #ccc; margin-bottom: 0.25rem;"
+                            on:click={() => addToFavorites(favoritesPage)}
+                        >
+                            {favoritesPage.name}
+                        </div>
+                    {/each}
+                </div>
+            </div>
+        </Modal>
+    {/if}
+
+    {#if showManageFavoritesModal}
+        <Modal on:close-modal={() => {
+            showManageFavoritesModal = false
+            pageToManageFavorites = null
+        }}>
+            <h2 class="heading">Manage Favorites</h2>
+            <div>
+                {#if favoritesContainingPage.length > 0}
+                    <p>This page is in the following favorites:</p>
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        {#each favoritesContainingPage as favoritesPage}
+                            <div
+                                style="padding: 0.5rem; border: 1px solid #ccc; margin-bottom: 0.25rem; display: flex; justify-content: space-between; align-items: center;"
+                            >
+                                <span>{favoritesPage.name}</span>
+                                <button
+                                    on:click={() => removeFromFavoritesPage(favoritesPage)}
+                                    style="padding: 0.25rem 0.5rem;"
+                                >
+                                    Remove
+                                </button>
+                            </div>
+                        {/each}
+                    </div>
+                {:else}
+                    <p>This page is not in any favorites pages.</p>
+                {/if}
+            </div>
+        </Modal>
     {/if}
 
     {#if showMovePageModal}

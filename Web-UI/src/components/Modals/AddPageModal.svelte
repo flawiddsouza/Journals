@@ -141,10 +141,11 @@ function handleAddPageInput(e) {
                 <option value="MiniApp">Mini App</option>
                 {#if !pageGroupId}
                     <option value="PageGroup">Page Group</option>
+                    <option value="Favorites">Favorites</option>
                 {/if}
             </select>
         </label>
-        {#if addPageSettings.type !== 'PageGroup' && !pageGroupId}
+        {#if addPageSettings.type !== 'PageGroup' && addPageSettings.type !== 'Favorites' && !pageGroupId}
             <label class="d-b mt-0_5em"
                 >Page Group<br />
                 <select bind:value={addPageSettings.parentId} class="w-100p">
