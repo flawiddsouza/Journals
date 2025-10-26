@@ -1125,9 +1125,12 @@ get "/favorites/:favorites_page_id" do |env|
         pages.sort_order,
         pages.section_id,
         pages.created_at,
-        sections.notebook_id
+        sections.notebook_id,
+        pages.parent_id,
+        page_group.name as parent_name
       FROM pages
       JOIN sections ON sections.id = pages.section_id
+      LEFT JOIN pages as page_group ON page_group.id = pages.parent_id
       WHERE pages.id = ? AND pages.user_id = ?
       ",
       page_id,
@@ -1145,7 +1148,9 @@ get "/favorites/:favorites_page_id" do |env|
         sort_order: Int64 | Nil,
         section_id: Int64,
         created_at: String,
-        notebook_id: Int64
+        notebook_id: Int64,
+        parent_id: Int64 | Nil,
+        parent_name: String | Nil
       }
     )
   end

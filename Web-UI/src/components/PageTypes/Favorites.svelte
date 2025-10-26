@@ -161,7 +161,7 @@ window.addEventListener('click', (e) => {
                 class:active={activePage && activePage.id === page.id}
                 use:dragSort={{ item: page, onSort }}
                 on:contextmenu={(e) => handleContextMenu(e, page)}
-                >{page.name}</a
+                >{page.parent_name ? `${page.parent_name} > ` : ''}{page.name}</a
             >
         {/each}
     </div>
