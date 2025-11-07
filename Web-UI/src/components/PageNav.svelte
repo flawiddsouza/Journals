@@ -22,7 +22,7 @@ let pageHistory = []
 let pageUploads = []
 let pageStyles = {}
 
-let showPageHistoryItemViewModal = false
+let activePageHistoryItem = null
 let pageHistoryItemViewPageContent = null
 let miniAppConfigMode = false
 let lastActivePageId = null
@@ -43,10 +43,10 @@ $: if (showPageUploadsModal && activePage) {
     fetchPageUploads(activePage)
 }
 
-function viewPageHistoryItem(pageHistoryItemId) {
-    showPageHistoryItemViewModal = true
+function viewPageHistoryItem(pageHistoryItem) {
+    activePageHistoryItem = pageHistoryItem
     fetchPlus
-        .get(`/page-history/content/${pageHistoryItemId}`)
+        .get(`/page-history/content/${pageHistoryItem.id}`)
         .then((response) => {
             pageHistoryItemViewPageContent = response.content
         })
@@ -348,42 +348,83 @@ function isLastLink(index, array) {
     {#if showPageHistoryModal}
         <Modal on:close-modal={() => (showPageHistoryModal = false)}>
             <h2 class="heading">Page History</h2>
-            <div class="oy-a" style="max-height: 80vh">
-                <table>
-                    {#each pageHistory as pageHistoryItem}
-                        <tr>
-                            <td>
-                                {format(
-                                    pageHistoryItem.created_at + 'Z',
-                                    'DD-MM-YYYY hh:mm:ss A',
-                                )}
-                            </td>
-                            <td>
-                                <button
-                                    on:click={() =>
-                                        viewPageHistoryItem(pageHistoryItem.id)}
-                                >View</button>
-                            </td>
-                            <td>
-                                <button
-                                    on:click={() =>
-                                        restorePageHistoryItem(
-                                            pageHistoryItem.id,
-                                        )}
-                                >Restore</button>
-                            </td>
-                            <td>
-                                <button
-                                    title={pageHistoryItem.pinned && pageHistoryItem.pinned == 1 ? 'Unpin' : 'Pin'}
-                                    on:click={() => togglePinPageHistoryItem(pageHistoryItem)}
-                                >{pageHistoryItem.pinned && pageHistoryItem.pinned == 1 ? 'Unpin' : 'Pin'}</button>
-                            </td>
-                            <td>{pageHistoryItem.pinned && pageHistoryItem.pinned == 1 ? '📌' : ''}</td>
-                        </tr>
-                    {:else}
-                        <div>No History Found</div>
-                    {/each}
-                </table>
+            <div class:page-history-container={activePageHistoryItem}>
+                <div class="page-history-sidebar oy-a">
+                    <table>
+                        {#each pageHistory as pageHistoryItem}
+                            <tr class:active={activePageHistoryItem?.id === pageHistoryItem.id}>
+                                <td on:click={() => viewPageHistoryItem(pageHistoryItem)} style="cursor: pointer;">
+                                    {format(
+                                        pageHistoryItem.created_at + 'Z',
+                                        'DD-MM-YYYY hh:mm:ss A',
+                                    )}
+                                </td>
+                                <td>
+                                    <button
+                                        on:click={() =>
+                                            viewPageHistoryItem(pageHistoryItem)}
+                                    >View</button>
+                                </td>
+                                <td>
+                                    <button
+                                        on:click|stopPropagation={() =>
+                                            restorePageHistoryItem(
+                                                pageHistoryItem.id,
+                                            )}
+                                    >Restore</button>
+                                </td>
+                                <td>
+                                    <button
+                                        title={pageHistoryItem.pinned && pageHistoryItem.pinned == 1 ? 'Unpin' : 'Pin'}
+                                        on:click|stopPropagation={() => togglePinPageHistoryItem(pageHistoryItem)}
+                                    >{pageHistoryItem.pinned && pageHistoryItem.pinned == 1 ? 'Unpin' : 'Pin'}</button>
+                                </td>
+                                <td>{pageHistoryItem.pinned && pageHistoryItem.pinned == 1 ? '📌' : ''}</td>
+                            </tr>
+                        {:else}
+                            <div>No History Found</div>
+                        {/each}
+                    </table>
+                </div>
+                {#if activePageHistoryItem}
+                    <div class="page-history-content oy-a">
+                        {#if activePage.type === 'FlatPage'}
+                            <FlatPage
+                                bind:pageContentOverride={
+                                    pageHistoryItemViewPageContent
+                                }
+                            ></FlatPage>
+                        {/if}
+                        {#if activePage.type === 'Table'}
+                            <Table
+                                bind:pageContentOverride={
+                                    pageHistoryItemViewPageContent
+                                }
+                            ></Table>
+                        {/if}
+                        {#if activePage.type === 'Spreadsheet'}
+                            <Spreadsheet
+                                bind:pageContentOverride={
+                                    pageHistoryItemViewPageContent
+                                }
+                            ></Spreadsheet>
+                        {/if}
+                        {#if activePage.type === 'DrawIO'}
+                            <DrawIO
+                                bind:pageContentOverride={
+                                    pageHistoryItemViewPageContent
+                                }
+                            ></DrawIO>
+                        {/if}
+                        {#if activePage.type === 'MiniApp'}
+                            <MiniApp
+                                bind:pageContentOverride={
+                                    pageHistoryItemViewPageContent
+                                }
+                            ></MiniApp>
+                        {/if}
+                    </div>
+                {/if}
             </div>
         </Modal>
     {/if}
@@ -420,51 +461,6 @@ function isLastLink(index, array) {
                         <div>No Uploads Found</div>
                     {/each}
                 </table>
-            </div>
-        </Modal>
-    {/if}
-
-    {#if showPageHistoryItemViewModal}
-        <Modal on:close-modal={() => (showPageHistoryItemViewModal = false)}>
-            <div
-                class="oy-a"
-                style="max-height: 80vh; height: 50vh; width: 50vw;"
-            >
-                {#if activePage.type === 'FlatPage'}
-                    <FlatPage
-                        bind:pageContentOverride={
-                            pageHistoryItemViewPageContent
-                        }
-                    ></FlatPage>
-                {/if}
-                {#if activePage.type === 'Table'}
-                    <Table
-                        bind:pageContentOverride={
-                            pageHistoryItemViewPageContent
-                        }
-                    ></Table>
-                {/if}
-                {#if activePage.type === 'Spreadsheet'}
-                    <Spreadsheet
-                        bind:pageContentOverride={
-                            pageHistoryItemViewPageContent
-                        }
-                    ></Spreadsheet>
-                {/if}
-                {#if activePage.type === 'DrawIO'}
-                    <DrawIO
-                        bind:pageContentOverride={
-                            pageHistoryItemViewPageContent
-                        }
-                    ></DrawIO>
-                {/if}
-                {#if activePage.type === 'MiniApp'}
-                    <MiniApp
-                        bind:pageContentOverride={
-                            pageHistoryItemViewPageContent
-                        }
-                    ></MiniApp>
-                {/if}
             </div>
         </Modal>
     {/if}
@@ -532,5 +528,38 @@ function isLastLink(index, array) {
 <style>
 .oy-a {
     overflow-y: auto;
+}
+
+.page-history-container {
+    display: flex;
+    height: 85vh;
+    width: 90vw;
+    gap: 1rem;
+}
+
+.page-history-sidebar {
+    flex: 0 0 auto;
+}
+
+.page-history-container .page-history-sidebar {
+    height: 85vh;
+    min-width: 400px;
+    max-width: 500px;
+}
+
+.page-history-sidebar:not(.page-history-container .page-history-sidebar) {
+    max-height: 80vh;
+}
+
+.page-history-sidebar table tr.active {
+    background-color: rgba(100, 150, 255, 0.2);
+}
+
+.page-history-content {
+    flex: 1;
+    height: 85vh;
+    min-width: 600px;
+    border-left: 1px solid #ccc;
+    padding-left: 1rem;
 }
 </style>
