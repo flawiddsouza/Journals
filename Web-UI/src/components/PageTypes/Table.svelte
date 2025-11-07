@@ -338,9 +338,14 @@ function evalulateJS(source, jsString, rowIndex = null, columnName = null) {
                 'Row Styles': evalStats.rowStyle,
                 'Column Styles': evalStats.columnStyle,
                 'Computed Columns': evalStats.computedColumn,
-                'Total': evalStats.total
+                Total: evalStats.total,
             })
-            evalStats = { rowStyle: 0, columnStyle: 0, computedColumn: 0, total: 0 }
+            evalStats = {
+                rowStyle: 0,
+                columnStyle: 0,
+                computedColumn: 0,
+                total: 0,
+            }
         }
     }, 100)
 
@@ -960,7 +965,9 @@ function scoreSuggestion(query, suggestion) {
         return index // stays 0 so prefixes rank first
     }
 
-    const wordBoundaryRegex = new RegExp(`\\b${normalizedQuery.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}`)
+    const wordBoundaryRegex = new RegExp(
+        `\\b${normalizedQuery.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}`,
+    )
     if (wordBoundaryRegex.test(normalizedSuggestion)) {
         return index + 1 // word boundary hits come next
     }

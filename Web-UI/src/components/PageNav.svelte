@@ -66,12 +66,19 @@ function togglePinPageHistoryItem(pageHistoryItem) {
     // toggle locally immediately for snappy UI, then persist
     const newPinned = !(pageHistoryItem.pinned && pageHistoryItem.pinned == 1)
     // optimistic update
-    pageHistory = pageHistory.map((h) => (h.id === pageHistoryItem.id ? { ...h, pinned: newPinned ? 1 : 0 } : h))
+    pageHistory = pageHistory.map((h) =>
+        h.id === pageHistoryItem.id ? { ...h, pinned: newPinned ? 1 : 0 } : h,
+    )
 
-    fetchPlus.put(`/page-history/pin/${pageHistoryItem.id}`, { pinned: newPinned })
+    fetchPlus
+        .put(`/page-history/pin/${pageHistoryItem.id}`, { pinned: newPinned })
         .catch(() => {
             // revert on error
-            pageHistory = pageHistory.map((h) => (h.id === pageHistoryItem.id ? { ...h, pinned: pageHistoryItem.pinned } : h))
+            pageHistory = pageHistory.map((h) =>
+                h.id === pageHistoryItem.id
+                    ? { ...h, pinned: pageHistoryItem.pinned }
+                    : h,
+            )
         })
 }
 
@@ -352,8 +359,15 @@ function isLastLink(index, array) {
                 <div class="page-history-sidebar oy-a">
                     <table>
                         {#each pageHistory as pageHistoryItem}
-                            <tr class:active={activePageHistoryItem?.id === pageHistoryItem.id}>
-                                <td on:click={() => viewPageHistoryItem(pageHistoryItem)} style="cursor: pointer;">
+                            <tr
+                                class:active={activePageHistoryItem?.id ===
+                                    pageHistoryItem.id}
+                            >
+                                <td
+                                    on:click={() =>
+                                        viewPageHistoryItem(pageHistoryItem)}
+                                    style="cursor: pointer;"
+                                >
                                     {format(
                                         pageHistoryItem.created_at + 'Z',
                                         'DD-MM-YYYY hh:mm:ss A',
@@ -362,24 +376,41 @@ function isLastLink(index, array) {
                                 <td>
                                     <button
                                         on:click={() =>
-                                            viewPageHistoryItem(pageHistoryItem)}
-                                    >View</button>
+                                            viewPageHistoryItem(
+                                                pageHistoryItem,
+                                            )}>View</button
+                                    >
                                 </td>
                                 <td>
                                     <button
                                         on:click|stopPropagation={() =>
                                             restorePageHistoryItem(
                                                 pageHistoryItem.id,
-                                            )}
-                                    >Restore</button>
+                                            )}>Restore</button
+                                    >
                                 </td>
                                 <td>
                                     <button
-                                        title={pageHistoryItem.pinned && pageHistoryItem.pinned == 1 ? 'Unpin' : 'Pin'}
-                                        on:click|stopPropagation={() => togglePinPageHistoryItem(pageHistoryItem)}
-                                    >{pageHistoryItem.pinned && pageHistoryItem.pinned == 1 ? 'Unpin' : 'Pin'}</button>
+                                        title={pageHistoryItem.pinned &&
+                                        pageHistoryItem.pinned == 1
+                                            ? 'Unpin'
+                                            : 'Pin'}
+                                        on:click|stopPropagation={() =>
+                                            togglePinPageHistoryItem(
+                                                pageHistoryItem,
+                                            )}
+                                        >{pageHistoryItem.pinned &&
+                                        pageHistoryItem.pinned == 1
+                                            ? 'Unpin'
+                                            : 'Pin'}</button
+                                    >
                                 </td>
-                                <td>{pageHistoryItem.pinned && pageHistoryItem.pinned == 1 ? '📌' : ''}</td>
+                                <td
+                                    >{pageHistoryItem.pinned &&
+                                    pageHistoryItem.pinned == 1
+                                        ? '📌'
+                                        : ''}</td
+                                >
                             </tr>
                         {:else}
                             <div>No History Found</div>

@@ -24,8 +24,8 @@ export async function addPageToFavorites(favoritesPageId, pageId) {
     await fetchPlus.put(`/pages/${favoritesPageId}`, {
         pageContent: JSON.stringify({
             activePageId: parsedContent.activePageId,
-            pageRefs: pageRefs
-        })
+            pageRefs: pageRefs,
+        }),
     })
 }
 
@@ -46,7 +46,7 @@ export async function removePageFromFavorites(favoritesPageId, pageId) {
     let activePageId = parsedContent.activePageId
 
     // Remove the page
-    pageRefs = pageRefs.filter(id => id !== pageId)
+    pageRefs = pageRefs.filter((id) => id !== pageId)
 
     // If the removed page was active, set active to first page or null
     if (activePageId === pageId) {
@@ -57,7 +57,7 @@ export async function removePageFromFavorites(favoritesPageId, pageId) {
     await fetchPlus.put(`/pages/${favoritesPageId}`, {
         pageContent: JSON.stringify({
             activePageId: activePageId,
-            pageRefs: pageRefs
-        })
+            pageRefs: pageRefs,
+        }),
     })
 }

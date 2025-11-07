@@ -18,7 +18,11 @@ async function getPageInfo() {
 
     try {
         activePage = await fetchPlus.get(`/pages/info/${activePageId}`)
-        if (activePage.locked === false && activePage.type !== 'PageGroup' && activePage.type !== 'Favorites') {
+        if (
+            activePage.locked === false &&
+            activePage.type !== 'PageGroup' &&
+            activePage.type !== 'Favorites'
+        ) {
             gridTemplateRowsMainDiv = `grid-template-rows: auto 1fr`
         } else {
             gridTemplateRowsMainDiv = `grid-template-rows: 1fr`

@@ -8,7 +8,10 @@ export let pageGroupId = null
 export let favoritesPageId = null
 
 import fetchPlus from '../helpers/fetchPlus.js'
-import { addPageToFavorites, removePageFromFavorites } from '../helpers/favorites.js'
+import {
+    addPageToFavorites,
+    removePageFromFavorites,
+} from '../helpers/favorites.js'
 import Portal from './Portal.svelte'
 import Modal from './Modal.svelte'
 import { eventStore } from '../stores.js'
@@ -73,7 +76,10 @@ async function duplicatePage() {
 
 async function removeFromFavorites() {
     if (confirm('Are you sure you want to remove this page from favorites?')) {
-        await removePageFromFavorites(favoritesPageId, pageItemContextMenu.page.id)
+        await removePageFromFavorites(
+            favoritesPageId,
+            pageItemContextMenu.page.id,
+        )
 
         pages = pages.filter((page) => page.id !== pageItemContextMenu.page.id)
 
@@ -138,7 +144,9 @@ async function startManageFavorites() {
     favoritesContainingPage = []
     for (const favPage of allFavoritesPages) {
         const content = await fetchPlus.get(`/pages/content/${favPage.id}`)
-        const parsedContent = content.content ? JSON.parse(content.content) : { pageRefs: [] }
+        const parsedContent = content.content
+            ? JSON.parse(content.content)
+            : { pageRefs: [] }
         const pageRefs = parsedContent.pageRefs || []
 
         if (pageRefs.includes(pageItemContextMenu.page.id)) {
@@ -154,7 +162,9 @@ async function removeFromFavoritesPage(favoritesPage) {
     await removePageFromFavorites(favoritesPage.id, pageToManageFavorites.id)
 
     // Update the list
-    favoritesContainingPage = favoritesContainingPage.filter(f => f.id !== favoritesPage.id)
+    favoritesContainingPage = favoritesContainingPage.filter(
+        (f) => f.id !== favoritesPage.id,
+    )
 
     eventStore.set({
         event: 'pageRemovedFromFavorites',
@@ -433,12 +443,18 @@ $: fetchPageGroupsForSectionId(showMovePageModalSelectedSectionId)
                     <div on:click={removePagePassword}>Remove Password</div>
                 {/if}
                 {#if favoritesPageId !== null}
-                    <div on:click={removeFromFavorites}>Remove from Favorites</div>
+                    <div on:click={removeFromFavorites}>
+                        Remove from Favorites
+                    </div>
                 {:else}
                     <div on:click={duplicatePage}>Duplicate page</div>
                     {#if pageItemContextMenu.page.type !== 'Favorites'}
-                        <div on:click={startAddToFavorites}>Add to Favorites</div>
-                        <div on:click={startManageFavorites}>Manage Favorites</div>
+                        <div on:click={startAddToFavorites}>
+                            Add to Favorites
+                        </div>
+                        <div on:click={startManageFavorites}>
+                            Manage Favorites
+                        </div>
                     {/if}
                     <div on:click={startMovePage}>Move page</div>
                     <div on:click={deletePage}>Delete page</div>
@@ -469,10 +485,12 @@ $: fetchPageGroupsForSectionId(showMovePageModalSelectedSectionId)
     {/if}
 
     {#if showManageFavoritesModal}
-        <Modal on:close-modal={() => {
-            showManageFavoritesModal = false
-            pageToManageFavorites = null
-        }}>
+        <Modal
+            on:close-modal={() => {
+                showManageFavoritesModal = false
+                pageToManageFavorites = null
+            }}
+        >
             <h2 class="heading">Manage Favorites</h2>
             <div>
                 {#if favoritesContainingPage.length > 0}
@@ -484,7 +502,8 @@ $: fetchPageGroupsForSectionId(showMovePageModalSelectedSectionId)
                             >
                                 <span>{favoritesPage.name}</span>
                                 <button
-                                    on:click={() => removeFromFavoritesPage(favoritesPage)}
+                                    on:click={() =>
+                                        removeFromFavoritesPage(favoritesPage)}
                                     style="padding: 0.25rem 0.5rem;"
                                 >
                                     Remove
