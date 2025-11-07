@@ -213,6 +213,18 @@ get "/install" do
     user_version = 9
   end
 
+  if user_version === 9
+    # Add pinned column to page_history so certain history items can be preserved
+    begin
+      db.exec "ALTER TABLE page_history ADD COLUMN pinned INTEGER DEFAULT 0"
+    rescue
+      # ignore if column exists or other alter errors on older sqlite
+    end
+
+    db.exec "PRAGMA user_version = 10"
+    user_version = 10
+  end
+
   "Installation Complete!"
 end
 
@@ -440,12 +452,13 @@ put "/pages/:page_id" do |env|
   existing_content = db.scalar("SELECT content FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(String | Nil)
 
   if existing_content && existing_content != page_content
-    db.exec "INSERT INTO page_history(page_id, user_id, content) VALUES(?, ?, ?)", page_id, env.auth_id, existing_content
+    db.exec "INSERT INTO page_history(page_id, user_id, content, pinned) VALUES(?, ?, ?, 0)", page_id, env.auth_id, existing_content
   end
 
   ## limit history entries to 100
-  db.exec "DELETE FROM page_history WHERE page_id = ? AND user_id = ? AND id NOT IN (
-    SELECT id FROM page_history WHERE page_id = ? AND user_id = ?
+  # Keep pinned entries regardless of age; only prune non-pinned entries to keep latest 100 non-pinned
+  db.exec "DELETE FROM page_history WHERE page_id = ? AND user_id = ? AND pinned = 0 AND id NOT IN (
+    SELECT id FROM page_history WHERE page_id = ? AND user_id = ? AND pinned = 0
     ORDER BY created_at DESC
     LIMIT 100
   )", page_id, env.auth_id, page_id, env.auth_id
@@ -717,13 +730,33 @@ end
 get "/page-history/:page_id" do |env|
   page_id = env.params.url["page_id"]
 
-  page_history = db.query_all("SELECT id, created_at FROM page_history WHERE page_id = ? AND user_id = ? ORDER BY created_at DESC", page_id, env.auth_id, as: {
+  page_history = db.query_all("SELECT id, created_at, pinned FROM page_history WHERE page_id = ? AND user_id = ? ORDER BY created_at DESC", page_id, env.auth_id, as: {
     id:   Int64,
-    created_at: String
+    created_at: String,
+    pinned: Int64 | Nil
   })
 
   env.response.content_type = "application/json"
   page_history.to_json
+end
+
+# Toggle pin/unpin for a history item (only owner)
+put "/page-history/pin/:id" do |env|
+  id = env.params.url["id"]
+  begin
+    pinned_val = env.params.json["pinned"].as(Bool)
+  rescue
+    env.response.content_type = "application/json"
+    env.response.status_code = 400
+    env.response << {error: "Invalid request body"}.to_json
+    next
+  end
+
+  int_val = pinned_val ? 1 : 0
+  db.exec "UPDATE page_history SET pinned = ? WHERE id = ? AND user_id = ?", int_val, id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
 end
 
 get "/page-history/content/:id" do |env|

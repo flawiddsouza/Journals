@@ -62,6 +62,19 @@ function restorePageHistoryItem(pageHistoryItemId) {
     }
 }
 
+function togglePinPageHistoryItem(pageHistoryItem) {
+    // toggle locally immediately for snappy UI, then persist
+    const newPinned = !(pageHistoryItem.pinned && pageHistoryItem.pinned == 1)
+    // optimistic update
+    pageHistory = pageHistory.map((h) => (h.id === pageHistoryItem.id ? { ...h, pinned: newPinned ? 1 : 0 } : h))
+
+    fetchPlus.put(`/page-history/pin/${pageHistoryItem.id}`, { pinned: newPinned })
+        .catch(() => {
+            // revert on error
+            pageHistory = pageHistory.map((h) => (h.id === pageHistoryItem.id ? { ...h, pinned: pageHistoryItem.pinned } : h))
+        })
+}
+
 function startShowPageStylesModal() {
     showPageStylesModal = true
     pageStyles.fontSize = activePage.font_size || '14'
@@ -339,27 +352,33 @@ function isLastLink(index, array) {
                 <table>
                     {#each pageHistory as pageHistoryItem}
                         <tr>
-                            <td
-                                >{format(
+                            <td>
+                                {format(
                                     pageHistoryItem.created_at + 'Z',
                                     'DD-MM-YYYY hh:mm:ss A',
-                                )}</td
-                            >
-                            <td
-                                ><button
+                                )}
+                            </td>
+                            <td>
+                                <button
                                     on:click={() =>
                                         viewPageHistoryItem(pageHistoryItem.id)}
-                                    >View</button
-                                ></td
-                            >
-                            <td
-                                ><button
+                                >View</button>
+                            </td>
+                            <td>
+                                <button
                                     on:click={() =>
                                         restorePageHistoryItem(
                                             pageHistoryItem.id,
-                                        )}>Restore</button
-                                ></td
-                            >
+                                        )}
+                                >Restore</button>
+                            </td>
+                            <td>
+                                <button
+                                    title={pageHistoryItem.pinned && pageHistoryItem.pinned == 1 ? 'Unpin' : 'Pin'}
+                                    on:click={() => togglePinPageHistoryItem(pageHistoryItem)}
+                                >{pageHistoryItem.pinned && pageHistoryItem.pinned == 1 ? 'Unpin' : 'Pin'}</button>
+                            </td>
+                            <td>{pageHistoryItem.pinned && pageHistoryItem.pinned == 1 ? '📌' : ''}</td>
                         </tr>
                     {:else}
                         <div>No History Found</div>

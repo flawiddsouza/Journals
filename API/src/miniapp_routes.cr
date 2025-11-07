@@ -6,8 +6,9 @@ def update_page_content_with_history(db, page_id : Int64, auth_id : Int64, new_c
   existing_row = db.query_one?("SELECT content FROM pages WHERE id = ? AND user_id = ?", page_id, auth_id, as: {content: String | Nil})
   existing_content = existing_row ? existing_row["content"]? : nil
   if existing_content && existing_content != new_content
-    db.exec "INSERT INTO page_history(page_id, user_id, content) VALUES(?, ?, ?)", page_id, auth_id, existing_content
-    db.exec "DELETE FROM page_history WHERE page_id = ? AND user_id = ? AND id NOT IN (\n      SELECT id FROM page_history WHERE page_id = ? AND user_id = ?\n      ORDER BY created_at DESC\n      LIMIT 100\n    )", page_id, auth_id, page_id, auth_id
+    db.exec "INSERT INTO page_history(page_id, user_id, content, pinned) VALUES(?, ?, ?, 0)", page_id, auth_id, existing_content
+    # Prune only non-pinned entries while preserving pinned history
+    db.exec "DELETE FROM page_history WHERE page_id = ? AND user_id = ? AND pinned = 0 AND id NOT IN (\n      SELECT id FROM page_history WHERE page_id = ? AND user_id = ? AND pinned = 0\n      ORDER BY created_at DESC\n      LIMIT 100\n    )", page_id, auth_id, page_id, auth_id
   end
   db.exec "UPDATE pages SET content=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", new_content, page_id, auth_id
 end
