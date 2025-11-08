@@ -140,6 +140,9 @@ function handlePaste(event) {
                 const selection = window.getSelection()
                 selection.removeAllRanges()
                 selection.addRange(range)
+
+                // Trigger input event to update pageContent and save
+                pageContainer.dispatchEvent(new Event('input'))
             })
     }
 
