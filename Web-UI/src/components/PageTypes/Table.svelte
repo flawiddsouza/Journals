@@ -1606,6 +1606,7 @@ eventStore.subscribe((event) => {
                             <td>
                                 <select bind:value={column.type}>
                                     <option value="">Input</option>
+                                    <option>Input (Plain Text)</option>
                                     <option>Computed</option>
                                 </select>
                             </td>
