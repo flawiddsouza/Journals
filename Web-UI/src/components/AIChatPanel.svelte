@@ -665,12 +665,11 @@ function applySelection(
                         name: String(it.name).trim(),
                         code: String(it.code ?? ''),
                     }))
-                    .filter(
-                        (it) =>
-                            it.name &&
-                            !it.name.includes('/') &&
-                            it.name.toLowerCase().endsWith('.js'),
-                    )
+                    .filter((it) => {
+                        if (!it.name || it.name.includes('/')) return false
+                        const lower = it.name.toLowerCase()
+                        return lower.endsWith('.js') || lower.endsWith('.css')
+                    })
                 if (sanitized.length) delta.modulesUpsert = sanitized
             }
         } catch {}

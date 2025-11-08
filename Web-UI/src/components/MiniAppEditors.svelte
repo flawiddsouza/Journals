@@ -45,14 +45,15 @@ $: displayModules = modules
 function addModule() {
     if (readOnly) return
     // Ask user for a filename instead of auto-incrementing
-    let name = prompt('New module filename (e.g., utils.js)')
+    let name = prompt('New module filename (e.g., utils.js or styles-base.css)')
     if (name == null) return // cancelled
     name = name.trim()
     if (!name) return
 
-    // Ensure .js extension
-    if (!name.toLowerCase().endsWith('.js')) {
-        name = name + '.js'
+    // Ensure extension (.js or .css)
+    const lower = name.toLowerCase()
+    if (!lower.endsWith('.js') && !lower.endsWith('.css')) {
+        name = name + '.js' // default to JS
     }
 
     // Prevent duplicates locally; parent can still enforce final rules
@@ -229,28 +230,32 @@ function handleEditorInput(kind, e) {
                                 </li>
                             {:else}
                                 <li class="empty">
-                                    No modules. Click Add and enter a filename
+                                    No modules. Click Add and enter a filename (e.g., utils.js or styles.css)
                                 </li>
                             {/each}
                         </ul>
                     </div>
                     <div class="modules-editor">
                         {#if selectedModuleIndex >= 0 && modules[selectedModuleIndex]}
+                            {@const mod = modules[selectedModuleIndex]}
+                            {@const isCSS = mod.name.toLowerCase().endsWith('.css')}
                             <div class="hint">
-                                Import with: <code
-                                    >import ... from '{modules[
-                                        selectedModuleIndex
-                                    ].name.startsWith('./')
-                                        ? modules[selectedModuleIndex].name
-                                        : './' +
-                                          modules[selectedModuleIndex]
-                                              .name}'</code
-                                >
+                                {#if isCSS}
+                                    Import with: <code
+                                        >@import url('./{mod.name}');</code
+                                    >
+                                {:else}
+                                    Import with: <code
+                                        >import ... from '{mod.name.startsWith('./')
+                                            ? mod.name
+                                            : './' + mod.name}'</code
+                                    >
+                                {/if}
                             </div>
                             {#key `${modulesKey}:${selectedModuleIndex}`}
                                 <code-mirror
-                                    language="javascript"
-                                    value={modules[selectedModuleIndex].code}
+                                    language={isCSS ? 'css' : 'javascript'}
+                                    value={mod.code}
                                     on:input={handleModuleInput}
                                     style="border:1px solid #aaa"
                                 ></code-mirror>

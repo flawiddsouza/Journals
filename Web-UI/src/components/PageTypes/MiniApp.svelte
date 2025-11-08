@@ -37,18 +37,18 @@ let modulesKey = 0
 // Derived flag to unify read-only conditions
 $: readOnlyMode = viewOnly || pageContentOverride !== undefined
 
-// JS-only flat modules (no folders). Each: { name: string, code: string }
+// Flat modules (no folders). Each: { name: string, code: string }
+// Type (js/css) is inferred from file extension
 let modules = []
 let selectedModuleIndex = -1
 const MAX_MODULES = 12
 
 function validModuleName(name) {
-    return (
-        typeof name === 'string' &&
-        name.toLowerCase().endsWith('.js') &&
-        !name.includes('/') &&
-        name.trim().length > 0
-    )
+    if (typeof name !== 'string' || name.includes('/') || !name.trim().length) {
+        return false
+    }
+    const lower = name.toLowerCase()
+    return lower.endsWith('.js') || lower.endsWith('.css')
 }
 
 function addModule(name) {
@@ -57,11 +57,14 @@ function addModule(name) {
         return alert(`Limit ${MAX_MODULES} modules`)
     const names = new Set(modules.map((m) => m.name))
     let filename = (name || '').trim()
-    if (!filename) return alert('Please provide a filename like utils.js')
-    // Ensure .js and simple filename (no folders)
-    if (!filename.toLowerCase().endsWith('.js')) filename += '.js'
+    if (!filename) return alert('Please provide a filename like utils.js or styles.css')
+    // Ensure extension and simple filename (no folders)
+    const lower = filename.toLowerCase()
+    if (!lower.endsWith('.js') && !lower.endsWith('.css')) {
+        filename += '.js' // default to JS
+    }
     if (!validModuleName(filename))
-        return alert('Invalid name. Use something like utils.js (no /).')
+        return alert('Invalid name. Use something like utils.js or styles.css (no /).')
     if (names.has(filename))
         return alert(`A module named "${filename}" already exists.`)
 
@@ -77,12 +80,12 @@ function renameModule(index) {
     if (index < 0 || index >= modules.length) return
     const current = modules[index]
     const next = prompt(
-        'Rename module (must end with .js, no folders):',
+        'Rename module (must end with .js or .css, no folders):',
         current.name,
     )
     if (!next || next === current.name) return
     if (!validModuleName(next))
-        return alert('Invalid name. Use something like utils.js (no /).')
+        return alert('Invalid name. Use something like utils.js or styles.css (no /).')
     if (modules.some((m, i) => i !== index && m.name === next))
         return alert('A module with this name already exists.')
     modules = modules.map((m, i) => (i === index ? { ...m, name: next } : m))
@@ -172,7 +175,8 @@ const aiSystemPrompt = `You are an assistant that generates or edits small, self
 - Persistent storage is available via a global async object Journals with methods: getItem(key), setItem(key, value), removeItem(key), clear(), keys(); plus file helpers: upload(file[, filename?]) and getFileUrl(pathOrUrl). All return Promises.
 - Storage semantics: getItem/setItem accept and return JSON-serializable values via structured clone over postMessage. Do NOT JSON.stringify or JSON.parse; pass plain objects/arrays/primitives. Avoid functions, symbols, DOM nodes, and BigInt. Dates will be stored as strings.
  - You may use ESM imports for whitelisted libraries via an import map. For example, Vue is available as: import { createApp, ref, onMounted } from 'vue'.
- - You may import user modules via relative paths to flat files (JS only): import x from './utils.js'. The editor rewrites these to work in the sandbox.
+ - You may import user JS modules via relative paths to flat files: import x from './utils.js'. The editor rewrites these to work in the sandbox.
+ - You may import user CSS modules via @import in CSS: @import url('./styles-base.css'). CSS modules are injected as <style> tags in the head.
  - No external network resources or CDNs. Only bare specifiers provided by the import map are allowed (e.g., 'vue'). No relative/absolute URLs in import.
 
  Uploads:
@@ -186,11 +190,14 @@ const aiSystemPrompt = `You are an assistant that generates or edits small, self
 
  Output format (strict):
  - Reply with fenced code blocks labeled exactly: html, css, javascript. Example: \`\`\`html ...\`\`\`.
- - To create or edit additional JS modules, include ONE extra fenced block labeled exactly: modules. Its content must be JSON with an array property "upsert" listing objects of shape { "name": "utils.js", "code": "export ..." }. Example:
+ - To create or edit additional modules (JS or CSS), include ONE extra fenced block labeled exactly: modules. Its content must be JSON with an array property "upsert" listing objects of shape { "name": "utils.js", "code": "export ..." } or { "name": "styles-base.css", "code": "/* css */" }. Example:
      \`\`\`modules
-     { "upsert": [ { "name": "utils.js", "code": "export const add=(a,b)=>a+b" } ] }
+     { "upsert": [
+         { "name": "utils.js", "code": "export const add=(a,b)=>a+b" },
+         { "name": "styles-base.css", "code": "body { margin: 0; }" }
+     ] }
      \`\`\`
-     Filenames must be flat (no folders) and end with .js. Upsert means create new or replace existing by name.
+     Filenames must be flat (no folders) and end with .js or .css. Type is inferred from the file extension. Upsert means create new or replace existing by name.
  - When editing existing code, return ONLY the blocks that need changes; omit blocks that are unchanged. For any block you include, provide the FULL updated content of that block (not a diff or patch). Keep explanations very brief, after the code.
  - JS should attach event listeners with addEventListener and can use await directly at top-level (module script). If you import from 'vue', use the ESM API.
  - Style: use single quotes for strings, avoid semicolons, and format with readable multi-line code using 4-space indentation (no one-liners).
@@ -371,7 +378,9 @@ function handleAIApply(e) {
         for (const item of delta.modulesUpsert) {
             if (!item || typeof item.name !== 'string') continue
             const name = item.name.trim()
-            if (!name || /\//.test(name) || !name.toLowerCase().endsWith('.js'))
+            const lower = name.toLowerCase()
+            // Accept both .js and .css
+            if (!name || /\//.test(name) || (!lower.endsWith('.js') && !lower.endsWith('.css')))
                 continue
             const code = String(item.code ?? '')
             byName.set(name, { name, code })
@@ -519,19 +528,29 @@ function buildSrcdoc() {
         return false
     })()
     const userJsLiteral = JSON.stringify(rewriteRelImports(files.js || ''))
-    // Prepare modules payload with rewritten code
-    const modulesPayload = JSON.stringify(
-        (modules || []).map((m) => ({
+    // Separate JS and CSS modules by file extension
+    const jsModules = (modules || []).filter((m) => !m.name.toLowerCase().endsWith('.css'))
+    const cssModules = (modules || []).filter((m) => m.name.toLowerCase().endsWith('.css'))
+
+    // Prepare JS modules payload with rewritten code
+    const jsModulesPayload = JSON.stringify(
+        jsModules.map((m) => ({
             name: m.name,
             code: rewriteRelImports(m.code || ''),
         })),
     )
+
+    // Build CSS module style tags with data-module attribute for identification
+    const cssModuleStyles = cssModules
+        .map((m) => `    <style data-module="${m.name}">${m.code || ''}</style>`)
+        .join('\n')
 
     return `<!doctype html>
 <html>
 <head>
     <meta charset="utf-8" />
     <style>${files.css || ''}</style>
+${cssModuleStyles}
 </head>
 <body>
     ${files.html || ''}
@@ -540,7 +559,7 @@ function buildSrcdoc() {
     (async () => {
         try {
             const NEEDS_VUE = ${needsVue ? 'true' : 'false'};
-            const MODULES = ${modulesPayload};
+            const MODULES = ${jsModulesPayload};
             // If Vue is needed, request its ESM code from parent and set an import map to a blob URL created inside the iframe
             if (NEEDS_VUE && typeof window.__MiniAppCallLoadLibrary === 'function') {
                 const res = await window.__MiniAppCallLoadLibrary('vue');
@@ -563,7 +582,7 @@ function buildSrcdoc() {
                     document.head.appendChild(im);
                 }
             }
-            // If Vue isn't needed, we may still need an import map for modules
+            // If Vue isn't needed, we may still need an import map for JS modules
             if (!NEEDS_VUE && Array.isArray(MODULES) && MODULES.length > 0) {
                 const imports = {};
                 for (const m of MODULES) {
@@ -1153,11 +1172,11 @@ createApp(App).mount('#app')
                             Modules
                         </div>
                         <p>
-                            Add extra JS files from the Modules tab. Filenames
+                            Add extra JS or CSS files from the Modules tab. Filenames
                             must be flat (no folders) and end with <code
                                 >.js</code
-                            >
-                            (e.g., <code>utils.js</code>).
+                            > or <code>.css</code>
+                            (e.g., <code>utils.js</code>, <code>styles-base.css</code>).
                         </p>
                         <pre><code
                                 >// In utils.js
@@ -1167,11 +1186,22 @@ export function sum(a, b) &#123; return a + b &#125;
 import &#123; sum &#125; from './utils.js'
 
 document.getElementById('result').textContent = sum(2, 3)
+
+/* In styles-base.css */
+body &#123; margin: 0; padding: 0; &#125;
+
+/* In main CSS */
+@import url('./styles-base.css');
+@import url('./styles-buttons.css');
 </code></pre>
                         <ul>
                             <li>
-                                Import using <code>'./filename.js'</code>. The
+                                JS modules: Import using <code>'./filename.js'</code>. The
                                 editor maps these under the hood.
+                            </li>
+                            <li>
+                                CSS modules: Use <code>@import url('./filename.css')</code> in your main CSS or other CSS modules.
+                                These are injected as &lt;style&gt; tags in the head.
                             </li>
                             <li>
                                 Keep modules simple and self-contained. No
