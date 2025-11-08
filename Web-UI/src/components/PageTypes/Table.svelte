@@ -21,8 +21,8 @@ let noteContainer = null
 let savedCursorPosition = null
 // Styles and computed columns are calculated on the fly per visible cell to reduce state bookkeeping
 
-// Minimal pagination (show last 500 rows by default when large)
-const PAGE_SIZE = 500
+// Minimal pagination (show last 250 rows by default when large)
+const PAGE_SIZE = 250
 let currentPage = 1
 let totalPages = 1
 let showPagination = false
@@ -434,16 +434,42 @@ function insertRow(rowIndex, insertAbove) {
     // move focus to the first focusable cell of the inserted row, if shift key is not pressed
     if (!insertAbove) {
         setTimeout(() => {
-            // convert global index to local visible index since we render a slice
-            const localIndex = rowIndex - visibleStartIndex
-            let rows =
-                document
-                    .querySelector('.editable-table tbody')
-                    ?.querySelectorAll('tr') || []
-            let bottomRow = rows[localIndex + 1]
-            if (typeof bottomRow !== 'undefined') {
-                let bottomCell = bottomRow.querySelector('div[contenteditable]')
-                bottomCell.focus()
+            // Check if the newly inserted row is on a different page
+            const newRowIndex = rowIndex + 1
+            const newRowPage = Math.ceil((newRowIndex + 1) / PAGE_SIZE)
+
+            if (newRowPage !== currentPage) {
+                // Navigate to the page containing the new row
+                goToPage(newRowPage)
+                // Wait for page change to complete before focusing
+                setTimeout(() => {
+                    const localIndex = newRowIndex - visibleStartIndex
+                    let rows =
+                        document
+                            .querySelector('.editable-table tbody')
+                            ?.querySelectorAll('tr') || []
+                    let bottomRow = rows[localIndex]
+                    if (typeof bottomRow !== 'undefined') {
+                        let bottomCell = bottomRow.querySelector(
+                            'div[contenteditable]',
+                        )
+                        bottomCell.focus()
+                    }
+                }, 50)
+            } else {
+                // convert global index to local visible index since we render a slice
+                const localIndex = rowIndex - visibleStartIndex
+                let rows =
+                    document
+                        .querySelector('.editable-table tbody')
+                        ?.querySelectorAll('tr') || []
+                let bottomRow = rows[localIndex + 1]
+                if (typeof bottomRow !== 'undefined') {
+                    let bottomCell = bottomRow.querySelector(
+                        'div[contenteditable]',
+                    )
+                    bottomCell.focus()
+                }
             }
         }, 0)
     }
