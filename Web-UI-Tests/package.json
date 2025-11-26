@@ -1,0 +1,13 @@
+{
+    "type": "module",
+    "devDependencies": {
+        "@sveltejs/vite-plugin-svelte": "^6.2.1",
+        "@vitest/browser-playwright": "^4.0.8",
+        "playwright": "^1.48.0",
+        "vitest": "^4.0.8",
+        "vitest-browser-svelte": "^2.0.1"
+    },
+    "scripts": {
+        "test:browser": "vitest --browser --run"
+    }
+}

@@ -75,6 +75,7 @@ $: if (pageContentOverride) {
     startupScript = parsedPage.startupScript
     customFunctions = parsedPage.customFunctions
     note = parsedPage.note || ''
+    undoRedoManager.reset()
 
     // styles and computed columns are now computed on the fly
 
@@ -107,7 +108,7 @@ function fetchPage(pageId) {
     configuration = false
     showAddColumn = false
     cancelEditColumn()
-    undoStackForRemoveRow = [] // reset undo stack
+    undoRedoManager.reset() // reset undo stack
     // end of reset variables on page change
     fetchPlus.get(`/pages/content/${pageId}`).then((response) => {
         let parsedResponse = response.content
@@ -372,7 +373,258 @@ function evalulateJS(source, jsString, rowIndex = null, columnName = null) {
     }
 }
 
-let undoStackForRemoveRow = []
+import { UndoRedoManager, cloneRow } from '../../helpers/undoRedoManager.js'
+
+let undoRedoManager = new UndoRedoManager()
+// Store cell values before editing to capture the "before" state for undo
+let cellBeforeEdit = new Map() // key: "rowIndex-columnName", value: { oldValue, itemIndex, columnName }
+
+// Debug logging for user operations
+let operationLog = []
+function logOperation(type, data) {
+    // Capture current table state
+    const tableState = {
+        rowCount: items.length,
+        rows: items.map((item, idx) => {
+            const row = {}
+            columns.forEach(col => {
+                // Strip HTML and get plain text
+                const value = item[col.name] || ''
+                row[col.name] = String(value).replace(/<[^>]*>/g, '')
+            })
+            return row
+        })
+    }
+
+    operationLog.push({
+        timestamp: Date.now(),
+        type,
+        data,
+        tableState
+    })
+}
+
+// Expose function to dump operation log
+globalThis.dumpOperationLog = () => {
+    console.log('=== OPERATION LOG ===')
+    console.log(JSON.stringify(operationLog, null, 2))
+    return operationLog
+}
+
+// Expose function to clear operation log
+globalThis.clearOperationLog = () => {
+    operationLog = []
+    console.log('Operation log cleared')
+}
+
+// Expose undoRedoManager for debugging
+globalThis.undoRedoManager = undoRedoManager
+
+function recordRowOperation(operation) {
+    undoRedoManager.recordRowOperation(operation)
+}
+
+function recordTextOperation(meta) {
+    undoRedoManager.recordTextOperation(meta)
+}
+
+/**
+ * Record any pending text changes in the currently focused cell
+ * This should be called before operations that might affect the undo stack
+ */
+function recordPendingTextChanges() {
+    if (!document.activeElement || !document.activeElement.hasAttribute('contenteditable')) {
+        return
+    }
+
+    const focusedItemIndex = parseInt(document.activeElement.getAttribute('data-item-index') || '', 10)
+    const columnName = document.activeElement.getAttribute('data-column-name')
+
+    if (isNaN(focusedItemIndex) || !columnName) {
+        return
+    }
+
+    const cellKey = `${focusedItemIndex}-${columnName}`
+    const cellData = cellBeforeEdit.get(cellKey)
+    const currentValue = document.activeElement.textContent ?? ''
+
+    // If there are pending changes, record them first
+    if (cellData && cellData.oldValue !== currentValue) {
+        recordTextOperation({
+            itemIndex: cellData.itemIndex,
+            columnName: cellData.columnName,
+            oldValue: cellData.oldValue,
+            newValue: currentValue
+        })
+        // Update the stored value so we don't record it again on blur
+        cellBeforeEdit.set(cellKey, {
+            oldValue: currentValue,
+            itemIndex: cellData.itemIndex,
+            columnName: cellData.columnName
+        })
+    }
+}
+
+function ensureRowVisible(globalIndex) {
+    if (!showPagination) {
+        return
+    }
+    const targetPage = Math.max(1, Math.floor(globalIndex / PAGE_SIZE) + 1)
+    if (targetPage !== currentPage) {
+        goToPage(targetPage)
+    }
+}
+
+function focusRowByIndex(globalIndex) {
+    if (!editableTable) {
+        return
+    }
+    const rows = editableTable.querySelectorAll('tbody tr')
+    if (!rows.length) {
+        return
+    }
+    const localIndex = globalIndex - visibleStartIndex
+    const clampedIndex = Math.min(
+        Math.max(localIndex, 0),
+        rows.length - 1,
+    )
+    const targetRow = rows[clampedIndex]
+    const firstCell = targetRow?.querySelector('div[contenteditable]')
+    if (firstCell) {
+        firstCell.focus()
+    }
+}
+
+function applyRowOperation(operation, direction) {
+    // Clear any pending cell edits to prevent spurious text history during row undo/redo
+    cellBeforeEdit.clear()
+
+    // Suppress both row and text history during undo/redo to prevent recursive recording
+    undoRedoManager.suppressRowHistory = true
+    undoRedoManager.suppressTextHistory = true
+    if (operation.type === 'delete-row') {
+        if (direction === 'undo') {
+            // Check if this was a "clear last row" operation using the wasCleared flag
+            if (operation.wasCleared) {
+                // Restore the row data to the existing empty row
+                const restoredRow = cloneRow(operation.row)
+                columns.forEach((column) => {
+                    items[0][column.name] = restoredRow[column.name]
+                })
+            } else {
+                items.splice(operation.index, 0, cloneRow(operation.row))
+            }
+        } else {
+            // Redo: check if we should clear instead of delete using the wasCleared flag
+            if (operation.wasCleared) {
+                columns.forEach((column) => {
+                    items[0][column.name] = ''
+                })
+            } else {
+                items.splice(operation.index, 1)
+            }
+        }
+    } else if (operation.type === 'insert-row') {
+        if (direction === 'undo') {
+            items.splice(operation.index, 1)
+        } else {
+            items.splice(operation.index, 0, cloneRow(operation.row))
+        }
+    }
+    undoRedoManager.suppressRowHistory = false
+    items = items
+
+    // Delay re-enabling text history until after focus operations complete
+    // This prevents focus changes from creating spurious text history entries
+    setTimeout(() => {
+        if (items.length === 0) {
+            undoRedoManager.suppressTextHistory = false
+            return
+        }
+        ensureRowVisible(
+            direction === 'undo' && operation.type === 'delete-row'
+                ? operation.index
+                : Math.min(operation.index, items.length - 1),
+        )
+        focusRowByIndex(
+            direction === 'undo' && operation.type === 'delete-row'
+                ? operation.index
+                : Math.min(operation.index, items.length - 1),
+        )
+        // Re-enable text history after focus completes
+        setTimeout(() => {
+            undoRedoManager.suppressTextHistory = false
+        }, 50)
+    }, 0)
+}
+
+function applyTextOperation(entry, direction) {
+    // Suppress text history during undo/redo to prevent recursive recording
+    undoRedoManager.suppressTextHistory = true
+
+    const { itemIndex, columnName, oldValue, newValue, isFormatting } = entry.meta
+    const valueToApply = direction === 'undo' ? oldValue : newValue
+
+    // Clear any pending cellBeforeEdit for this cell to prevent stale data from being recorded
+    const cellKey = `${itemIndex}-${columnName}`
+    cellBeforeEdit.delete(cellKey)
+
+    if (items[itemIndex]) {
+        // First, find the cell and update DOM directly to prevent browser native undo/redo from interfering
+        const tbody = document.querySelector('tbody')
+        let targetCell = null
+        if (tbody) {
+            const rows = tbody.querySelectorAll('tr')
+            const visibleRowIndex = itemIndex - visibleStartIndex
+            if (visibleRowIndex >= 0 && visibleRowIndex < rows.length) {
+                const row = rows[visibleRowIndex]
+                const columnIndex = columns.findIndex(col => col.name === columnName)
+                if (columnIndex >= 0) {
+                    const cells = row.querySelectorAll('td div[contenteditable]')
+                    if (cells[columnIndex]) {
+                        targetCell = cells[columnIndex]
+                        // If it's a formatting change, set innerHTML; otherwise set textContent
+                        if (isFormatting) {
+                            targetCell.innerHTML = valueToApply
+                        } else {
+                            targetCell.textContent = valueToApply
+                        }
+                    }
+                }
+            }
+        }
+
+        // Update data model to match DOM
+        items[itemIndex][columnName] = valueToApply
+        // DON'T trigger reactivity - we already set the DOM manually to avoid bind:innerHTML issues
+        // items = items
+
+        // Move cursor to the cell where the undo/redo happened
+        setTimeout(() => {
+            // Ensure the row is visible
+            ensureRowVisible(itemIndex)
+
+            // Focus the cell we already found
+            if (targetCell) {
+                // CRITICAL: Clear browser's native undo/redo stack BEFORE focusing
+                // by temporarily making it non-editable and then editable again
+                // NOTE: This will discard any unsaved changes in the browser's undo stack
+                // But that's intentional - we want our undo system to be the source of truth
+                targetCell.contentEditable = 'false'
+                targetCell.contentEditable = 'true'
+
+                // Now focus the cell (with its undo stack cleared)
+                targetCell.focus()
+            }
+        }, 0)
+    }
+
+    // Re-enable text history after blur events have completed
+    // Need a longer delay because focus changes after undo can trigger blur events
+    setTimeout(() => {
+        undoRedoManager.suppressTextHistory = false
+    }, 100)
+}
 
 // Consolidated logging for evalulateJS calls
 let evalStats = { rowStyle: 0, columnStyle: 0, computedColumn: 0, total: 0 }
@@ -416,26 +668,46 @@ function getSelectionTextInfo(el) {
 }
 
 function insertRow(rowIndex, insertAbove) {
+    // Record any pending text changes before row operation
+    recordPendingTextChanges()
+
+    // Clear any pending cell edits after recording them
+    cellBeforeEdit.clear()
+
     let insertObj = {}
     columns.forEach((column) => {
         insertObj[column.name] = ''
     })
 
+    const insertPosition = insertAbove ? rowIndex : rowIndex + 1
     if (!insertAbove) {
-        items.splice(rowIndex + 1, 0, insertObj)
+        items.splice(insertPosition, 0, insertObj)
     } else {
         // insert row above if ctrl + shift + enter
-        items.splice(rowIndex, 0, insertObj)
+        items.splice(insertPosition, 0, insertObj)
     }
+    logOperation('insert-row', {
+        position: insertPosition,
+        insertAbove: insertAbove,
+        totalRows: items.length
+    })
+    recordRowOperation({
+        type: 'insert-row',
+        index: insertPosition,
+        row: cloneRow(insertObj),
+    })
     items = items
 
-    // styles and computed columns are now computed on the fly
+    // Suppress text history briefly to avoid recording focus changes as text edits
+    undoRedoManager.suppressTextHistory = true
+
+    // styles and computed on the fly
 
     // move focus to the first focusable cell of the inserted row, if shift key is not pressed
     if (!insertAbove) {
         setTimeout(() => {
             // Check if the newly inserted row is on a different page
-            const newRowIndex = rowIndex + 1
+            const newRowIndex = insertPosition
             const newRowPage = Math.ceil((newRowIndex + 1) / PAGE_SIZE)
 
             if (newRowPage !== currentPage) {
@@ -455,6 +727,25 @@ function insertRow(rowIndex, insertAbove) {
                         )
                         bottomCell.focus()
                     }
+                    // Re-enable text history and manually populate cellBeforeEdit after focus
+                    setTimeout(() => {
+                        undoRedoManager.suppressTextHistory = false
+                        // Manually populate cellBeforeEdit for the newly focused cell
+                        if (document.activeElement && document.activeElement.hasAttribute('contenteditable')) {
+                            const focusedItemIndex = parseInt(document.activeElement.getAttribute('data-item-index') || '', 10)
+                            const columnName = document.activeElement.getAttribute('data-column-name')
+                            if (!isNaN(focusedItemIndex) && columnName) {
+                                const cellKey = `${focusedItemIndex}-${columnName}`
+                                const dataValue = items[focusedItemIndex]?.[columnName] ?? ''
+                                const plainText = String(dataValue).replace(/<[^>]*>/g, '')
+                                cellBeforeEdit.set(cellKey, {
+                                    oldValue: plainText,
+                                    itemIndex: focusedItemIndex,
+                                    columnName: columnName
+                                })
+                            }
+                        }
+                    }, 50)
                 }, 50)
             } else {
                 // convert global index to local visible index since we render a slice
@@ -470,51 +761,218 @@ function insertRow(rowIndex, insertAbove) {
                     )
                     bottomCell.focus()
                 }
+                // Re-enable text history and manually populate cellBeforeEdit after focus
+                setTimeout(() => {
+                    undoRedoManager.suppressTextHistory = false
+                    // Manually populate cellBeforeEdit for the newly focused cell
+                    if (document.activeElement && document.activeElement.hasAttribute('contenteditable')) {
+                        const focusedItemIndex = parseInt(document.activeElement.getAttribute('data-item-index') || '', 10)
+                        const columnName = document.activeElement.getAttribute('data-column-name')
+                        if (!isNaN(focusedItemIndex) && columnName) {
+                            const cellKey = `${focusedItemIndex}-${columnName}`
+                            const dataValue = items[focusedItemIndex]?.[columnName] ?? ''
+                            const plainText = String(dataValue).replace(/<[^>]*>/g, '')
+                            cellBeforeEdit.set(cellKey, {
+                                oldValue: plainText,
+                                itemIndex: focusedItemIndex,
+                                columnName: columnName
+                            })
+                        }
+                    }
+                }, 50)
             }
         }, 0)
+    } else {
+        // If inserting above, re-enable text history after a brief delay
+        setTimeout(() => {
+            undoRedoManager.suppressTextHistory = false
+        }, 50)
     }
 }
 
 function deleteRow(rowIndex) {
-    if (items.length === 1) {
-        undoStackForRemoveRow.push({
-            index: 0,
-            item: JSON.parse(JSON.stringify(items[0])),
-        }) // save undo
+    if (!items[rowIndex]) {
+        return
+    }
+    // Clear any pending cell edits before row operation to prevent spurious text history
+    cellBeforeEdit.clear()
 
+    // Special case: if this is the last row, clear it instead of deleting
+    if (items.length === 1) {
+        const removedRow = cloneRow(items[0])
         columns.forEach((column) => {
             items[0][column.name] = ''
         })
-
-        // styles and computed columns are now computed on the fly
-        // styles and computed columns are now computed on the fly
-    }
-
-    undoStackForRemoveRow.push({ index: rowIndex, item: items[rowIndex] }) // save undo
-
-    items.splice(rowIndex, 1)
-    items = items
-
-    // move focus to the first focusable cell of the row before the removed row
-    let tbody = document.querySelector('.editable-table tbody')
-    if (!tbody) {
+        logOperation('delete-row', {
+            rowIndex: 0,
+            wasLastRow: true,
+            cleared: true,
+            totalRows: items.length
+        })
+        recordRowOperation({
+            type: 'delete-row',
+            index: 0,
+            row: removedRow,
+            wasCleared: true, // Flag to indicate this was a clear, not a delete
+        })
+        items = items
         return
     }
-    let rows = tbody.querySelectorAll('tr')
-    // convert global index to local visible index
-    const localIndex = rowIndex - visibleStartIndex
-    let bottomRow = rows[localIndex - 1]
-    if (typeof bottomRow !== 'undefined') {
-        let bottomCell = bottomRow.querySelector('div[contenteditable]')
-        bottomCell.focus()
-    }
 
-    // styles and computed columns are now computed on the fly
+    const removedRow = cloneRow(items[rowIndex])
+    items.splice(rowIndex, 1)
+    logOperation('delete-row', {
+        rowIndex: rowIndex,
+        wasLastRow: false,
+        totalRows: items.length
+    })
+    recordRowOperation({
+        type: 'delete-row',
+        index: rowIndex,
+        row: removedRow,
+    })
+    items = items
+
+    // Suppress text history briefly to avoid recording focus changes as text edits
+    undoRedoManager.suppressTextHistory = true
+
+    queueMicrotask(() => {
+        const focusIndex = Math.max(rowIndex - 1, 0)
+        ensureRowVisible(focusIndex)
+        focusRowByIndex(focusIndex)
+        // Re-enable text history after focus completes
+        setTimeout(() => {
+            undoRedoManager.suppressTextHistory = false
+        }, 50)
+    })
 }
 
 function handleKeysInTD(e, itemIndex, itemColumn) {
     defaultKeydownHandlerForContentEditableArea(e)
     saveCursorPosition()
+
+    // Handle undo/redo for ROW, TEXT, and FORMATTING operations
+    // Our custom undo system now handles everything including formatting
+    if (e.ctrlKey && e.key.toLowerCase() === 'z' && !e.altKey && !e.metaKey) {
+        let hasUnsavedChanges = false
+
+        if (document.activeElement && document.activeElement.hasAttribute('contenteditable')) {
+            const itemIndex = parseInt(document.activeElement.getAttribute('data-item-index') || '', 10)
+            const columnName = document.activeElement.getAttribute('data-column-name')
+            if (!isNaN(itemIndex) && columnName) {
+                const cellKey = `${itemIndex}-${columnName}`
+                const cellData = cellBeforeEdit.get(cellKey)
+                if (cellData) {
+                    const currentValue = document.activeElement.textContent ?? ''
+                    const currentHTML = document.activeElement.innerHTML || ''
+
+                    // Check if anything changed (text content or formatting)
+                    const textChanged = cellData.oldValue !== currentValue
+                    const htmlChanged = cellData.oldHTML !== currentHTML
+
+                    hasUnsavedChanges = textChanged || htmlChanged
+                }
+            }
+        }
+
+        if (e.shiftKey) {
+            // Redo (Ctrl+Shift+Z)
+            if (hasUnsavedChanges) {
+                // Save the changes first, then redo
+                document.activeElement?.blur()
+                setTimeout(() => {
+                    const nextRedo = undoRedoManager.getLastOperationFromRedo()
+                    if (nextRedo) {
+                        undoRedoManager.redo({ applyRowOperation, applyTextOperation, logOperation })
+                    }
+                }, 50)
+                e.preventDefault()
+                e.stopPropagation()
+                return
+            } else {
+                // No unsaved changes, use our undo system
+                const nextRedo = undoRedoManager.getLastOperationFromRedo()
+                if (nextRedo) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    undoRedoManager.redo({ applyRowOperation, applyTextOperation, logOperation })
+                    return
+                }
+            }
+        } else {
+            // Undo (Ctrl+Z)
+            if (hasUnsavedChanges) {
+                // Save the changes first, then undo
+                document.activeElement?.blur()
+                setTimeout(() => {
+                    const nextUndo = undoRedoManager.getLastOperationFromHistory()
+                    if (nextUndo) {
+                        undoRedoManager.undo({ applyRowOperation, applyTextOperation, logOperation })
+                    }
+                }, 50)
+                e.preventDefault()
+                e.stopPropagation()
+                return
+            } else {
+                // No unsaved changes, use our undo system
+                const nextUndo = undoRedoManager.getLastOperationFromHistory()
+                if (nextUndo) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    undoRedoManager.undo({ applyRowOperation, applyTextOperation, logOperation })
+                    return
+                }
+            }
+            // Let browser handle native undo
+        }
+    }
+
+    // Handle Ctrl+Y for redo (Windows shortcut)
+    if (e.ctrlKey && e.key.toLowerCase() === 'y' && !e.altKey && !e.metaKey && !e.shiftKey) {
+        let hasUnsavedChanges = false
+
+        if (document.activeElement && document.activeElement.hasAttribute('contenteditable')) {
+            const itemIndex = parseInt(document.activeElement.getAttribute('data-item-index') || '', 10)
+            const columnName = document.activeElement.getAttribute('data-column-name')
+            if (!isNaN(itemIndex) && columnName) {
+                const cellKey = `${itemIndex}-${columnName}`
+                const cellData = cellBeforeEdit.get(cellKey)
+                if (cellData) {
+                    const currentValue = document.activeElement.textContent ?? ''
+                    const currentHTML = document.activeElement.innerHTML || ''
+
+                    // Check if anything changed (text content or formatting)
+                    const textChanged = cellData.oldValue !== currentValue
+                    const htmlChanged = cellData.oldHTML !== currentHTML
+
+                    hasUnsavedChanges = textChanged || htmlChanged
+                }
+            }
+        }
+
+        if (hasUnsavedChanges) {
+            // Save the changes first, then redo
+            document.activeElement?.blur()
+            setTimeout(() => {
+                const nextRedo = undoRedoManager.getLastOperationFromRedo()
+                if (nextRedo) {
+                    undoRedoManager.redo({ applyRowOperation, applyTextOperation, logOperation }, 'Ctrl+Y')
+                }
+            }, 50)
+            e.preventDefault()
+            e.stopPropagation()
+            return
+        } else {
+            // No unsaved changes, use our undo system
+            const nextRedo = undoRedoManager.getLastOperationFromRedo()
+            if (nextRedo) {
+                e.preventDefault()
+                e.stopPropagation()
+                undoRedoManager.redo({ applyRowOperation, applyTextOperation, logOperation }, 'Ctrl+Y')
+                return
+            }
+        }
+    }
 
     // insert row
     if (e.ctrlKey && e.key === 'Enter') {
@@ -528,6 +986,10 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
     // remove current row
     if (e.ctrlKey && e.key.toLowerCase() === 'delete') {
         e.preventDefault()
+
+        // Record any pending text changes before deleting row
+        recordPendingTextChanges()
+
         deleteRow(itemIndex)
     }
 
@@ -622,9 +1084,61 @@ function handleBlur(event) {
     }, 0)
 
     normalizeEditableDiv(event.target)
-}
 
-// Normalize a contenteditable div on blur: remove stray <br>
+    // Record text/formatting change when leaving the cell using stored metadata from the element
+    if (!undoRedoManager.isTextHistorySuppressed()) {
+        const itemIndex = parseInt(event.target.dataset.itemIndex, 10)
+        const columnName = event.target.dataset.columnName
+
+        if (!isNaN(itemIndex) && columnName) {
+            const cellKey = `${itemIndex}-${columnName}`
+            const cellData = cellBeforeEdit.get(cellKey)
+
+            if (cellData) {
+                const newValue = event.target.textContent ?? ''
+                const newHTML = event.target.innerHTML ?? ''
+
+                // Normalize HTML for comparison (treat "", "<br>", "<br/>" as equivalent empty values)
+                const normalizeHTML = (html) => {
+                    if (!html) return ''
+                    const trimmed = html.trim()
+                    return (trimmed === '' || trimmed === '<br>' || trimmed === '<br/>') ? '' : trimmed
+                }
+
+                // Check if text content changed OR formatting changed (HTML different but text same)
+                const textChanged = cellData.oldValue !== newValue
+                const formattingChanged = normalizeHTML(cellData.oldHTML) !== normalizeHTML(newHTML) && !textChanged
+
+                if (textChanged || formattingChanged) {
+                    logOperation(formattingChanged ? 'formatting-edit' : 'text-edit', {
+                        row: cellData.itemIndex,
+                        column: cellData.columnName,
+                        oldValue: formattingChanged ? cellData.oldHTML : cellData.oldValue,
+                        newValue: formattingChanged ? newHTML : newValue
+                    })
+                    recordTextOperation({
+                        itemIndex: cellData.itemIndex,
+                        columnName: cellData.columnName,
+                        oldValue: formattingChanged ? cellData.oldHTML : cellData.oldValue,
+                        newValue: formattingChanged ? newHTML : newValue,
+                        isFormatting: formattingChanged
+                    })
+                }
+                // Clear the stored value
+                cellBeforeEdit.delete(cellKey)
+            }
+        }
+    } else {
+        // If history is suppressed (e.g., during undo/redo), still clear the cellBeforeEdit
+        // to prevent stale data from being used later
+        const itemIndex = parseInt(event.target.dataset.itemIndex, 10)
+        const columnName = event.target.dataset.columnName
+        if (!isNaN(itemIndex) && columnName) {
+            const cellKey = `${itemIndex}-${columnName}`
+            cellBeforeEdit.delete(cellKey)
+        }
+    }
+}// Normalize a contenteditable div on blur: remove stray <br>
 function normalizeEditableDiv(el) {
     const text = el.textContent
     if (text === '' && el.innerHTML !== '') {
@@ -634,32 +1148,7 @@ function normalizeEditableDiv(el) {
     }
 }
 
-function handleUndoStacks(e) {
-    if (e.ctrlKey && e.key.toLowerCase() === 'z') {
-        if (undoStackForRemoveRow.length > 0) {
-            e.preventDefault()
-            let undo = undoStackForRemoveRow.pop()
-            if (items.length === 1) {
-                let emptyKeysCount = 0
-                let keys = Object.keys(items[0])
-                let keysCount = keys.length
-                keys.forEach((itemKey) => {
-                    if (items[0][itemKey] === '') {
-                        emptyKeysCount++
-                    }
-                })
-                if (emptyKeysCount === keysCount) {
-                    items.splice(undo.index, 1, undo.item)
-                } else {
-                    items.splice(undo.index, 0, undo.item)
-                }
-            } else if (items.length > 1) {
-                items.splice(undo.index, 0, undo.item)
-            }
-            items = items
-        }
-    }
-}
+// Removed handleHistoryEvent - we use keyboard handlers instead to avoid conflicts
 
 let configuration = false
 let showAddColumn = false
@@ -1057,6 +1546,7 @@ function handleSelectSuggestion(event) {
     const suggestion = event.detail.suggestion
     const { itemIndex, columnName } = autocompleteData
     if (itemIndex !== null && columnName) {
+        undoRedoManager.suppressTextHistory = true
         items[itemIndex][columnName] = suggestion
         items = items // Trigger reactivity
 
@@ -1073,6 +1563,9 @@ function handleSelectSuggestion(event) {
             // Place cursor at the end
             document.getSelection().collapse(cell, 1)
         }
+        queueMicrotask(() => {
+            undoRedoManager.suppressTextHistory = false
+        })
     }
 }
 
@@ -1235,9 +1728,47 @@ eventStore.subscribe((event) => {
         {/if}
         <table
             on:paste={handlePaste}
-            on:keydown={(e) => handleUndoStacks(e)}
+            on:keydown={(e) => {
+                // Table-level undo/redo (when no cell is focused or as fallback)
+                const isInCell = document.activeElement?.hasAttribute('contenteditable')
+                if (isInCell) {
+                    // Let the cell's keydown handler deal with it
+                    return
+                }
+
+                // Only handle row operations at table level
+                if (e.ctrlKey && e.key.toLowerCase() === 'z' && !e.altKey && !e.metaKey) {
+                    if (e.shiftKey) {
+                        // Redo (Ctrl+Shift+Z)
+                        const result = undoRedoManager.getLastRowOperationFromRedo()
+                        if (result) {
+                            e.preventDefault()
+                            undoRedoManager.moveRedoToHistory(result.index)
+                            applyRowOperation(result.entry.op, 'redo')
+                        }
+                    } else {
+                        // Undo (Ctrl+Z)
+                        const result = undoRedoManager.getLastRowOperationFromHistory()
+                        if (result) {
+                            e.preventDefault()
+                            undoRedoManager.moveHistoryToRedo(result.index)
+                            applyRowOperation(result.entry.op, 'undo')
+                        }
+                    }
+                }
+                // Handle Ctrl+Y for redo
+                if (e.ctrlKey && e.key.toLowerCase() === 'y' && !e.altKey && !e.metaKey && !e.shiftKey) {
+                    const result = undoRedoManager.getLastRowOperationFromRedo()
+                    if (result) {
+                        e.preventDefault()
+                        undoRedoManager.moveRedoToHistory(result.index)
+                        applyRowOperation(result.entry.op, 'redo')
+                    }
+                }
+            }}
             class="editable-table {note && note.trim() ? 'has-note' : ''}"
             bind:this={editableTable}
+            tabindex="-1"
             {style}
         >
             <thead>
@@ -1281,6 +1812,27 @@ eventStore.subscribe((event) => {
                                             contenteditable
                                             spellcheck="false"
                                             bind:innerHTML={item[column.name]}
+                                            data-item-index={visibleStartIndex +
+                                                localRowIndex}
+                                            data-column-name={column.name}
+                                            on:focus={(e) => {
+                                                // Don't store cell state during undo/redo operations
+                                                if (undoRedoManager.suppressTextHistory) {
+                                                    return
+                                                }
+                                                const itemIndex = visibleStartIndex + localRowIndex
+                                                const cellKey = `${itemIndex}-${column.name}`
+                                                // Read from data model instead of DOM to avoid stale values during undo/redo
+                                                const dataValue = items[itemIndex]?.[column.name] ?? ''
+                                                const plainText = String(dataValue).replace(/<[^>]*>/g, '')
+                                                // Store initial value (both plain text and HTML) and metadata when focus enters the cell
+                                                cellBeforeEdit.set(cellKey, {
+                                                    oldValue: plainText,
+                                                    oldHTML: String(dataValue), // Store HTML for formatting changes
+                                                    itemIndex,
+                                                    columnName: column.name
+                                                })
+                                            }}
                                             on:keydown={(e) =>
                                                 handleKeysInTD(
                                                     e,
@@ -1302,6 +1854,27 @@ eventStore.subscribe((event) => {
                                             contenteditable="plaintext-only"
                                             spellcheck="false"
                                             bind:innerHTML={item[column.name]}
+                                            data-item-index={visibleStartIndex +
+                                                localRowIndex}
+                                            data-column-name={column.name}
+                                            on:focus={(e) => {
+                                                // Don't store cell state during undo/redo operations
+                                                if (undoRedoManager.suppressTextHistory) {
+                                                    return
+                                                }
+                                                const itemIndex = visibleStartIndex + localRowIndex
+                                                const cellKey = `${itemIndex}-${column.name}`
+                                                // Read from data model instead of DOM to avoid stale values during undo/redo
+                                                const dataValue = items[itemIndex]?.[column.name] ?? ''
+                                                const plainText = String(dataValue).replace(/<[^>]*>/g, '')
+                                                // Store initial value (both plain text and HTML) and metadata when focus enters the cell
+                                                cellBeforeEdit.set(cellKey, {
+                                                    oldValue: plainText,
+                                                    oldHTML: String(dataValue), // Store HTML for formatting changes
+                                                    itemIndex,
+                                                    columnName: column.name
+                                                })
+                                            }}
                                             on:keydown={(e) =>
                                                 handleKeysInTD(
                                                     e,
