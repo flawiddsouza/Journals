@@ -225,6 +225,39 @@ get "/install" do
     user_version = 10
   end
 
+  if user_version === 10
+    # Add FTS5 virtual table for full text search
+    db.exec "
+      CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(
+        name,
+        content
+      )
+    "
+
+    db.exec "INSERT INTO pages_fts(rowid, name, content) SELECT id, name, COALESCE(content, '') FROM pages"
+
+    db.exec "
+      CREATE TRIGGER IF NOT EXISTS pages_fts_insert AFTER INSERT ON pages BEGIN
+        INSERT INTO pages_fts(rowid, name, content) VALUES (new.id, new.name, COALESCE(new.content, ''));
+      END
+    "
+
+    db.exec "
+      CREATE TRIGGER IF NOT EXISTS pages_fts_update AFTER UPDATE ON pages BEGIN
+        UPDATE pages_fts SET name = new.name, content = COALESCE(new.content, '') WHERE rowid = new.id;
+      END
+    "
+
+    db.exec "
+      CREATE TRIGGER IF NOT EXISTS pages_fts_delete AFTER DELETE ON pages BEGIN
+        DELETE FROM pages_fts WHERE rowid = old.id;
+      END
+    "
+
+    db.exec "PRAGMA user_version = 11"
+    user_version = 11
+  end
+
   "Installation Complete!"
 end
 
@@ -1235,33 +1268,67 @@ end
 
 post "/pages/search" do |env|
   query = env.params.json["query"].as(String)
+  search_content = env.params.json["searchContent"]?.try(&.as(Bool)) || false
 
-  pages = db.query_all("
-    SELECT
-      pages.id,
-      CASE WHEN pages.parent_id IS NOT NULL THEN page_group.name || ' > ' || pages.name ELSE pages.name END as name,
-      pages.section_id,
-      sections.notebook_id,
-      sections.name as section_name,
-      notebooks.name as notebook_name,
-      notebooks.profile_id
-    FROM pages
-    JOIN sections ON sections.id = pages.section_id
-    JOIN notebooks ON notebooks.id = sections.notebook_id
-    LEFT JOIN pages AS page_group ON page_group.id = pages.parent_id
-    WHERE pages.user_id = ?
-    AND CASE WHEN pages.parent_id IS NOT NULL THEN page_group.name || ' > ' || pages.name ELSE pages.name END LIKE ?
-    ORDER BY name
-    LIMIT 10
-  ", env.auth_id, "%#{query}%", as: {
-    id: Int64,
-    name: String,
-    section_id: Int64,
-    notebook_id: Int64,
-    section_name: String,
-    notebook_name: String,
-    profile_id: Int64 | Nil
-  })
+  if search_content
+    # Escape query for FTS5: wrap in quotes and escape internal quotes
+    fts_query = "\"#{query.gsub("\"", "\"\"")}\""
+    pages = db.query_all("
+      SELECT
+        pages.id,
+        CASE WHEN pages.parent_id IS NOT NULL THEN page_group.name || ' > ' || pages.name ELSE pages.name END as name,
+        pages.section_id,
+        sections.notebook_id,
+        sections.name as section_name,
+        notebooks.name as notebook_name,
+        notebooks.profile_id,
+        snippet(pages_fts, -1, '<mark>', '</mark>', '...', 32) as snippet
+      FROM pages_fts
+      JOIN pages ON pages.id = pages_fts.rowid
+      JOIN sections ON sections.id = pages.section_id
+      JOIN notebooks ON notebooks.id = sections.notebook_id
+      LEFT JOIN pages AS page_group ON page_group.id = pages.parent_id
+      WHERE pages_fts MATCH ? AND pages.user_id = ?
+      ORDER BY rank
+      LIMIT 10
+    ", fts_query, env.auth_id, as: {
+      id: Int64,
+      name: String,
+      section_id: Int64,
+      notebook_id: Int64,
+      section_name: String,
+      notebook_name: String,
+      profile_id: Int64 | Nil,
+      snippet: String
+    })
+  else
+    pages = db.query_all("
+      SELECT
+        pages.id,
+        CASE WHEN pages.parent_id IS NOT NULL THEN page_group.name || ' > ' || pages.name ELSE pages.name END as name,
+        pages.section_id,
+        sections.notebook_id,
+        sections.name as section_name,
+        notebooks.name as notebook_name,
+        notebooks.profile_id
+      FROM pages
+      JOIN sections ON sections.id = pages.section_id
+      JOIN notebooks ON notebooks.id = sections.notebook_id
+      LEFT JOIN pages AS page_group ON page_group.id = pages.parent_id
+      WHERE pages.user_id = ?
+      AND CASE WHEN pages.parent_id IS NOT NULL THEN page_group.name || ' > ' || pages.name ELSE pages.name END LIKE ?
+      ORDER BY name
+      LIMIT 10
+    ", env.auth_id, "%#{query}%", as: {
+      id: Int64,
+      name: String,
+      section_id: Int64,
+      notebook_id: Int64,
+      section_name: String,
+      notebook_name: String,
+      profile_id: Int64 | Nil
+    })
+  end
 
   env.response.content_type = "application/json"
   pages.to_json

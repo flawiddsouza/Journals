@@ -8,8 +8,9 @@ let isModalOpen = false
 let query = ''
 let results = []
 let highlightedIndex = -1
+let searchContent = false
 
-$: fetchResults(query)
+$: fetchResults(query, searchContent)
 
 function openModal() {
     isModalOpen = true
@@ -53,9 +54,9 @@ function navigate(event = null) {
     closeModal()
 }
 
-async function fetchResults(query) {
+async function fetchResults(query, searchContent) {
     if (query.length) {
-        results = await fetchPlus.post(`/pages/search`, { query })
+        results = await fetchPlus.post(`/pages/search`, { query, searchContent })
     } else {
         results = []
     }
@@ -78,7 +79,7 @@ onMount(() => {
     {#if isModalOpen}
         <Modal on:close-modal={() => closeModal()}>
             <div
-                style="width: 420px; height: 250px; display: grid; align-content: flex-start;"
+                style="width: 420px; height: 350px; display: grid; align-content: flex-start;"
             >
                 <div>
                     <input
@@ -88,6 +89,10 @@ onMount(() => {
                         autofocus
                     />
                 </div>
+                <label style="margin-top: 0.5rem; user-select: none; display: flex; align-items: center; gap: 0.3rem;">
+                    <input type="checkbox" bind:checked={searchContent} style="margin: 0;" />
+                    <span style="font-size: 0.9em;">Search in content</span>
+                </label>
                 <div style="margin-top: 0.5rem; overflow: auto;">
                     {#if query.length === 0}
                         <div style="margin-top: 0.5rem; text-align: center;">
@@ -104,9 +109,12 @@ onMount(() => {
                             on:click={navigate}
                         >
                             <div>{result.name}</div>
-                            <div style="color: darkgrey;">
+                            <div style="color: darkgrey; font-size: 0.85em;">
                                 {result.notebook_name} > {result.section_name}
                             </div>
+                            {#if searchContent && result.snippet}
+                                <div class="snippet">{@html result.snippet}</div>
+                            {/if}
                         </a>
                     {/each}
                 </div>
@@ -122,10 +130,24 @@ onMount(() => {
     cursor: pointer;
     text-decoration: none;
     color: inherit;
+    padding: 0.3rem;
+    border-radius: 3px;
 }
 
 .result:hover,
 .result.selected {
     background-color: #f0f0f0;
+}
+
+.snippet {
+    color: #666;
+    font-size: 0.8em;
+    margin-top: 0.2rem;
+}
+
+.snippet :global(mark) {
+    background-color: #ffeb3b;
+    padding: 1px 2px;
+    border-radius: 2px;
 }
 </style>
