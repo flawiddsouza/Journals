@@ -299,6 +299,15 @@ post "/miniapp/templates/:id/revisions" do |env|
     next
   end
 
+  # Check if the new content is different from the last revision
+  last_revision_content = db.query_one?("SELECT content FROM mini_app_template_revisions WHERE template_id = ? ORDER BY revision_number DESC LIMIT 1", id, as: String)
+  if last_revision_content && last_revision_content == content
+    env.response.status_code = 400
+    env.response.content_type = "application/json"
+    env.response << {error: "No changes detected from last revision"}.to_json
+    next
+  end
+
   rev_no = db.scalar("SELECT revision_counter FROM mini_app_templates WHERE id = ?", id).as(Int64)
   new_rev = (rev_no + 1).to_i
   db.exec "INSERT INTO mini_app_template_revisions(template_id, revision_number, content) VALUES(?, ?, ?)", id, new_rev, content

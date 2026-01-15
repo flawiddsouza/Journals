@@ -376,7 +376,12 @@ async function publishFromCurrentPage() {
         closePublishPanel()
         dispatch('applied')
     } catch (e) {
-        publishError = 'Failed to publish. Please try again.'
+        try {
+            const errorData = await e.json()
+            publishError = errorData.error || 'Failed to publish. Please try again.'
+        } catch {
+            publishError = 'Failed to publish. Please try again.'
+        }
     } finally {
         publishBusy = false
     }
