@@ -394,7 +394,6 @@ function handleAIApply(e) {
 
 function clearData() {
     if (readOnlyMode) return
-    if (!confirm("Clear this Mini App's data?")) return
     kv = {}
     savePageContent()
     // inform iframe to clear its cache too (rebuild)
