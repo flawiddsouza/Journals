@@ -19,7 +19,10 @@ let addPageSettings = {
     type: 'FlatPage',
 }
 
+let adding = false
+
 async function handleAddPage() {
+    adding = true
     if (pageGroupId) {
         addPageSettings.parentId = pageGroupId
     }
@@ -92,6 +95,7 @@ async function handleAddPage() {
 }
 
 function clearAddPageSettings() {
+    adding = false
     addPageSettings = {
         name: '',
         type: 'FlatPage',
@@ -158,7 +162,7 @@ function handleAddPageInput(e) {
                 </select>
             </label>
         {/if}
-        <button class="w-100p mt-1em">Add</button>
+        <button class="w-100p mt-1em" disabled={adding}>{adding ? 'Adding...' : 'Add'}</button>
     </form>
 </Modal>
 
