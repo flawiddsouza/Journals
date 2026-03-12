@@ -86,6 +86,14 @@ getPageInfo()
     padding-left: 0;
 }
 
+:global(.journal-page-container.PageType-Spreadsheet),
+:global(.journal-page-container.PageType-DrawIO),
+:global(.journal-page-container.PageType-MiniApp),
+:global(.journal-page-container.PageType-Kanban) {
+    padding-left: 0;
+    padding-top: 0;
+}
+
 .page-header {
     user-select: none;
     font-size: 1.2em;

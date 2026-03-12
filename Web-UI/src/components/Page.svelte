@@ -49,9 +49,7 @@ function makeContentEditableSingleLine(e) {
 >
     {#if activePage.id !== undefined && activePage.id !== null && activePage.locked === false}
         {#if !activePage.hide_title}
-        <div
-            style={activePage.type === 'RichText' ? 'margin-left: 4.5rem;' : ''}
-        >
+        <div class="page-title-wrapper">
             {#if viewOnlyComputed}
                 <h1 class="journal-page-title" style="margin-bottom: 0">
                     {activePage.name}
@@ -173,5 +171,24 @@ h1.journal-page-title {
     margin-top: 0.7em;
     margin-right: 1em;
     overflow: auto;
+}
+
+:global(.PageType-RichText) .page-title-wrapper {
+    margin-left: 4.5rem;
+}
+
+:global(.PageType-Spreadsheet) .page-title-wrapper,
+:global(.PageType-DrawIO) .page-title-wrapper,
+:global(.PageType-MiniApp) .page-title-wrapper,
+:global(.PageType-Kanban) .page-title-wrapper {
+    padding: 0.5rem;
+}
+
+:global(.PageType-Spreadsheet .journal-page-entries),
+:global(.PageType-DrawIO .journal-page-entries),
+:global(.PageType-MiniApp .journal-page-entries),
+:global(.PageType-Kanban .journal-page-entries) {
+    margin-top: 0;
+    margin-right: 0;
 }
 </style>

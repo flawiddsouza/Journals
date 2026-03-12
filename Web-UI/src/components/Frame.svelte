@@ -1137,15 +1137,22 @@ import AddPageModal from './Modals/AddPageModal.svelte'
 
 :global(
     .journal-left-sidebar[style*='block']
-        + .journal-page:not(.PageType-RichText)
+        + .journal-page:not(.PageType-RichText):not(.PageType-Spreadsheet):not(.PageType-DrawIO):not(.PageType-MiniApp):not(.PageType-Kanban)
 ) {
     margin-left: 2em;
 }
 
 :global(
-    .journal-left-sidebar[style*='none'] + .journal-page:not(.PageType-RichText)
+    .journal-left-sidebar[style*='none'] + .journal-page:not(.PageType-RichText):not(.PageType-Spreadsheet):not(.PageType-DrawIO):not(.PageType-MiniApp):not(.PageType-Kanban)
 ) {
     padding-left: 2rem;
+}
+
+:global(.journal-page-container.PageType-Spreadsheet),
+:global(.journal-page-container.PageType-DrawIO),
+:global(.journal-page-container.PageType-MiniApp),
+:global(.journal-page-container.PageType-Kanban) {
+    padding-top: 0;
 }
 
 .mt-0_5em {
