@@ -57,6 +57,12 @@ function receive(event) {
     else if (message.event === 'autosave') {
         pageContent = message.xml
         savePageContent()
+        // Acknowledge save so draw.io clears its internal "modified" flag,
+        // preventing the "Changes you made may not be saved" browser dialog.
+        iframe.contentWindow.postMessage(
+            JSON.stringify({ action: 'status', modified: false }),
+            '*',
+        )
     }
 }
 
