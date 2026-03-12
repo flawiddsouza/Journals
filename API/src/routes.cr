@@ -258,6 +258,12 @@ get "/install" do
     user_version = 11
   end
 
+  if user_version === 11
+    db.exec "ALTER TABLE pages ADD COLUMN hide_title INTEGER DEFAULT 0"
+    db.exec "PRAGMA user_version = 12"
+    user_version = 12
+  end
+
   "Installation Complete!"
 end
 
@@ -324,7 +330,8 @@ post "/pages" do |env|
   page_name = env.params.json["pageName"].as(String)
   page_parent_id = env.params.json["pageParentId"].as(Int64 | Nil)
 
-  result = db.exec "INSERT INTO pages(section_id, type, name, parent_id, user_id) VALUES(?, ?, ?, ?, ?)", section_id, page_type, page_name, page_parent_id, env.auth_id
+  hide_title = ["DrawIO", "Spreadsheet", "MiniApp", "Kanban"].includes?(page_type) ? 1 : 0
+  result = db.exec "INSERT INTO pages(section_id, type, name, parent_id, user_id, hide_title) VALUES(?, ?, ?, ?, ?, ?)", section_id, page_type, page_name, page_parent_id, env.auth_id, hide_title
 
   created_at = db.query_one("SELECT created_at FROM pages WHERE id = ?", result.last_insert_id, as: {
     created_at: String
@@ -358,7 +365,8 @@ get "/pages/:section_id" do |env|
       pages.sort_order,
       pages.section_id,
       pages.created_at,
-      sections.notebook_id
+      sections.notebook_id,
+      pages.hide_title
     FROM pages
     JOIN sections ON sections.id = pages.section_id
     WHERE pages.section_id = ? AND pages.user_id = ? AND pages.parent_id IS NULL #{pages_groups_only_query}
@@ -376,7 +384,8 @@ get "/pages/:section_id" do |env|
     sort_order: Int64 | Nil,
     section_id: Int64,
     created_at: String,
-    notebook_id: Int64
+    notebook_id: Int64,
+    hide_title: Bool
   })
 
   env.response.content_type = "application/json"
@@ -521,7 +530,8 @@ get "/pages/info/:page_id" do |env|
     locked: Bool,
     created_at: String,
     section_id: Int64,
-    notebook_id: Int64
+    notebook_id: Int64,
+    hide_title: Bool
   }
 
   begin
@@ -541,7 +551,8 @@ get "/pages/info/:page_id" do |env|
         (CASE WHEN pages.password IS NOT NULL THEN true ELSE false END) as locked,
         pages.created_at,
         pages.section_id,
-        sections.notebook_id
+        sections.notebook_id,
+        pages.hide_title
       FROM pages
       LEFT JOIN pages as page_group ON page_group.id = pages.parent_id
       JOIN sections ON sections.id = pages.section_id
@@ -572,6 +583,18 @@ put "/pages/name/:page_id" do |env|
   page_name = env.params.json["pageName"].as(String)
 
   db.exec "UPDATE pages SET name=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", page_name, page_id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+put "/pages/hide-title/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+  hide_title = env.params.json["hideTitle"].as(Bool)
+
+  hide_title_val = hide_title ? 1 : 0
+
+  db.exec "UPDATE pages SET hide_title=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", hide_title_val, page_id, env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -944,8 +967,8 @@ post "/duplicate-page/:page_id" do |env|
   page_group_id = env.params.json["pageGroupId"].as(Int64 | Nil)
 
   result = db.exec "
-    INSERT INTO pages(section_id, name, type, content, user_id, sort_order, font_size, font_size_unit, font, view_only, password, parent_id)
-    SELECT section_id, name || ' (copy)' as name, type, content, user_id, -9999, font_size, font_size_unit, font, view_only, password, parent_id
+    INSERT INTO pages(section_id, name, type, content, user_id, sort_order, font_size, font_size_unit, font, view_only, password, parent_id, hide_title)
+    SELECT section_id, name || ' (copy)' as name, type, content, user_id, -9999, font_size, font_size_unit, font, view_only, password, parent_id, hide_title
     FROM pages
     WHERE id = ? AND user_id = ?
   ", page_id, env.auth_id
@@ -1096,7 +1119,8 @@ get "/page-group/:page_id" do |env|
       pages.sort_order,
       pages.section_id,
       pages.created_at,
-      sections.notebook_id
+      sections.notebook_id,
+      pages.hide_title
     FROM pages
     JOIN sections ON sections.id = pages.section_id
     WHERE pages.parent_id = ? AND pages.user_id = ?
@@ -1115,7 +1139,8 @@ get "/page-group/:page_id" do |env|
     sort_order: Int64 | Nil,
     section_id: Int64,
     created_at: String,
-    notebook_id: Int64
+    notebook_id: Int64,
+    hide_title: Bool
   })
 
   env.response.content_type = "application/json"
@@ -1193,7 +1218,8 @@ get "/favorites/:favorites_page_id" do |env|
         pages.created_at,
         sections.notebook_id,
         pages.parent_id,
-        page_group.name as parent_name
+        page_group.name as parent_name,
+        pages.hide_title
       FROM pages
       JOIN sections ON sections.id = pages.section_id
       LEFT JOIN pages as page_group ON page_group.id = pages.parent_id
@@ -1216,7 +1242,8 @@ get "/favorites/:favorites_page_id" do |env|
         created_at: String,
         notebook_id: Int64,
         parent_id: Int64 | Nil,
-        parent_name: String | Nil
+        parent_name: String | Nil,
+        hide_title: Bool
       }
     )
   end

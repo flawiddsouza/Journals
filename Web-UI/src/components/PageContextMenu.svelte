@@ -29,6 +29,29 @@ let showManageFavoritesModal = false
 let favoritesContainingPage = []
 let pageToManageFavorites = null
 
+function renamePage() {
+    const newName = prompt('Page name:', pageItemContextMenu.page.name)
+    if (newName && newName.trim()) {
+        fetchPlus.put(`/pages/name/${pageItemContextMenu.page.id}`, { pageName: newName.trim() })
+        pageItemContextMenu.page.name = newName.trim()
+        if (activePage.id === pageItemContextMenu.page.id) {
+            activePage.name = newName.trim()
+        }
+        pages = pages
+    }
+    pageItemContextMenu.page = null
+}
+
+async function toggleHideTitle() {
+    const newHideTitle = !pageItemContextMenu.page.hide_title
+    await fetchPlus.put(`/pages/hide-title/${pageItemContextMenu.page.id}`, { hideTitle: newHideTitle })
+    pageItemContextMenu.page.hide_title = newHideTitle
+    if (activePage.id === pageItemContextMenu.page.id) {
+        activePage.hide_title = newHideTitle
+    }
+    pageItemContextMenu.page = null
+}
+
 function openPageNewTab() {
     window.open(`/page/${pageItemContextMenu.page.id}`)
     pageItemContextMenu.page = null
@@ -431,6 +454,8 @@ $: fetchPageGroupsForSectionId(showMovePageModalSelectedSectionId)
         >
             {#if pageItemContextMenu.page.locked === false}
                 <div on:click={openPageNewTab}>Open page in a new tab</div>
+                <div on:click={renamePage}>Rename page</div>
+                <div on:click={toggleHideTitle}>{pageItemContextMenu.page.hide_title ? 'Show Title' : 'Hide Title'}</div>
                 {#if pageItemContextMenu.page.view_only === false}
                     <div on:click={pageMakeViewOnly}>Make view only</div>
                 {:else}

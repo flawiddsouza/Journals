@@ -63,14 +63,20 @@ onMount(() => {
             height: () =>
                 pageContentOverride
                     ? '700'
-                    : pageContainer.parentElement.parentElement.clientHeight -
-                      151,
+                    : pageContainer.parentElement.clientHeight,
             width: () =>
                 pageContentOverride
                     ? '1200'
-                    : pageContainer.parentElement.parentElement.clientWidth,
+                    : pageContainer.parentElement.clientWidth,
         },
     })
+
+    const resizeObserver = new ResizeObserver(() => {
+        spreadsheet.reRender()
+    })
+    resizeObserver.observe(pageContainer.parentElement)
+
+    return () => resizeObserver.disconnect()
 })
 </script>
 

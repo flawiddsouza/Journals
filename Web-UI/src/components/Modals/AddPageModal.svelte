@@ -51,6 +51,7 @@ async function handleAddPage() {
         password_exists: false,
         locked: false,
         created_at: response.createdAt,
+        hide_title: ['DrawIO', 'Spreadsheet', 'MiniApp', 'Kanban'].includes(pageType),
     }
 
     if (addPageSettings.parentId) {

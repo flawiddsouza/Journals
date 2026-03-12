@@ -45,9 +45,10 @@ function makeContentEditableSingleLine(e) {
 
 <main
     class="journal-page {className} {`PageType-${activePage.type}`}"
-    style="display: grid; grid-template-rows: auto 1fr; overflow: auto;"
+    style="display: grid; grid-template-rows: {activePage.hide_title ? '1fr' : 'auto 1fr'}; overflow: auto;"
 >
     {#if activePage.id !== undefined && activePage.id !== null && activePage.locked === false}
+        {#if !activePage.hide_title}
         <div
             style={activePage.type === 'RichText' ? 'margin-left: 4.5rem;' : ''}
         >
@@ -74,7 +75,8 @@ function makeContentEditableSingleLine(e) {
                 )}</time
             >
         </div>
-        <div class="journal-page-entries">
+        {/if}
+        <div class="journal-page-entries" style={activePage.hide_title ? 'margin-top: 0' : ''}>
             {#if activePage.type === 'Table'}
                 <Table
                     bind:pageId={activePage.id}
@@ -112,10 +114,12 @@ function makeContentEditableSingleLine(e) {
                 ></RichText>
             {/if}
             {#if activePage.type === 'Spreadsheet'}
-                <Spreadsheet
-                    bind:pageId={activePage.id}
-                    bind:viewOnly={viewOnlyComputed}
-                ></Spreadsheet>
+                {#key viewOnlyComputed}
+                    <Spreadsheet
+                        bind:pageId={activePage.id}
+                        bind:viewOnly={viewOnlyComputed}
+                    ></Spreadsheet>
+                {/key}
             {/if}
             {#if activePage.type === 'DrawIO'}
                 <DrawIO
