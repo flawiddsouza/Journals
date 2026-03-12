@@ -441,11 +441,13 @@ function isLastLink(index, array) {
                             ></Spreadsheet>
                         {/if}
                         {#if activePage.type === 'DrawIO'}
-                            <DrawIO
-                                bind:pageContentOverride={
-                                    pageHistoryItemViewPageContent
-                                }
-                            ></DrawIO>
+                            {#key pageHistoryItemViewPageContent}
+                                <DrawIO
+                                    bind:pageContentOverride={
+                                        pageHistoryItemViewPageContent
+                                    }
+                                ></DrawIO>
+                            {/key}
                         {/if}
                         {#if activePage.type === 'MiniApp'}
                             <MiniApp
