@@ -513,6 +513,26 @@ function deleteRow(rowIndex) {
 }
 
 function handleKeysInTD(e, itemIndex, itemColumn) {
+    // [[ page link dropdown: must run first to prevent cell-navigation keys from firing
+    if (pageLinkAnchorRect) {
+        if (pageLinkDropdown) {
+            const handled = pageLinkDropdown.handleKeydown(e)
+            if (handled) return
+        }
+        if (e.key === 'Backspace') {
+            if (pageLinkQuery.length > 0) {
+                pageLinkQuery = pageLinkQuery.slice(0, -1)
+            } else {
+                closeTablePageLinkDropdown()
+            }
+            return
+        }
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+            pageLinkQuery += e.key
+        }
+        return
+    }
+
     defaultKeydownHandlerForContentEditableArea(e)
     saveCursorPosition()
 
@@ -608,6 +628,17 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
     if (e.key === 'Escape') {
         e.preventDefault()
         autocompleteData.show = false
+    }
+
+    if (e.key === '[' && !e.ctrlKey && !e.metaKey) {
+        if (tableLinkLastKeyWasBracket) {
+            tableLinkLastKeyWasBracket = false
+            setTimeout(() => openTablePageLinkDropdown(), 0)
+        } else {
+            tableLinkLastKeyWasBracket = true
+        }
+    } else {
+        tableLinkLastKeyWasBracket = false
     }
 }
 
@@ -1094,6 +1125,67 @@ import { eventStore } from '../../stores.js'
 import Autocomplete from '../Autocomplete.svelte'
 import { baseURL } from '../../../config.js'
 import AIChatPanel from '../../components/AIChatPanel.svelte'
+import PageLinkDropdown from '../../components/PageLinkDropdown.svelte'
+
+// [[ page link state for table cells
+let pageLinkQuery = ''
+let pageLinkAnchorRect = null
+let pageLinkDropdown
+let pageLinkStartRange = null
+let tableLinkLastKeyWasBracket = false
+
+function getCaretRect() {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) return null
+    return sel.getRangeAt(0).cloneRange().getBoundingClientRect()
+}
+
+function openTablePageLinkDropdown() {
+    pageLinkAnchorRect = getCaretRect()
+    pageLinkQuery = ''
+    const sel = window.getSelection()
+    pageLinkStartRange = sel.getRangeAt(0).cloneRange()
+    try {
+        pageLinkStartRange.setStart(
+            pageLinkStartRange.startContainer,
+            Math.max(0, pageLinkStartRange.startOffset - 2)
+        )
+    } catch(e) {}
+}
+
+function closeTablePageLinkDropdown() {
+    pageLinkAnchorRect = null
+    pageLinkQuery = ''
+    pageLinkStartRange = null
+    tableLinkLastKeyWasBracket = false
+}
+
+function insertTablePageLink(page) {
+    const sel = window.getSelection()
+    if (pageLinkStartRange && sel) {
+        const endRange = sel.getRangeAt(0).cloneRange()
+        const replaceRange = document.createRange()
+        replaceRange.setStart(pageLinkStartRange.startContainer, pageLinkStartRange.startOffset)
+        replaceRange.setEnd(endRange.startContainer, endRange.startOffset)
+        sel.removeAllRanges()
+        sel.addRange(replaceRange)
+    }
+    const insertId = `plm-${Date.now()}`
+    document.execCommand('insertHTML', false,
+        `<a data-page-id="${page.id}" data-insert-id="${insertId}" class="page-link" href="/page/${page.id}" target="_blank" contenteditable="false">${page.name}</a>`)
+    closeTablePageLinkDropdown()
+    requestAnimationFrame(() => {
+        const link = document.querySelector(`[data-insert-id="${insertId}"]`)
+        if (link) {
+            link.removeAttribute('data-insert-id')
+            const range = document.createRange()
+            range.setStartAfter(link)
+            range.collapse(true)
+            window.getSelection().removeAllRanges()
+            window.getSelection().addRange(range)
+        }
+    })
+}
 
 // AI panel state for configuring code editors
 let aiOpen = false
@@ -1902,6 +1994,14 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`}</code
     codeContext={aiCodeContext}
     on:apply={handleAIApply}
     includeContext={true}
+/>
+
+<PageLinkDropdown
+    bind:this={pageLinkDropdown}
+    query={pageLinkQuery}
+    anchorRect={pageLinkAnchorRect}
+    on:select={(e) => insertTablePageLink(e.detail)}
+    on:close={closeTablePageLinkDropdown}
 />
 
 <style>

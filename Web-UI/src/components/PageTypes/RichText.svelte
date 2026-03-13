@@ -62,6 +62,29 @@ import { baseURL } from '../../../config.js'
 
 const edjsParser = edjsHTML()
 
+class PageLinkInlineTool {
+    static get isInline() { return true }
+    static get sanitize() {
+        return {
+            a: {
+                href: true,
+                target: true,
+                'data-page-id': true,
+                class: true,
+                contenteditable: true,
+            }
+        }
+    }
+    render() {
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.style.display = 'none'
+        return btn
+    }
+    surround() {}
+    checkState() { return false }
+}
+
 let editor
 
 async function uploadByFile(file) {
@@ -172,11 +195,15 @@ function pageContainerMounted(element) {
                 class: Header,
                 inlineToolbar: true,
             },
+            pageLink: {
+                class: PageLinkInlineTool,
+            },
         },
         minHeight: '100%',
         onReady() {
             new Undo({ editor })
             new DragDrop(editor)
+            pageContainer.addEventListener('keydown', handlePageLinkKeydown, true)
             loaded = true
             editor.focus(true)
             const scrollContainer = document.querySelector('main.journal-page')
@@ -203,11 +230,113 @@ $: pageContentParsed = pageContent ? getPageContentHTML() : ''
 
 onDestroy(() => {
     if (editor) {
+        if (pageContainer) {
+            pageContainer.removeEventListener('keydown', handlePageLinkKeydown, true)
+        }
         editor.destroy()
     }
 })
 
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
+import PageLinkDropdown from '../PageLinkDropdown.svelte'
+
+// [[ page link state
+let pageLinkQuery = ''
+let pageLinkAnchorRect = null
+let pageLinkDropdown
+let pageLinkStartRange = null
+let lastKeyWasBracket = false
+
+function getCaretRect() {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) return null
+    return sel.getRangeAt(0).cloneRange().getBoundingClientRect()
+}
+
+function openPageLinkDropdown() {
+    pageLinkAnchorRect = getCaretRect()
+    pageLinkQuery = ''
+    const sel = window.getSelection()
+    pageLinkStartRange = sel.getRangeAt(0).cloneRange()
+    try {
+        pageLinkStartRange.setStart(
+            pageLinkStartRange.startContainer,
+            Math.max(0, pageLinkStartRange.startOffset - 2)
+        )
+    } catch(e) {}
+}
+
+function closePageLinkDropdown() {
+    pageLinkAnchorRect = null
+    pageLinkQuery = ''
+    pageLinkStartRange = null
+    lastKeyWasBracket = false
+}
+
+function insertPageLink(page) {
+    const sel = window.getSelection()
+    if (pageLinkStartRange && sel) {
+        const endRange = sel.getRangeAt(0).cloneRange()
+        const replaceRange = document.createRange()
+        replaceRange.setStart(pageLinkStartRange.startContainer, pageLinkStartRange.startOffset)
+        replaceRange.setEnd(endRange.startContainer, endRange.startOffset)
+        sel.removeAllRanges()
+        sel.addRange(replaceRange)
+    }
+    const markerId = `plm-${Date.now()}`
+    document.execCommand('insertHTML', false,
+        `<a data-page-id="${page.id}" class="page-link" href="/page/${page.id}" target="_blank" contenteditable="false">${page.name}</a><span id="${markerId}"></span>`)
+    const marker = document.getElementById(markerId)
+    if (marker) {
+        const range = document.createRange()
+        range.setStartAfter(marker)
+        range.collapse(true)
+        sel.removeAllRanges()
+        sel.addRange(range)
+        marker.parentNode.removeChild(marker)
+    }
+    closePageLinkDropdown()
+}
+
+function handlePageLinkKeydown(e) {
+    if (pageLinkAnchorRect) {
+        if (pageLinkDropdown) {
+            const handled = pageLinkDropdown.handleKeydown(e)
+            if (handled) {
+                e.stopPropagation()
+                return
+            }
+        }
+        if (e.key === 'Escape') {
+            e.stopPropagation()
+            closePageLinkDropdown()
+            return
+        }
+        if (e.key === 'Backspace') {
+            if (pageLinkQuery.length > 0) {
+                pageLinkQuery = pageLinkQuery.slice(0, -1)
+            } else {
+                closePageLinkDropdown()
+            }
+            return
+        }
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+            pageLinkQuery += e.key
+        }
+        return
+    }
+
+    if (e.key === '[' && !e.ctrlKey && !e.metaKey) {
+        if (lastKeyWasBracket) {
+            lastKeyWasBracket = false
+            setTimeout(() => openPageLinkDropdown(), 0)
+        } else {
+            lastKeyWasBracket = true
+        }
+    } else {
+        lastKeyWasBracket = false
+    }
+}
 </script>
 
 {#if pageContentOverride === undefined && viewOnly === false}
@@ -236,6 +365,14 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
         bind:showInsertFileModal
     ></InsertFileModal>
 {/if}
+
+<PageLinkDropdown
+    bind:this={pageLinkDropdown}
+    query={pageLinkQuery}
+    anchorRect={pageLinkAnchorRect}
+    on:select={(e) => insertPageLink(e.detail)}
+    on:close={closePageLinkDropdown}
+/>
 
 <style>
 .page-container {

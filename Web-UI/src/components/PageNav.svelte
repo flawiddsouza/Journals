@@ -1,6 +1,7 @@
 <script>
 export let activePage = null
 export let activeSection = null
+export let showBacklinks = false
 
 import fetchPlus from '../helpers/fetchPlus.js'
 import { slugify } from '../helpers/string.js'
@@ -260,6 +261,12 @@ function generatePageLinks() {
             href: '#view-page-uploads',
             text: 'Uploads',
             onClick: () => (showPageUploadsModal = true),
+        })
+
+        links.push({
+            href: '#backlinks',
+            text: 'Backlinks',
+            onClick: () => (showBacklinks = !showBacklinks),
         })
 
         if (activePage.type !== 'Spreadsheet' && activePage.type !== 'DrawIO') {

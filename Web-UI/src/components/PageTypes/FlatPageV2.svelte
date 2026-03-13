@@ -122,11 +122,39 @@ function saveCursorPosition() {
 }
 
 import { onDestroy } from 'svelte'
-import { Editor } from '@tiptap/core'
+import { Editor, Node as TiptapNode } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Paragraph from '@tiptap/extension-paragraph'
 import { mergeAttributes } from '@tiptap/core'
 import { generateHTML } from '@tiptap/html'
+import PageLinkDropdown from '../PageLinkDropdown.svelte'
+
+const PageLink = TiptapNode.create({
+    name: 'pageLink',
+    inline: true,
+    group: 'inline',
+    atom: true,
+    addAttributes() {
+        return {
+            pageId: { default: null },
+            pageName: { default: '' },
+        }
+    },
+    renderHTML({ node }) {
+        return ['a', {
+            'data-page-id': node.attrs.pageId,
+            'class': 'page-link',
+            'href': `/page/${node.attrs.pageId}`,
+            'target': '_blank',
+        }, node.attrs.pageName]
+    },
+    parseHTML() {
+        return [{ tag: 'a[data-page-id]', getAttrs: (dom) => ({
+            pageId: dom.getAttribute('data-page-id'),
+            pageName: dom.textContent,
+        }) }]
+    },
+})
 
 const extensions = [
     StarterKit.configure({
@@ -147,7 +175,42 @@ const extensions = [
             ]
         },
     }),
+    PageLink,
 ]
+
+// [[ page link state
+let pageLinkMode = false
+let pageLinkQuery = ''
+let pageLinkAnchorRect = null
+let pageLinkStartPos = null
+let pageLinkDropdown
+let lastBracketKeyPos = null
+
+function getCaretRect() {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) return null
+    return sel.getRangeAt(0).cloneRange().getBoundingClientRect()
+}
+
+function closePageLinkDropdown() {
+    pageLinkMode = false
+    pageLinkQuery = ''
+    pageLinkAnchorRect = null
+    pageLinkStartPos = null
+}
+
+function insertPageLink(page) {
+    if (!editor) return
+    const currentPos = editor.state.selection.$from.pos
+    editor.chain()
+        .deleteRange({ from: pageLinkStartPos, to: currentPos })
+        .insertContent({
+            type: 'pageLink',
+            attrs: { pageId: page.id, pageName: page.name }
+        })
+        .run()
+    closePageLinkDropdown()
+}
 
 let editor
 
@@ -167,6 +230,47 @@ function pageContainerMounted(element) {
             savePageContent()
         },
         editorProps: {
+            handleKeyDown(view, event) {
+                if (pageLinkMode) {
+                    if (pageLinkDropdown) {
+                        const handled = pageLinkDropdown.handleKeydown(event)
+                        if (handled) return true
+                    }
+                    if (event.key === 'Escape') {
+                        closePageLinkDropdown()
+                        return true
+                    }
+                    if (event.key === 'Backspace') {
+                        if (pageLinkQuery.length > 0) {
+                            pageLinkQuery = pageLinkQuery.slice(0, -1)
+                        } else {
+                            closePageLinkDropdown()
+                        }
+                        return false
+                    }
+                    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
+                        pageLinkQuery += event.key
+                    }
+                    return false
+                }
+                if (event.key === '[' && !event.ctrlKey && !event.metaKey) {
+                    if (lastBracketKeyPos !== null) {
+                        const startPos = lastBracketKeyPos
+                        lastBracketKeyPos = null
+                        setTimeout(() => {
+                            pageLinkMode = true
+                            pageLinkStartPos = startPos
+                            pageLinkAnchorRect = getCaretRect()
+                            pageLinkQuery = ''
+                        }, 0)
+                    } else {
+                        lastBracketKeyPos = view.state.selection.$from.pos
+                    }
+                } else {
+                    lastBracketKeyPos = null
+                }
+                return false
+            },
             // From: https://github.com/bluesky-social/social-app/pull/6658/files
             clipboardTextParser(text, context) {
                 const blocks = text.split(/(?:\r\n?|\n)/)
@@ -317,6 +421,14 @@ import { Fragment, Node, Slice } from '@tiptap/pm/model'
     ></InsertFileModal>
 {/if}
 
+<PageLinkDropdown
+    bind:this={pageLinkDropdown}
+    query={pageLinkQuery}
+    anchorRect={pageLinkAnchorRect}
+    on:select={(e) => insertPageLink(e.detail)}
+    on:close={closePageLinkDropdown}
+/>
+
 <style>
 .page-container {
     height: 100%;
@@ -336,5 +448,18 @@ import { Fragment, Node, Slice } from '@tiptap/pm/model'
 .page-container > :global(.ProseMirror :where(ul, ol)) {
     padding-left: 1rem;
     margin: 0;
+}
+
+:global(.page-link) {
+    color: #4a6cf7;
+    background: rgba(74, 108, 247, 0.08);
+    border-radius: 3px;
+    padding: 0 2px;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+:global(.page-link:hover) {
+    background: rgba(74, 108, 247, 0.16);
 }
 </style>

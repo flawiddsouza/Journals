@@ -264,6 +264,21 @@ get "/install" do
     user_version = 12
   end
 
+  if user_version === 12
+    db.exec "
+      CREATE TABLE IF NOT EXISTS page_links (
+          id INTEGER PRIMARY KEY,
+          source_page_id INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+          target_page_id INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+          UNIQUE(source_page_id, target_page_id)
+      )
+    "
+    db.exec "CREATE INDEX IF NOT EXISTS idx_page_links_source ON page_links(source_page_id)"
+    db.exec "CREATE INDEX IF NOT EXISTS idx_page_links_target ON page_links(target_page_id)"
+    db.exec "PRAGMA user_version = 13"
+    user_version = 13
+  end
+
   "Installation Complete!"
 end
 
@@ -486,6 +501,13 @@ delete "/notebooks/:notebook_id" do |env|
   {success: true}.to_json
 end
 
+def extract_page_link_ids(content : String) : Array(Int64)
+  ids = [] of Int64
+  content.scan(/data-page-id="(\d+)"/) { |m| ids << m[1].to_i64 }
+  content.scan(/"pageId"\s*:\s*(\d+)/) { |m| ids << m[1].to_i64 }
+  ids.uniq
+end
+
 put "/pages/:page_id" do |env|
   page_id = env.params.url["page_id"]
   page_content = env.params.json["pageContent"].as(String)
@@ -508,8 +530,57 @@ put "/pages/:page_id" do |env|
 
   db.exec "UPDATE pages SET content=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", page_content, page_id, env.auth_id
 
+  # Sync page links extracted from content (only if page belongs to user)
+  page_owned = db.scalar("SELECT COUNT(*) FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(Int64) > 0
+  if page_owned
+    new_link_ids = extract_page_link_ids(page_content)
+    db.exec "DELETE FROM page_links WHERE source_page_id = ?", page_id
+    new_link_ids.each do |target_id|
+      count = db.scalar("SELECT COUNT(*) FROM pages WHERE id = ? AND user_id = ?", target_id, env.auth_id).as(Int64)
+      if count > 0
+        db.exec "INSERT OR IGNORE INTO page_links(source_page_id, target_page_id) VALUES(?, ?)", page_id, target_id
+      end
+    end
+  end
+
   env.response.content_type = "application/json"
   {success: true}.to_json
+end
+
+get "/pages/links/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  links = db.query_all("
+    SELECT p.id, CASE WHEN p.parent_id IS NOT NULL THEN pg.name || ' > ' || p.name ELSE p.name END as name, p.type, s.name as section_name, n.name as notebook_name
+    FROM page_links pl
+    JOIN pages p ON p.id = pl.target_page_id
+    JOIN sections s ON s.id = p.section_id
+    JOIN notebooks n ON n.id = s.notebook_id
+    LEFT JOIN pages pg ON pg.id = p.parent_id
+    WHERE pl.source_page_id = ? AND p.user_id = ?
+    ORDER BY name
+  ", page_id, env.auth_id, as: {id: Int64, name: String, type: String, section_name: String, notebook_name: String})
+
+  env.response.content_type = "application/json"
+  links.to_json
+end
+
+get "/pages/backlinks/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  backlinks = db.query_all("
+    SELECT p.id, CASE WHEN p.parent_id IS NOT NULL THEN pg.name || ' > ' || p.name ELSE p.name END as name, p.type, s.name as section_name, n.name as notebook_name
+    FROM page_links pl
+    JOIN pages p ON p.id = pl.source_page_id
+    JOIN sections s ON s.id = p.section_id
+    JOIN notebooks n ON n.id = s.notebook_id
+    LEFT JOIN pages pg ON pg.id = p.parent_id
+    WHERE pl.target_page_id = ? AND p.user_id = ?
+    ORDER BY name
+  ", page_id, env.auth_id, as: {id: Int64, name: String, type: String, section_name: String, notebook_name: String})
+
+  env.response.content_type = "application/json"
+  backlinks.to_json
 end
 
 get "/pages/info/:page_id" do |env|

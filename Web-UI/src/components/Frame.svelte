@@ -210,14 +210,19 @@ $: if (activeSection) {
 
 let activePage = {}
 let firstLoad = true
+let showBacklinks = false
+
+function closeBacklinks() { showBacklinks = false }
 
 $: if (activePage && activePage.id) {
     localStorage.setItem('activePage', JSON.stringify(activePage))
+    closeBacklinks()
     firstLoad = false
 } else {
     if (!firstLoad) {
         localStorage.removeItem('activePage')
     }
+    closeBacklinks()
     firstLoad = false
 }
 
@@ -650,6 +655,7 @@ import PageContextMenu from './PageContextMenu.svelte'
 import Page from './Page.svelte'
 import Modal from './Modal.svelte'
 import AddPageModal from './Modals/AddPageModal.svelte'
+import BacklinksPanel from './BacklinksPanel.svelte'
 </script>
 
 <div style="display: grid; grid-template-rows: auto 1fr; height: 100%;">
@@ -676,7 +682,7 @@ import AddPageModal from './Modals/AddPageModal.svelte'
             </div>
             <div class="pos-a" style="margin-left: 14em">
                 {#if activePage.locked === false && activePage.type !== 'PageGroup'}
-                    <PageNav bind:activePage {activeSection}></PageNav>
+                    <PageNav bind:activePage {activeSection} bind:showBacklinks></PageNav>
                 {/if}
             </div>
             <span class="hide-on-small-screen">
@@ -832,6 +838,12 @@ import AddPageModal from './Modals/AddPageModal.svelte'
             {/if}
         </nav>
     </div>
+    {#if showBacklinks}
+        <BacklinksPanel
+            pageId={activePage.id}
+            on:close={() => (showBacklinks = false)}
+        ></BacklinksPanel>
+    {/if}
     {#if showAddPageModal}
         <AddPageModal
             sectionId={activeSection.id}

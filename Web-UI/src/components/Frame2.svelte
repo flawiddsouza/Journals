@@ -1,6 +1,7 @@
 <script>
 import Page from './Page.svelte'
 import PageNav from './PageNav.svelte'
+import BacklinksPanel from './BacklinksPanel.svelte'
 import debounce from '../helpers/debounce.js'
 import fetchPlus from '../helpers/fetchPlus.js'
 
@@ -9,6 +10,7 @@ let activePageId = document.location.pathname.split('/').slice(-1)[0]
 let activePage = {}
 let pageNotFound = false
 let gridTemplateRowsMainDiv = `grid-template-rows: 1fr`
+let showBacklinks = false
 
 async function getPageInfo() {
     if (!activePageId) {
@@ -60,7 +62,7 @@ getPageInfo()
         {#if activePage.locked === false && activePage.type !== 'PageGroup' && activePage.type !== 'Favorites'}
             <div class="page-header">
                 <div style="margin-left: 2em">
-                    <PageNav bind:activePage></PageNav>
+                    <PageNav bind:activePage bind:showBacklinks></PageNav>
                 </div>
             </div>
         {/if}
@@ -71,6 +73,12 @@ getPageInfo()
             viewOnly={activePage.parent_view_only}
             className="journal-page-container"
         ></Page>
+        {#if showBacklinks}
+            <BacklinksPanel
+                pageId={activePage.id}
+                on:close={() => (showBacklinks = false)}
+            ></BacklinksPanel>
+        {/if}
     </div>
 {/if}
 

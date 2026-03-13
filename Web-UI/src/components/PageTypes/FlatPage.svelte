@@ -69,28 +69,121 @@ const savePageContent = debounce(function () {
 
 import defaultKeydownHandlerForContentEditableArea from '../../helpers/defaultKeydownHandlerForContentEditableArea.js'
 
+let lastKeyWasBracket = false
+
 function handleKeysInPageContainer(e) {
+    // If dropdown is open, route navigation keys to it
+    if (pageLinkAnchorRect && pageLinkDropdown) {
+        const handled = pageLinkDropdown.handleKeydown(e)
+        if (handled) return
+        // Any other key: update query or close on backspace past [[
+        if (e.key === 'Backspace') {
+            if (pageLinkQuery.length > 0) {
+                pageLinkQuery = pageLinkQuery.slice(0, -1)
+            } else {
+                closePageLinkDropdown()
+            }
+            return
+        }
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+            pageLinkQuery += e.key
+        }
+        // let the keystroke fall through to insert the character
+    }
+
     defaultKeydownHandlerForContentEditableArea(e)
     saveCursorPosition()
 
     if (e.ctrlKey && e.key.toLowerCase() === 'i') {
         e.preventDefault()
-        insertFileModalLinkLabel = window.getSelection().toString() // prefill selected text, so that you can convert selected text to a link to an upload file
+        insertFileModalLinkLabel = window.getSelection().toString()
         showInsertFileModal = true
+        return
     }
 
-    // add 4 spaces when pressing tab instead of its default behavior
     if (e.key === 'Tab') {
         e.preventDefault()
         document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;')
+        return
+    }
+
+    // Detect [[ to open page link dropdown
+    if (e.key === '[' && !e.ctrlKey && !e.metaKey) {
+        if (lastKeyWasBracket) {
+            lastKeyWasBracket = false
+            // Second [ typed — open dropdown after this keystroke is processed
+            setTimeout(() => openPageLinkDropdown(), 0)
+        } else {
+            lastKeyWasBracket = true
+        }
+    } else {
+        lastKeyWasBracket = false
     }
 }
 
 import Modal from '../Modal.svelte'
+import PageLinkDropdown from '../PageLinkDropdown.svelte'
 
 let showInsertFileModal = false
 let insertFileModalLinkLabel = ''
 let savedCursorPosition = null
+
+// [[ page link state
+let pageLinkQuery = ''
+let pageLinkAnchorRect = null
+let pageLinkDropdown
+let pageLinkStartRange = null
+
+function getCaretRect() {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) return null
+    return sel.getRangeAt(0).cloneRange().getBoundingClientRect()
+}
+
+function openPageLinkDropdown() {
+    pageLinkAnchorRect = getCaretRect()
+    pageLinkQuery = ''
+    const sel = window.getSelection()
+    pageLinkStartRange = sel.getRangeAt(0).cloneRange()
+    try {
+        pageLinkStartRange.setStart(
+            pageLinkStartRange.startContainer,
+            Math.max(0, pageLinkStartRange.startOffset - 2)
+        )
+    } catch(e) {}
+}
+
+function closePageLinkDropdown() {
+    pageLinkAnchorRect = null
+    pageLinkQuery = ''
+    pageLinkStartRange = null
+}
+
+function insertPageLink(page) {
+    const sel = window.getSelection()
+    if (pageLinkStartRange && sel) {
+        const endRange = sel.getRangeAt(0).cloneRange()
+        const replaceRange = document.createRange()
+        replaceRange.setStart(pageLinkStartRange.startContainer, pageLinkStartRange.startOffset)
+        replaceRange.setEnd(endRange.startContainer, endRange.startOffset)
+        sel.removeAllRanges()
+        sel.addRange(replaceRange)
+    }
+    const markerId = `plm-${Date.now()}`
+    document.execCommand('insertHTML', false,
+        `<a data-page-id="${page.id}" class="page-link" href="/page/${page.id}" target="_blank" contenteditable="false">${page.name}</a><span id="${markerId}"></span>`)
+    const marker = document.getElementById(markerId)
+    if (marker) {
+        const range = document.createRange()
+        range.setStartAfter(marker)
+        range.collapse(true)
+        sel.removeAllRanges()
+        sel.addRange(range)
+        marker.parentNode.removeChild(marker)
+    }
+    closePageLinkDropdown()
+    pageContainer.dispatchEvent(new Event('input'))
+}
 
 function focus(element) {
     element.focus()
@@ -221,6 +314,14 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
     ></InsertFileModal>
 {/if}
 
+<PageLinkDropdown
+    bind:this={pageLinkDropdown}
+    query={pageLinkQuery}
+    anchorRect={pageLinkAnchorRect}
+    on:select={(e) => insertPageLink(e.detail)}
+    on:close={closePageLinkDropdown}
+/>
+
 <style>
 .page-container {
     outline: 0;
@@ -237,5 +338,18 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
 
 .page-container.view-only::after {
     cursor: default;
+}
+
+:global(.page-link) {
+    color: #4a6cf7;
+    background: rgba(74, 108, 247, 0.08);
+    border-radius: 3px;
+    padding: 0 2px;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+:global(.page-link:hover) {
+    background: rgba(74, 108, 247, 0.16);
 }
 </style>
