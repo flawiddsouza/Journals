@@ -3,11 +3,15 @@ import { baseURL } from '../../config.js'
 import { logoutAccount } from './account.js'
 
 const fetchPlus = function (method, url, data, headers = {}) {
+    const isMultipart = data instanceof FormData
+    const baseHeaders = isMultipart
+        ? { Accept: 'application/json', Token: fetchPlus.headers['Token'] }
+        : fetchPlus.headers
     return fetch(baseURL + url, {
         method: method.toUpperCase(),
-        body: JSON.stringify(data),
+        body: isMultipart ? data : JSON.stringify(data),
         credentials: fetchPlus.credentials,
-        headers: Object.assign({}, fetchPlus.headers, headers),
+        headers: Object.assign({}, baseHeaders, headers),
     })
         .then((res) => (res.ok ? res.json() : Promise.reject(res)))
         .catch((res) => {
@@ -30,13 +34,16 @@ const fetchPlus = function (method, url, data, headers = {}) {
                             // Update token in headers
                             fetchPlus.headers['Token'] = response.token
                             // Retry the original request with new token
+                            const retryBaseHeaders = isMultipart
+                                ? { Accept: 'application/json', Token: fetchPlus.headers['Token'] }
+                                : fetchPlus.headers
                             return fetch(baseURL + url, {
                                 method: method.toUpperCase(),
-                                body: JSON.stringify(data),
+                                body: isMultipart ? data : JSON.stringify(data),
                                 credentials: fetchPlus.credentials,
                                 headers: Object.assign(
                                     {},
-                                    fetchPlus.headers,
+                                    retryBaseHeaders,
                                     headers,
                                 ),
                             }).then((res2) =>

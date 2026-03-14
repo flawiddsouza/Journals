@@ -720,12 +720,7 @@ function handleStorageRequest(ev) {
             try {
                 const data = new FormData()
                 data.append('image', blob, filename)
-                const resp = await fetch(`${baseURL}/upload-image/${pageId}`, {
-                    method: 'POST',
-                    body: data,
-                    headers: { Token: localStorage.getItem('token') },
-                    credentials: 'include',
-                }).then((r) => r.json())
+                const resp = await fetchPlus.post(`/upload-image/${pageId}`, data)
                 ev.source.postMessage(
                     {
                         type: 'MiniAppUploadResponse',

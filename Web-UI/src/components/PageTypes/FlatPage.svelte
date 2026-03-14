@@ -213,13 +213,7 @@ function handlePaste(event) {
         var data = new FormData()
         data.append('image', blob)
 
-        fetch(`${baseURL}/upload-image/${pageId}`, {
-            method: 'POST',
-            body: data,
-            headers: { Token: localStorage.getItem('token') },
-            credentials: 'include',
-        })
-            .then((response) => response.json())
+        fetchPlus.post(`/upload-image/${pageId}`, data)
             .then((response) => {
                 const img = document.createElement('img')
                 img.style.maxWidth = '100%'

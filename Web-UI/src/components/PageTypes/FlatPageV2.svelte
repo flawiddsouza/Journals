@@ -297,13 +297,7 @@ function pageContainerMounted(element) {
                     const blob = imageItem.getAsFile()
                     const data = new FormData()
                     data.append('image', blob)
-                    fetch(`${baseURL}/upload-image/${pageId}`, {
-                        method: 'POST',
-                        body: data,
-                        headers: { Token: localStorage.getItem('token') },
-                        credentials: 'include',
-                    })
-                        .then((r) => r.json())
+                    fetchPlus.post(`/upload-image/${pageId}`, data)
                         .then((r) => {
                             editor.commands.insertContent({
                                 type: 'image',

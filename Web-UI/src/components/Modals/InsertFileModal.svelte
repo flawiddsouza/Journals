@@ -7,6 +7,7 @@ import {
 } from '../../helpers/cursorHelpers.js'
 import { createEventDispatcher } from 'svelte'
 import { baseURL } from '../../../config.js'
+import fetchPlus from '../../helpers/fetchPlus.js'
 
 export let pageId = null
 export let savedCursorPosition = null
@@ -104,13 +105,7 @@ async function uploadFile() {
             data.append('image', insertFileModalFile[0])
         }
 
-        fetch(`${baseURL}/upload-image/${pageId}`, {
-            method: 'POST',
-            body: data,
-            headers: { Token: localStorage.getItem('token') },
-            credentials: 'include',
-        })
-            .then((response) => response.json())
+        fetchPlus.post(`/upload-image/${pageId}`, data)
             .then((response) => {
                 loader.remove()
                 if (insertFileModalLinkLabel === '') {

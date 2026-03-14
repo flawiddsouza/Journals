@@ -91,12 +91,7 @@ async function uploadByFile(file) {
     const data = new FormData()
     data.append('image', file)
 
-    const response = await fetch(`${baseURL}/upload-image/${pageId}`, {
-        method: 'POST',
-        body: data,
-        headers: { Token: localStorage.getItem('token') },
-        credentials: 'include',
-    }).then((response) => response.json())
+    const response = await fetchPlus.post(`/upload-image/${pageId}`, data)
 
     return {
         success: 1,
