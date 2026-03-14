@@ -496,6 +496,35 @@ delete "/sections/:section_id" do |env|
   {success: true}.to_json
 end
 
+def copy_page_uploads(db, data_directory, original_page_id, new_page_id, auth_id, original_content)
+  new_content = original_content || ""
+
+  uploads = db.query_all(
+    "SELECT file_path FROM page_uploads WHERE page_id = ? AND user_id = ?",
+    original_page_id, auth_id,
+    as: { file_path: String }
+  )
+
+  uploads.each do |upload|
+    old_file_path = upload["file_path"]
+    old_full_path = ::File.join([data_directory, old_file_path])
+    next unless File.exists?(old_full_path)
+
+    file_basename = File.basename(old_file_path)
+    new_filename = Time.utc.to_unix.to_s + "_" + file_basename
+    new_file_path = "uploads/images/" + new_filename
+    new_full_path = ::File.join([data_directory, new_file_path])
+
+    File.copy(old_full_path, new_full_path)
+    db.exec "INSERT INTO page_uploads(page_id, user_id, file_path) VALUES(?, ?, ?)", new_page_id, auth_id, new_file_path
+    new_content = new_content.gsub(file_basename, new_filename)
+  end
+
+  unless uploads.empty?
+    db.exec "UPDATE pages SET content = ? WHERE id = ?", new_content, new_page_id
+  end
+end
+
 def delete_notebook(db, data_directory, notebook_id, auth_id)
   # start delete file_uploads for pages
   sections = db.query_all("SELECT id from sections WHERE notebook_id = ? AND user_id = ?", notebook_id, auth_id, as: {
@@ -1089,13 +1118,41 @@ post "/duplicate-page/:page_id" do |env|
 
   if result.rows_affected == 0
     env.response.content_type = "application/json"
-    {success: true}.to_json
+    next {success: true}.to_json
   end
 
-  original_page = db.query_one("SELECT id, section_id from pages WHERE id = ?", page_id, as: {
+  new_page_id = result.last_insert_id
+
+  original_page = db.query_one("SELECT id, section_id, type, content from pages WHERE id = ?", page_id, as: {
     id: Int64,
-    section_id: Int64
+    section_id: Int64,
+    type: String,
+    content: String | Nil
   })
+
+  copy_page_uploads(db, data_directory, original_page["id"], new_page_id, env.auth_id, original_page["content"])
+
+  if original_page["type"] == "PageGroup"
+    child_pages = db.query_all("
+      SELECT id, content FROM pages
+      WHERE parent_id = ? AND user_id = ?
+      ORDER BY CASE WHEN sort_order THEN 0 ELSE 1 END, sort_order
+    ", original_page["id"], env.auth_id, as: {
+      id: Int64,
+      content: String | Nil
+    })
+
+    child_pages.each do |child|
+      child_result = db.exec "
+        INSERT INTO pages(section_id, name, type, content, user_id, sort_order, font_size, font_size_unit, font, view_only, password, parent_id, hide_title)
+        SELECT section_id, name, type, content, user_id, sort_order, font_size, font_size_unit, font, view_only, password, ?, hide_title
+        FROM pages WHERE id = ? AND user_id = ?
+      ", new_page_id, child["id"], env.auth_id
+
+      new_child_id = child_result.last_insert_id
+      copy_page_uploads(db, data_directory, child["id"], new_child_id, env.auth_id, child["content"])
+    end
+  end
 
   pages_for_section = Nil
 
@@ -1118,7 +1175,7 @@ post "/duplicate-page/:page_id" do |env|
   end
 
   original_page_index = pages_for_section.index { |page_for_section| page_for_section["id"] == original_page["id"] }
-  duplicate_page_index = pages_for_section.index { |page_for_section| page_for_section["id"] == result.last_insert_id }
+  duplicate_page_index = pages_for_section.index { |page_for_section| page_for_section["id"] == new_page_id }
 
   if original_page_index && duplicate_page_index
     pages_for_section.insert(original_page_index, pages_for_section[duplicate_page_index])
