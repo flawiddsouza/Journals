@@ -30,6 +30,11 @@ let visibleStartIndex = 0
 let visibleItems = []
 let gotoPageInput = ''
 
+// ── Column filter state ──────────────────────────────────────────────────
+let activeFilters = {}  // { [columnName]: Set<string> }
+let filterDropdown = { show: false, columnName: null, position: { top: 0, left: 0 } }
+// hasActiveFilters is derived after filteredItems (below) to reflect actual row hiding
+
 let autocompleteData = {
     show: false,
     suggestions: [],
@@ -67,6 +72,8 @@ function computeComputedColumn(rowIndex, columnIndex) {
 $: if (pageContentOverride) {
     let parsedPage = JSON.parse(pageContentOverride)
     loaded = false
+    activeFilters = {}
+    filterDropdown = { show: false, columnName: null, position: { top: 0, left: 0 } }
     columns = parsedPage.columns
     items = parsedPage.items
     totals = parsedPage.totals
@@ -108,6 +115,8 @@ function fetchPage(pageId) {
     showAddColumn = false
     cancelEditColumn()
     undoStackForRemoveRow = [] // reset undo stack
+    activeFilters = {}
+    filterDropdown = { show: false, columnName: null, position: { top: 0, left: 0 } }
     // end of reset variables on page change
     fetchPlus.get(`/pages/content/${pageId}`).then((response) => {
         let parsedResponse = response.content
@@ -234,9 +243,21 @@ $: if (items) {
     dontTriggerSave = false
 }
 
+// Apply active filters to produce filteredItems
+// empty Set = all unchecked = no filter for that column (same as all checked)
+$: filteredItems = (items || []).filter((item) =>
+    Object.entries(activeFilters).every(([colName, allowedSet]) => {
+        if (allowedSet.size === 0) return true
+        const text = stripHtml(String(item[colName] ?? '')).trim()
+        return allowedSet.has(text)
+    })
+)
+// Only treat filter as active when rows are actually being hidden (full Set = show all = not active)
+$: hasActiveFilters = filteredItems.length < (items || []).length
+
 // Reactive pagination derivations
-$: totalPages = Math.max(1, Math.ceil((items?.length || 0) / PAGE_SIZE))
-$: showPagination = (items?.length || 0) > PAGE_SIZE
+$: totalPages = Math.max(1, Math.ceil((filteredItems?.length || 0) / PAGE_SIZE))
+$: showPagination = (filteredItems?.length || 0) > PAGE_SIZE
 
 // Initialize to last page once per page load (no jumps on subsequent edits)
 // handled explicitly after data loads (fetchPage and pageContentOverride)
@@ -252,8 +273,8 @@ $: if (currentPage < 1) {
 // Compute visible slice
 $: visibleStartIndex = showPagination ? (currentPage - 1) * PAGE_SIZE : 0
 $: visibleItems = showPagination
-    ? (items || []).slice(visibleStartIndex, visibleStartIndex + PAGE_SIZE)
-    : items || []
+    ? (filteredItems || []).slice(visibleStartIndex, visibleStartIndex + PAGE_SIZE)
+    : filteredItems || []
 
 function evalulateStartupScript(jsString, dynamicVariables) {
     try {
@@ -536,8 +557,8 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
     defaultKeydownHandlerForContentEditableArea(e)
     saveCursorPosition()
 
-    // insert row
-    if (e.ctrlKey && e.key === 'Enter') {
+    // insert row (disabled while filters active — row index would be wrong)
+    if (e.ctrlKey && e.key === 'Enter' && !hasActiveFilters) {
         if (e.shiftKey) {
             insertRow(itemIndex, true)
         } else {
@@ -545,8 +566,8 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
         }
     }
 
-    // remove current row
-    if (e.ctrlKey && e.key.toLowerCase() === 'delete') {
+    // remove current row (disabled while filters active — row index would be wrong)
+    if (e.ctrlKey && e.key.toLowerCase() === 'delete' && !hasActiveFilters) {
         e.preventDefault()
         deleteRow(itemIndex)
     }
@@ -701,6 +722,7 @@ let column = {
     align: '',
     type: '',
     autocomplete: '',
+    filterable: '',
 }
 
 $: if (showAddColumn) {
@@ -711,6 +733,7 @@ $: if (showAddColumn) {
         align: '',
         type: '',
         autocomplete: '',
+        filterable: '',
     }
     cancelEditColumn()
 }
@@ -745,6 +768,7 @@ function addColumn() {
         align: '',
         type: '',
         autocomplete: '',
+        filterable: '',
     }
     showAddColumn = false
 }
@@ -803,6 +827,11 @@ function updateColumn() {
             item[columnToEditCopy.name] = item[columnToEditReference.name]
             delete item[columnToEditReference.name]
         })
+        // migrate active filter to new column name
+        if (activeFilters[columnToEditReference.name]) {
+            const { [columnToEditReference.name]: filterSet, ...rest } = activeFilters
+            activeFilters = { ...rest, [columnToEditCopy.name]: filterSet }
+        }
     }
     columnToEditReference.name = columnToEditCopy.name
     columnToEditReference.label = columnToEditCopy.label
@@ -810,6 +839,7 @@ function updateColumn() {
     columnToEditReference.align = columnToEditCopy.align
     columnToEditReference.type = columnToEditCopy.type
     columnToEditReference.autocomplete = columnToEditCopy.autocomplete
+    columnToEditReference.filterable = columnToEditCopy.filterable
     items = items // save
     columnToEditCopy = null
     columnToEditReference = null
@@ -833,6 +863,10 @@ function deleteColumn(columnName) {
                 }
             })
         })
+        if (activeFilters[columnName]) {
+            const { [columnName]: _, ...rest } = activeFilters
+            activeFilters = rest
+        }
         items = items // save
     }
 }
@@ -964,6 +998,8 @@ async function pasteConfiguration() {
     try {
         let parsedClipboardText = JSON.parse(clipboardText)
         columns = parsedClipboardText.columns
+        activeFilters = {}
+        closeFilterDropdown()
         if (items.length === 0) {
             items.push({})
         }
@@ -1198,6 +1234,76 @@ function stripHtml(v) {
         return ''
     }
 }
+function getUniqueColumnValues(columnName) {
+    const seen = new Set()
+    const out = []
+    for (const item of (items || [])) {
+        const text = stripHtml(String(item[columnName] ?? '')).trim()
+        if (!seen.has(text)) {
+            seen.add(text)
+            out.push(text)
+        }
+    }
+    out.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+    return out
+}
+
+function openFilterDropdown(event, columnName) {
+    event.stopPropagation()
+    if (filterDropdown.show && filterDropdown.columnName === columnName) {
+        closeFilterDropdown()
+        return
+    }
+    const rect = event.currentTarget.getBoundingClientRect()
+    filterDropdown = {
+        show: true,
+        columnName,
+        position: {
+            top: rect.bottom + window.scrollY,
+            left: rect.left + window.scrollX,
+        },
+    }
+}
+
+function closeFilterDropdown() {
+    filterDropdown = { show: false, columnName: null, position: { top: 0, left: 0 } }
+}
+
+function toggleFilterValue(columnName, value) {
+    const current = activeFilters[columnName] ?? new Set()
+    const next = new Set(current)
+    if (next.has(value)) {
+        next.delete(value)
+    } else {
+        next.add(value)
+    }
+    activeFilters = { ...activeFilters, [columnName]: next }
+    currentPage = 1
+}
+
+function toggleSelectAll(columnName) {
+    const uniqueVals = getUniqueColumnValues(columnName)
+    const current = activeFilters[columnName] ?? new Set()
+    const allChecked = uniqueVals.every((v) => current.has(v))
+    if (allChecked) {
+        // all checked → uncheck all (empty Set = no filter)
+        activeFilters = { ...activeFilters, [columnName]: new Set() }
+    } else {
+        // not all checked → check all (full Set)
+        activeFilters = { ...activeFilters, [columnName]: new Set(uniqueVals) }
+    }
+    currentPage = 1
+}
+
+function clearAllFilters() {
+    activeFilters = {}
+    currentPage = 1
+}
+
+function handleWindowClick() {
+    if (filterDropdown.show) closeFilterDropdown()
+}
+
 function sampleRowsForAI() {
     if (!Array.isArray(items) || items.length === 0) return []
     const n = Math.min(SAMPLE_ROWS_LIMIT, items.length)
@@ -1309,6 +1415,8 @@ eventStore.subscribe((event) => {
 })
 </script>
 
+<svelte:window on:click={handleWindowClick} />
+
 <div class="pos-r">
     {#if !loaded}
         <div>Loading…</div>
@@ -1317,6 +1425,11 @@ eventStore.subscribe((event) => {
         {#if pageContentOverride === undefined && viewOnly === false && loaded}
             <div class="config" on:click={() => (configuration = true)}>
                 Configure Table
+            </div>
+        {/if}
+        {#if hasActiveFilters && loaded}
+            <div class="filter-clear" on:click={clearAllFilters}>
+                ✕ Clear Filters
             </div>
         {/if}
         <table
@@ -1333,10 +1446,18 @@ eventStore.subscribe((event) => {
                             style={column.wrap === 'No'
                                 ? 'white-space: nowrap;'
                                 : ''}
-                            >{column.label}<span class="v-h"
-                                >{column.label === '' ? column.name : ''}</span
-                            ></th
                         >
+                            <span class="col-label">{column.label}<span class="v-h"
+                                >{column.label === '' ? column.name : ''}</span
+                            ></span>
+                            {#if column.filterable === 'Yes'}
+                                <button
+                                    class="filter-btn {activeFilters[column.name]?.size > 0 ? 'filter-btn--active' : ''}"
+                                    type="button"
+                                    on:click={(e) => openFilterDropdown(e, column.name)}
+                                >{activeFilters[column.name]?.size > 0 ? '▽' : '▼'}</button>
+                            {/if}
+                        </th>
                     {/each}
                 </tr>
             </thead>
@@ -1423,7 +1544,7 @@ eventStore.subscribe((event) => {
                                 {/if}
                             </td>
                         {/each}
-                        {#if pageContentOverride === undefined && viewOnly === false}
+                        {#if pageContentOverride === undefined && viewOnly === false && !hasActiveFilters}
                             <td class="table-actions">
                                 <button
                                     on:click={() =>
@@ -1556,6 +1677,7 @@ eventStore.subscribe((event) => {
                         <th>Align</th>
                         <th>Type</th>
                         <th>Autocomplete</th>
+                        <th>Filter</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1606,6 +1728,16 @@ eventStore.subscribe((event) => {
                                     </select>
                                 </td>
                                 <td>
+                                    <select
+                                        bind:value={
+                                            columnToEditCopy.filterable
+                                        }
+                                    >
+                                        <option value="">No</option>
+                                        <option>Yes</option>
+                                    </select>
+                                </td>
+                                <td>
                                     <button
                                         type="button"
                                         on:click={updateColumn}>Update</button
@@ -1627,6 +1759,7 @@ eventStore.subscribe((event) => {
                                 <td>{column.align || 'Left'}</td>
                                 <td>{column.type || 'Input'}</td>
                                 <td>{column.autocomplete || 'No'}</td>
+                                <td>{column.filterable || 'No'}</td>
                                 <td
                                     ><button
                                         type="button"
@@ -1698,6 +1831,12 @@ eventStore.subscribe((event) => {
                             </td>
                             <td>
                                 <select bind:value={column.autocomplete}>
+                                    <option value="">No</option>
+                                    <option>Yes</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select bind:value={column.filterable}>
                                     <option value="">No</option>
                                     <option>Yes</option>
                                 </select>
@@ -1964,6 +2103,39 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`}</code
     {/if}
 </div>
 
+{#if filterDropdown.show}
+    {@const colName = filterDropdown.columnName}
+    {@const uniqueVals = getUniqueColumnValues(colName)}
+    {@const allowed = activeFilters[colName] ?? new Set()}
+    {@const allChecked = uniqueVals.every((v) => allowed.has(v))}
+    <div
+        class="filter-dropdown"
+        style="top: {filterDropdown.position.top}px; left: {filterDropdown.position.left}px;"
+        on:click|stopPropagation
+    >
+        <div class="filter-list">
+            <label class="filter-item filter-select-all">
+                <input
+                    type="checkbox"
+                    checked={allChecked}
+                    on:change={() => toggleSelectAll(colName)}
+                />
+                <span>(Select All)</span>
+            </label>
+            {#each uniqueVals as val}
+                <label class="filter-item">
+                    <input
+                        type="checkbox"
+                        checked={allowed.has(val)}
+                        on:change={() => toggleFilterValue(colName, val)}
+                    />
+                    <span>{val === '' ? '(Blank)' : val}</span>
+                </label>
+            {/each}
+        </div>
+    </div>
+{/if}
+
 {#if showInsertFileModal}
     <InsertFileModal
         bind:pageId
@@ -2154,5 +2326,81 @@ td.table-actions button {
     box-shadow:
         inset 0 1px 0 grey,
         inset 0 -1px 0 grey;
+}
+
+/* ── Column header filter button ── */
+.col-label {
+    margin-right: 2px;
+}
+
+.filter-btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.65em;
+    padding: 0 1px;
+    vertical-align: middle;
+    opacity: 0.45;
+    line-height: 1;
+}
+
+.filter-btn:hover,
+.filter-btn--active {
+    opacity: 1;
+}
+
+.filter-btn--active {
+    color: #005fcc;
+}
+
+/* ── Filter dropdown panel ── */
+.filter-dropdown {
+    position: absolute;
+    z-index: 9999;
+    background: white;
+    border: 1px solid #aaa;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+    min-width: 160px;
+    max-width: 280px;
+    padding: 4px;
+    font-size: 14px;
+}
+
+.filter-list {
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.filter-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 3px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: none;
+}
+
+.filter-item:hover {
+    background: #f0f4ff;
+}
+
+.filter-select-all {
+    font-weight: 600;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 2px;
+    padding-bottom: 3px;
+}
+
+/* ── Clear filters button ── */
+.filter-clear {
+    position: absolute;
+    right: 130px;
+    top: 0;
+    cursor: pointer;
+    color: #c00;
+    font-size: 0.85em;
 }
 </style>
