@@ -21,10 +21,13 @@ import fetchPlus from '../../helpers/fetchPlus.js'
 import Page from '../Page.svelte'
 import debounce from '../../helpers/debounce.js'
 import PageNav from '../PageNav.svelte'
+import BacklinksPanel from '../BacklinksPanel.svelte'
 import { dragSort } from '../../actions/dragSort.js'
 import { eventStore } from '../../stores.js'
 import PageContextMenu from '../PageContextMenu.svelte'
 import AddPageModal from '../Modals/AddPageModal.svelte'
+
+let showBacklinks = false
 
 eventStore.subscribe((event) => {
     if (
@@ -181,7 +184,7 @@ function handleShowAddPageModal() {
 
     {#if activePage && pages.length > 0}
         <div style="margin-bottom: 1rem">
-            <PageNav bind:activePage></PageNav>
+            <PageNav bind:activePage bind:showBacklinks></PageNav>
         </div>
         {#key activePage.id}
             <Page {activePage} {updatePageName} {viewOnly} />
@@ -213,6 +216,13 @@ function handleShowAddPageModal() {
         />
     {/if}
 </div>
+
+{#if showBacklinks && activePage}
+    <BacklinksPanel
+        pageId={activePage.id}
+        on:close={() => (showBacklinks = false)}
+    ></BacklinksPanel>
+{/if}
 
 <style>
 .page-group-tabs {
