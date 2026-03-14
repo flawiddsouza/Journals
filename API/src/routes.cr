@@ -961,8 +961,16 @@ get "/page-uploads/:page_id" do |env|
     created_at: String
   })
 
+  page_content = db.scalar("SELECT COALESCE(content, '') FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(String)
+
+  result = page_uploads.map do |upload|
+    filename = File.basename(upload["file_path"])
+    used = page_content.includes?(filename)
+    {id: upload["id"], file_path: upload["file_path"], created_at: upload["created_at"], used: used}
+  end
+
   env.response.content_type = "application/json"
-  page_uploads.to_json
+  result.to_json
 end
 
 delete "/page-uploads/delete/:id" do |env|

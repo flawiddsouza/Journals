@@ -483,12 +483,15 @@ function isLastLink(index, array) {
                 <table>
                     {#each pageUploads as pageUploadsItem}
                         <tr>
-                            <td
-                                >{format(
+                            <td>
+                                {format(
                                     pageUploadsItem.created_at + 'Z',
                                     'DD-MM-YYYY hh:mm:ss A',
-                                )}</td
-                            >
+                                )}
+                                {#if !pageUploadsItem.used}
+                                    <span style="margin-left: 0.5em; padding: 1px 5px; background: #f59e0b; color: white; border-radius: 3px; font-size: 0.75em;">Not Used</span>
+                                {/if}
+                            </td>
                             <!-- show view if image, show download if file -->
                             <td
                                 ><button
