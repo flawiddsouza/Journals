@@ -179,7 +179,6 @@ const extensions = [
 ]
 
 // [[ page link state
-let pageLinkMode = false
 let pageLinkQuery = ''
 let pageLinkAnchorRect = null
 let pageLinkStartPos = null
@@ -189,11 +188,10 @@ let lastBracketKeyPos = null
 function getCaretRect() {
     const sel = window.getSelection()
     if (!sel || sel.rangeCount === 0) return null
-    return sel.getRangeAt(0).cloneRange().getBoundingClientRect()
+    return sel.getRangeAt(0).getBoundingClientRect()
 }
 
 function closePageLinkDropdown() {
-    pageLinkMode = false
     pageLinkQuery = ''
     pageLinkAnchorRect = null
     pageLinkStartPos = null
@@ -231,7 +229,7 @@ function pageContainerMounted(element) {
         },
         editorProps: {
             handleKeyDown(view, event) {
-                if (pageLinkMode) {
+                if (pageLinkAnchorRect) {
                     if (pageLinkDropdown) {
                         const handled = pageLinkDropdown.handleKeydown(event)
                         if (handled) return true
@@ -258,7 +256,6 @@ function pageContainerMounted(element) {
                         const startPos = lastBracketKeyPos
                         lastBracketKeyPos = null
                         setTimeout(() => {
-                            pageLinkMode = true
                             pageLinkStartPos = startPos
                             pageLinkAnchorRect = getCaretRect()
                             pageLinkQuery = ''

@@ -250,7 +250,7 @@ let lastKeyWasBracket = false
 function getCaretRect() {
     const sel = window.getSelection()
     if (!sel || sel.rangeCount === 0) return null
-    return sel.getRangeAt(0).cloneRange().getBoundingClientRect()
+    return sel.getRangeAt(0).getBoundingClientRect()
 }
 
 function openPageLinkDropdown() {

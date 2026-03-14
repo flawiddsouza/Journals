@@ -841,7 +841,7 @@ import BacklinksPanel from './BacklinksPanel.svelte'
     {#if showBacklinks}
         <BacklinksPanel
             pageId={activePage.id}
-            on:close={() => (showBacklinks = false)}
+            on:close={closeBacklinks}
         ></BacklinksPanel>
     {/if}
     {#if showAddPageModal}

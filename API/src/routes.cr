@@ -528,18 +528,22 @@ put "/pages/:page_id" do |env|
   )", page_id, env.auth_id, page_id, env.auth_id
   # end of save page history
 
-  db.exec "UPDATE pages SET content=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", page_content, page_id, env.auth_id
+  result = db.exec "UPDATE pages SET content=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", page_content, page_id, env.auth_id
 
-  # Sync page links extracted from content (only if page belongs to user)
-  page_owned = db.scalar("SELECT COUNT(*) FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(Int64) > 0
-  if page_owned
+  # Sync page links extracted from content
+  if result.rows_affected > 0
     new_link_ids = extract_page_link_ids(page_content)
     db.exec "DELETE FROM page_links WHERE source_page_id = ?", page_id
-    new_link_ids.each do |target_id|
-      count = db.scalar("SELECT COUNT(*) FROM pages WHERE id = ? AND user_id = ?", target_id, env.auth_id).as(Int64)
-      if count > 0
-        db.exec "INSERT OR IGNORE INTO page_links(source_page_id, target_page_id) VALUES(?, ?)", page_id, target_id
-      end
+    unless new_link_ids.empty?
+      placeholders = (["?"] * new_link_ids.size).join(", ")
+      query_args = [] of DB::Any
+      query_args << page_id
+      new_link_ids.each { |id| query_args << id }
+      query_args << env.auth_id
+      db.exec(
+        "INSERT OR IGNORE INTO page_links(source_page_id, target_page_id) SELECT ?, id FROM pages WHERE id IN (#{placeholders}) AND user_id = ?",
+        args: query_args
+      )
     end
   end
 
