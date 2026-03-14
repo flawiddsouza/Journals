@@ -265,6 +265,7 @@ let pageItemContextMenu = {
     top: 0,
     page: null,
 }
+let pageContextMenuHasOpenModal = false
 
 function handlePageItemContextMenu(e, page) {
     pageItemContextMenu.left = e.pageX
@@ -1055,13 +1056,14 @@ import BacklinksPanel from './BacklinksPanel.svelte'
         </div>
     {/if}
 
-    {#if pageItemContextMenu.page || (activePage.id !== undefined && activePage.id !== null)}
+    {#if pageItemContextMenu.page || pageContextMenuHasOpenModal || (activePage.id !== undefined && activePage.id !== null)}
         <PageContextMenu
             bind:pageItemContextMenu
             {fetchPages}
             bind:pages
             bind:activePage
             {notebooks}
+            bind:hasOpenModal={pageContextMenuHasOpenModal}
         ></PageContextMenu>
     {/if}
 </div>

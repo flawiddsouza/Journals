@@ -11,6 +11,7 @@ let pageItemContextMenu = {
     top: 0,
     page: null,
 }
+let pageContextMenuHasOpenModal = false
 
 $: fetchPages(pageId)
 
@@ -176,7 +177,7 @@ window.addEventListener('click', (e) => {
         {/key}
     {/if}
 
-    {#if pageItemContextMenu.page || (activePage !== null && activePage.id !== undefined && activePage.id !== null)}
+    {#if pageItemContextMenu.page || pageContextMenuHasOpenModal || (activePage !== null && activePage.id !== undefined && activePage.id !== null)}
         <PageContextMenu
             bind:pageItemContextMenu
             {fetchPages}
@@ -184,6 +185,7 @@ window.addEventListener('click', (e) => {
             bind:activePage
             {notebooks}
             favoritesPageId={pageId}
+            bind:hasOpenModal={pageContextMenuHasOpenModal}
         ></PageContextMenu>
     {/if}
 </div>

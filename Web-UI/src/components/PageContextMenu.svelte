@@ -6,6 +6,7 @@ export let activePage
 export let notebooks
 export let pageGroupId = null
 export let favoritesPageId = null
+export let hasOpenModal = false
 
 import fetchPlus from '../helpers/fetchPlus.js'
 import {
@@ -28,6 +29,8 @@ let pageToAddToFavorites = null
 let showManageFavoritesModal = false
 let favoritesContainingPage = []
 let pageToManageFavorites = null
+
+$: hasOpenModal = showMovePageModal || showAddToFavoritesModal || showManageFavoritesModal
 
 function renamePage() {
     const newName = prompt('Page name:', pageItemContextMenu.page.name)

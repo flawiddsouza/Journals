@@ -12,6 +12,7 @@ let pageItemContextMenu = {
     top: 0,
     page: null,
 }
+let pageContextMenuHasOpenModal = false
 let showAddPageModal = false
 
 $: fetchPages(pageId)
@@ -187,7 +188,7 @@ function handleShowAddPageModal() {
         {/key}
     {/if}
 
-    {#if pageItemContextMenu.page || (activePage !== null && activePage.id !== undefined && activePage.id !== null)}
+    {#if pageItemContextMenu.page || pageContextMenuHasOpenModal || (activePage !== null && activePage.id !== undefined && activePage.id !== null)}
         <PageContextMenu
             bind:pageItemContextMenu
             {fetchPages}
@@ -195,6 +196,7 @@ function handleShowAddPageModal() {
             bind:activePage
             {notebooks}
             pageGroupId={pageId}
+            bind:hasOpenModal={pageContextMenuHasOpenModal}
         ></PageContextMenu>
     {/if}
 
