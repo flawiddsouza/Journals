@@ -44,89 +44,17 @@ let savedCursorPosition = null
 
 import { baseURL } from '../../../config.js'
 
-function handlePaste(event) {
-    var items = (event.clipboardData || event.originalEvent.clipboardData).items
-    // find pasted image among pasted items
-    var blob = null
-    for (var i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') === 0) {
-            blob = items[i].getAsFile()
-        }
-    }
-    // load image if there is a pasted image
-    if (blob !== null) {
-        event.preventDefault()
-
-        document.execCommand(
-            'insertHTML',
-            false,
-            `<img class="upload-image-loader" style="max-width: 100%" src="/images/loader-rainbow-dog.gif">`,
-        )
-
-        var data = new FormData()
-        data.append('image', blob)
-
-        fetch(`${baseURL}/upload-image/${pageId}`, {
-            method: 'POST',
-            body: data,
-            headers: { Token: localStorage.getItem('token') },
-            credentials: 'include',
-        })
-            .then((response) => response.json())
-            .then((response) => {
-                document.querySelector('.upload-image-loader').remove()
-                document.execCommand(
-                    'insertHTML',
-                    false,
-                    `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`,
-                )
-            })
-    }
-
-    // on a plain text paste, detect links, show confirmation and if yes, convert the
-    // detected links to links before the pasted text is inserted into the page
-    if (event.clipboardData.types.includes('text/plain')) {
-        const text = event.clipboardData.getData('text/plain')
-        const linksRegex = /(https?:\/\/[^\s]+)/g
-        const links = text.match(linksRegex)
-        if (links && links.length > 0) {
-            if (
-                confirm(
-                    `Do you want to convert ${links.length} links to clickable links?`,
-                )
-            ) {
-                event.preventDefault()
-
-                let html = text
-                    .split('\n')
-                    .map((line) => {
-                        return line.replace(
-                            linksRegex,
-                            '<a href="$1" target="_blank" contenteditable="false">$1</a>',
-                        )
-                    })
-                    .join('<br>')
-
-                if (text.endsWith('\n')) {
-                    html += '<br>'
-                }
-
-                document.execCommand('insertHTML', false, html)
-            }
-        }
-    }
-}
-
 function saveCursorPosition() {
     savedCursorPosition = window.getSelection().getRangeAt(0)
 }
 
+import { format } from 'date-fns'
 import { onDestroy } from 'svelte'
-import { Editor, Node as TiptapNode } from '@tiptap/core'
+import { Editor, Node as TiptapNode, getSchema } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Paragraph from '@tiptap/extension-paragraph'
+import Image from '@tiptap/extension-image'
 import { mergeAttributes } from '@tiptap/core'
-import { generateHTML } from '@tiptap/html'
 import PageLinkDropdown from '../PageLinkDropdown.svelte'
 
 const PageLink = TiptapNode.create({
@@ -156,6 +84,33 @@ const PageLink = TiptapNode.create({
     },
 })
 
+const ExternalLink = TiptapNode.create({
+    name: 'externalLink',
+    inline: true,
+    group: 'inline',
+    atom: true,
+    selectable: false,
+    addAttributes() {
+        return {
+            href: { default: null },
+            label: { default: '' },
+        }
+    },
+    renderHTML({ node }) {
+        return ['a', {
+            href: node.attrs.href,
+            target: '_blank',
+            contenteditable: 'false',
+        }, node.attrs.label || node.attrs.href]
+    },
+    parseHTML() {
+        return [{ tag: 'a[href]:not([data-page-id])', getAttrs: (dom) => ({
+            href: dom.getAttribute('href'),
+            label: dom.textContent,
+        }) }]
+    },
+})
+
 const extensions = [
     StarterKit.configure({
         paragraph: false,
@@ -176,7 +131,11 @@ const extensions = [
         },
     }),
     PageLink,
+    ExternalLink,
+    Image.configure({ inline: true, HTMLAttributes: { style: 'max-width: 100%' } }).extend({ atom: true, selectable: false }),
 ]
+
+const tiptapSchema = getSchema(extensions)
 
 // [[ page link state
 let pageLinkQuery = ''
@@ -211,6 +170,7 @@ function insertPageLink(page) {
 }
 
 let editor
+$: editorDom = editor?.view.dom
 
 function pageContainerMounted(element) {
     pageContainer = element
@@ -251,6 +211,66 @@ function pageContainerMounted(element) {
                     }
                     return false
                 }
+
+                if (event.ctrlKey && event.key.toLowerCase() === 'i') {
+                    event.preventDefault()
+                    insertFileModalLinkLabel = editor.state.doc.textBetween(
+                        editor.state.selection.from,
+                        editor.state.selection.to,
+                        ''
+                    )
+                    saveCursorPosition()
+                    showInsertFileModal = true
+                    return true
+                }
+
+                if (event.ctrlKey && event.key.toLowerCase() === 'k') {
+                    event.preventDefault()
+                    const url = prompt('Enter link')
+                    if (url) {
+                        const label = editor.state.doc.textBetween(
+                            editor.state.selection.from,
+                            editor.state.selection.to,
+                            ''
+                        ) || url
+                        if (!editor.state.selection.empty) {
+                            editor.chain().deleteSelection().insertContent({
+                                type: 'externalLink',
+                                attrs: { href: url, label },
+                            }).run()
+                        } else {
+                            editor.commands.insertContent({
+                                type: 'externalLink',
+                                attrs: { href: url, label },
+                            })
+                        }
+                    }
+                    return true
+                }
+
+                if (event.key === 'Tab') {
+                    event.preventDefault()
+                    editor.commands.insertContent('    ')
+                    return true
+                }
+
+                if ((event.altKey && event.shiftKey || event.metaKey && event.shiftKey) && event.key.toLowerCase() === 'd') {
+                    editor.commands.insertContent(format(new Date(), 'DD-MMM-YY'))
+                    return true
+                }
+
+                if (event.key === 'F11') {
+                    event.preventDefault()
+                    editor.commands.insertContent(format(new Date(), '(hh:mm A) '))
+                    return true
+                }
+
+                if (event.key === 'F12') {
+                    event.preventDefault()
+                    editor.commands.insertContent(format(new Date(), 'DD-MMM-YY hh:mm A: '))
+                    return true
+                }
+
                 if (event.key === '[' && !event.ctrlKey && !event.metaKey) {
                     if (lastBracketKeyPos !== null) {
                         const startPos = lastBracketKeyPos
@@ -266,6 +286,56 @@ function pageContainerMounted(element) {
                 } else {
                     lastBracketKeyPos = null
                 }
+                return false
+            },
+            handlePaste(view, event) {
+                const items = Array.from(event.clipboardData?.items || [])
+                const imageItem = items.find(i => i.type.startsWith('image/'))
+
+                if (imageItem) {
+                    event.preventDefault()
+                    const blob = imageItem.getAsFile()
+                    const data = new FormData()
+                    data.append('image', blob)
+                    fetch(`${baseURL}/upload-image/${pageId}`, {
+                        method: 'POST',
+                        body: data,
+                        headers: { Token: localStorage.getItem('token') },
+                        credentials: 'include',
+                    })
+                        .then((r) => r.json())
+                        .then((r) => {
+                            editor.commands.insertContent({
+                                type: 'image',
+                                attrs: { src: `${baseURL}/${r.imageUrl}` },
+                            })
+                        })
+                    return true
+                }
+
+                if (event.clipboardData?.types.includes('text/plain')) {
+                    const text = event.clipboardData.getData('text/plain')
+                    const links = text.match(/(https?:\/\/[^\s]+)/g)
+                    if (links?.length > 0) {
+                        if (confirm(`Do you want to convert ${links.length} links to clickable links?`)) {
+                            event.preventDefault()
+                            const paragraphs = text.split('\n').map((line) => {
+                                const parts = line.split(/(https?:\/\/[^\s]+)/)
+                                const content = parts
+                                    .filter((p) => p.length > 0)
+                                    .map((part) =>
+                                        /^https?:\/\//.test(part)
+                                            ? { type: 'externalLink', attrs: { href: part, label: part } }
+                                            : { type: 'text', text: part }
+                                    )
+                                return { type: 'paragraph', content: content.length ? content : [] }
+                            })
+                            editor.commands.insertContent(paragraphs)
+                            return true
+                        }
+                    }
+                }
+
                 return false
             },
             // From: https://github.com/bluesky-social/social-app/pull/6658/files
@@ -372,11 +442,14 @@ function getPageContentHTML() {
         }
     })
 
-    const generatedHTML = generateHTML(pageContentCopy, extensions)
+    const doc = Node.fromJSON(tiptapSchema, pageContentCopy)
+    const container = document.createElement('div')
+    DOMSerializer.fromSchema(tiptapSchema).serializeFragment(doc.content, { document }, container)
+    const generatedHTML = container.innerHTML
 
     globalThis.generatedHTML = generatedHTML
 
-    return generateHTML
+    return generatedHTML
 }
 
 $: pageContentParsed = pageContent ? getPageContentHTML() : ''
@@ -388,7 +461,7 @@ onDestroy(() => {
 })
 
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
-import { Fragment, Node, Slice } from '@tiptap/pm/model'
+import { DOMSerializer, Fragment, Node, Slice } from '@tiptap/pm/model'
 </script>
 
 {#if pageContentOverride === undefined && viewOnly === false}
@@ -412,9 +485,11 @@ import { Fragment, Node, Slice } from '@tiptap/pm/model'
     <InsertFileModal
         bind:pageId
         bind:savedCursorPosition
-        bind:contentEditableDivToFocus={pageContainer}
+        bind:contentEditableDivToFocus={editorDom}
         bind:insertFileModalLinkLabel
         bind:showInsertFileModal
+        onInsertImage={(src) => editor.commands.insertContent({ type: 'image', attrs: { src, style: 'max-width: 100%' } })}
+        onInsertLink={(href, label) => editor.commands.insertContent({ type: 'externalLink', attrs: { href, label } })}
     ></InsertFileModal>
 {/if}
 

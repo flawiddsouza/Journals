@@ -13,6 +13,8 @@ export let savedCursorPosition = null
 export let contentEditableDivToFocus = null
 export let showInsertFileModal = false
 export let insertFileModalLinkLabel = ''
+export let onInsertLink = null
+export let onInsertImage = null
 
 let insertFileModalFile = null
 let insertFileModalType = 'file'
@@ -71,11 +73,17 @@ async function uploadFile() {
 
     if (insertFileModalType === 'url') {
         if (insertFileModalLinkLabel === '') {
-            document.execCommand(
-                'insertHTML',
-                false,
-                `<img style="max-width: 100%" loading="lazy" src="${insertFileModalFile}">`,
-            )
+            if (onInsertImage) {
+                onInsertImage(insertFileModalFile)
+            } else {
+                document.execCommand(
+                    'insertHTML',
+                    false,
+                    `<img style="max-width: 100%" loading="lazy" src="${insertFileModalFile}">`,
+                )
+            }
+        } else if (onInsertLink) {
+            onInsertLink(insertFileModalFile, insertFileModalLinkLabel)
         } else {
             document.execCommand(
                 'insertHTML',
@@ -106,11 +114,17 @@ async function uploadFile() {
             .then((response) => {
                 loader.remove()
                 if (insertFileModalLinkLabel === '') {
-                    document.execCommand(
-                        'insertHTML',
-                        false,
-                        `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`,
-                    )
+                    if (onInsertImage) {
+                        onInsertImage(baseURL + '/' + response.imageUrl)
+                    } else {
+                        document.execCommand(
+                            'insertHTML',
+                            false,
+                            `<img style="max-width: 100%" loading="lazy" src="${baseURL + '/' + response.imageUrl}">`,
+                        )
+                    }
+                } else if (onInsertLink) {
+                    onInsertLink(baseURL + '/' + response.imageUrl, insertFileModalLinkLabel)
                 } else {
                     let anchorTag = document.createElement('a')
                     anchorTag.href = baseURL + '/' + response.imageUrl

@@ -8,6 +8,7 @@ import { slugify } from '../helpers/string.js'
 import Modal from './Modal.svelte'
 import Portal from './Portal.svelte'
 import FlatPage from './PageTypes/FlatPage.svelte'
+import FlatPageV2 from './PageTypes/FlatPageV2.svelte'
 import Table from './PageTypes/Table.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
@@ -432,6 +433,12 @@ function isLastLink(index, array) {
                                     pageHistoryItemViewPageContent
                                 }
                             ></FlatPage>
+                        {/if}
+                        {#if activePage.type === 'FlatPageV2'}
+                            <FlatPageV2
+                                viewOnly={true}
+                                pageContentOverride={pageHistoryItemViewPageContent ? JSON.parse(pageHistoryItemViewPageContent) : undefined}
+                            ></FlatPageV2>
                         {/if}
                         {#if activePage.type === 'Table'}
                             <Table
