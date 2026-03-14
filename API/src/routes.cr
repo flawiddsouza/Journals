@@ -279,6 +279,37 @@ get "/install" do
     user_version = 13
   end
 
+  if user_version === 13
+    # Migrate MiniApp KV data: replace stored full upload URLs with relative paths
+    # e.g. "http://localhost:9900/uploads/images/file.png" → "uploads/images/file.png"
+    url_pattern = /(?:https?:\/\/[^\/\"]+\/)?uploads\/images\//
+
+    pages = db.query_all(
+      "SELECT id, content FROM pages WHERE type = 'MiniApp' AND content IS NOT NULL",
+      as: {id: Int64, content: String}
+    )
+    pages.each do |page|
+      migrated = page["content"].gsub(url_pattern, "")
+      if migrated != page["content"]
+        db.exec "UPDATE pages SET content = ? WHERE id = ?", migrated, page["id"]
+      end
+    end
+
+    history = db.query_all(
+      "SELECT ph.id, ph.content FROM page_history ph JOIN pages p ON p.id = ph.page_id WHERE p.type = 'MiniApp' AND ph.content IS NOT NULL AND ph.content LIKE '%/uploads/images/%'",
+      as: {id: Int64, content: String}
+    )
+    history.each do |row|
+      migrated = row["content"].gsub(url_pattern, "")
+      if migrated != row["content"]
+        db.exec "UPDATE page_history SET content = ? WHERE id = ?", migrated, row["id"]
+      end
+    end
+
+    db.exec "PRAGMA user_version = 14"
+    user_version = 14
+  end
+
   "Installation Complete!"
 end
 
@@ -852,7 +883,7 @@ post "/upload-image/:page_id" do|env|
 
     db.exec "INSERT INTO page_uploads(page_id, user_id, file_path) VALUES(?, ?, ?)", page_id, env.auth_id, file_path_to_save
 
-    {imageUrl: file_path_to_save }.to_json
+    {imageUrl: file_path_to_save, filename: File.basename(file_path_to_save)}.to_json
   else
     {error: "Auth error"}.to_json
   end

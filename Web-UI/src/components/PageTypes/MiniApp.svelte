@@ -726,12 +726,11 @@ function handleStorageRequest(ev) {
                     headers: { Token: localStorage.getItem('token') },
                     credentials: 'include',
                 }).then((r) => r.json())
-                const url = `${baseURL}/${resp.imageUrl}`
                 ev.source.postMessage(
                     {
                         type: 'MiniAppUploadResponse',
                         requestId: msg.requestId,
-                        result: url,
+                        result: resp.filename ?? null,
                     },
                     '*',
                 )
@@ -752,9 +751,9 @@ function handleStorageRequest(ev) {
 
     // Fetch protected asset and return bytes
     if (msg.type === 'MiniAppFetchAsset') {
-        const url = msg.url
         ;(async () => {
             try {
+                const url = `${baseURL}/uploads/images/${msg.url}`
                 const resp = await fetch(url, {
                     method: 'GET',
                     headers: { Token: localStorage.getItem('token') },
@@ -811,7 +810,7 @@ function handleStorageRequest(ev) {
                             Token: localStorage.getItem('token'),
                         },
                         credentials: 'include',
-                        body: JSON.stringify({ pageId, path: msg.url }),
+                        body: JSON.stringify({ pageId, path: `uploads/images/${msg.url}` }),
                     },
                 )
                 const ok = resp.ok
