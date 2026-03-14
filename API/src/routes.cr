@@ -310,6 +310,35 @@ get "/install" do
     user_version = 14
   end
 
+  if user_version === 14
+    db.exec "ALTER TABLE notebooks ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL"
+    db.exec "ALTER TABLE sections ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL"
+    db.exec "ALTER TABLE pages ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL"
+
+    db.exec "
+      CREATE TRIGGER IF NOT EXISTS pages_fts_soft_delete AFTER UPDATE OF deleted_at ON pages
+      WHEN new.deleted_at IS NOT NULL AND old.deleted_at IS NULL
+      BEGIN
+        DELETE FROM pages_fts WHERE rowid = new.id;
+      END
+    "
+
+    db.exec "
+      CREATE TRIGGER IF NOT EXISTS pages_fts_restore AFTER UPDATE OF deleted_at ON pages
+      WHEN new.deleted_at IS NULL AND old.deleted_at IS NOT NULL
+      BEGIN
+        INSERT INTO pages_fts(rowid, name, content) VALUES (new.id, new.name, COALESCE(new.content, ''));
+      END
+    "
+
+    db.exec "CREATE INDEX IF NOT EXISTS idx_pages_deleted ON pages(user_id, deleted_at) WHERE deleted_at IS NOT NULL"
+    db.exec "CREATE INDEX IF NOT EXISTS idx_sections_deleted ON sections(user_id, deleted_at) WHERE deleted_at IS NOT NULL"
+    db.exec "CREATE INDEX IF NOT EXISTS idx_notebooks_deleted ON notebooks(user_id, deleted_at) WHERE deleted_at IS NOT NULL"
+
+    db.exec "PRAGMA user_version = 15"
+    user_version = 15
+  end
+
   "Installation Complete!"
 end
 
@@ -324,11 +353,11 @@ get "/notebooks" do |env|
 
   if profile_id == "null"
     params = {env.auth_id}
-    append_to_query = " AND profile_id IS NULL"
+    append_to_query = " AND profile_id IS NULL AND deleted_at IS NULL"
     notebooks = db.query_all("SELECT id, name, expanded from notebooks WHERE user_id = ?" + append_to_query, *params, as: notebooksAsStructure)
   else
     params = {env.auth_id, profile_id}
-    append_to_query = " AND profile_id = ?"
+    append_to_query = " AND profile_id = ? AND deleted_at IS NULL"
     notebooks = db.query_all("SELECT id, name, expanded from notebooks WHERE user_id = ?" + append_to_query, *params, as: notebooksAsStructure)
   end
 
@@ -339,7 +368,7 @@ get "/notebooks" do |env|
       "id"       => notebook["id"],
       "name"     => notebook["name"],
       "expanded" => notebook["expanded"],
-      "sections" => db.query_all("SELECT id, name, notebook_id, sort_order from sections where notebook_id = ? ORDER BY CASE WHEN sort_order THEN 0 ELSE 1 END, sort_order", notebook["id"], as: {
+      "sections" => db.query_all("SELECT id, name, notebook_id, sort_order from sections where notebook_id = ? AND deleted_at IS NULL ORDER BY CASE WHEN sort_order THEN 0 ELSE 1 END, sort_order", notebook["id"], as: {
         id:   Int64,
         name: String,
         notebook_id: Int64,
@@ -415,7 +444,7 @@ get "/pages/:section_id" do |env|
       pages.hide_title
     FROM pages
     JOIN sections ON sections.id = pages.section_id
-    WHERE pages.section_id = ? AND pages.user_id = ? AND pages.parent_id IS NULL #{pages_groups_only_query}
+    WHERE pages.section_id = ? AND pages.user_id = ? AND pages.parent_id IS NULL AND pages.deleted_at IS NULL #{pages_groups_only_query}
     ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order
   ", section_id, env.auth_id, as: {
     id:   Int64,
@@ -446,25 +475,12 @@ delete "/pages/:page_id" do |env|
   })
 
   page_ids = child_pages.map { |item| item[:id] }
-
   page_ids << page_id.to_i
 
   args = [*page_ids, env.auth_id] of DB::Any
-
   page_id_placeholder = page_ids.map { "?" }.join(", ")
 
-  page_uploads = db.query_all("SELECT file_path from page_uploads WHERE page_id IN (#{page_id_placeholder}) AND user_id = ?", args: args, as: {
-    file_path: String
-  })
-
-  page_uploads.each do |page_upload|
-    file_path = ::File.join [data_directory, page_upload["file_path"]]
-    File.delete(file_path)
-  end
-
-  db.exec "DELETE FROM pages WHERE id IN (#{page_id_placeholder}) AND user_id = ?", args: args
-
-  puts args.inspect
+  db.exec "UPDATE pages SET deleted_at = CURRENT_TIMESTAMP WHERE id IN (#{page_id_placeholder}) AND user_id = ?", args: args
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -473,24 +489,8 @@ end
 delete "/sections/:section_id" do |env|
   section_id = env.params.url["section_id"]
 
-  # start delete file_uploads for pages
-  pages = db.query_all("SELECT id from pages WHERE section_id = ? AND user_id = ?", section_id, env.auth_id, as: {
-    id: Int64
-  })
-
-  pages.each do |page|
-    page_uploads = db.query_all("SELECT file_path from page_uploads WHERE page_id = ? AND user_id = ?", page["id"], env.auth_id, as: {
-      file_path: String
-    })
-
-    page_uploads.each do |page_upload|
-      file_path = ::File.join [data_directory, page_upload["file_path"]]
-      File.delete(file_path)
-    end
-  end
-  # end delete file_uploads for pages
-
-  db.exec "DELETE FROM sections WHERE id = ? AND user_id = ?", section_id, env.auth_id
+  db.exec "UPDATE pages SET deleted_at = CURRENT_TIMESTAMP WHERE section_id = ? AND user_id = ?", section_id, env.auth_id
+  db.exec "UPDATE sections SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", section_id, env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -525,37 +525,16 @@ def copy_page_uploads(db, data_directory, original_page_id, new_page_id, auth_id
   end
 end
 
-def delete_notebook(db, data_directory, notebook_id, auth_id)
-  # start delete file_uploads for pages
-  sections = db.query_all("SELECT id from sections WHERE notebook_id = ? AND user_id = ?", notebook_id, auth_id, as: {
-    id: Int64
-  })
-
-  sections.each do |section|
-    pages = db.query_all("SELECT id from pages WHERE section_id = ? AND user_id = ?", section["id"], auth_id, as: {
-      id: Int64
-    })
-
-    pages.each do |page|
-      page_uploads = db.query_all("SELECT file_path from page_uploads WHERE page_id = ? AND user_id = ?", page["id"], auth_id, as: {
-        file_path: String
-      })
-
-      page_uploads.each do |page_upload|
-        file_path = ::File.join [data_directory, page_upload["file_path"]]
-        File.delete(file_path)
-      end
-    end
-  end
-  # end delete file_uploads for pages
-
-  db.exec "DELETE FROM notebooks WHERE id = ? AND user_id = ?", notebook_id, auth_id
+def soft_delete_notebook(db, notebook_id, auth_id)
+  db.exec "UPDATE pages SET deleted_at = CURRENT_TIMESTAMP WHERE section_id IN (SELECT id FROM sections WHERE notebook_id = ? AND user_id = ?) AND user_id = ?", notebook_id, auth_id, auth_id
+  db.exec "UPDATE sections SET deleted_at = CURRENT_TIMESTAMP WHERE notebook_id = ? AND user_id = ?", notebook_id, auth_id
+  db.exec "UPDATE notebooks SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", notebook_id, auth_id
 end
 
 delete "/notebooks/:notebook_id" do |env|
   notebook_id = env.params.url["notebook_id"]
 
-  delete_notebook(db, data_directory, notebook_id, env.auth_id)
+  soft_delete_notebook(db, notebook_id, env.auth_id)
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -621,7 +600,7 @@ get "/pages/links/:page_id" do |env|
     JOIN sections s ON s.id = p.section_id
     JOIN notebooks n ON n.id = s.notebook_id
     LEFT JOIN pages pg ON pg.id = p.parent_id
-    WHERE pl.source_page_id = ? AND p.user_id = ?
+    WHERE pl.source_page_id = ? AND p.user_id = ? AND p.deleted_at IS NULL
     ORDER BY name
   ", page_id, env.auth_id, as: {id: Int64, name: String, type: String, section_name: String, notebook_name: String})
 
@@ -639,7 +618,7 @@ get "/pages/backlinks/:page_id" do |env|
     JOIN sections s ON s.id = p.section_id
     JOIN notebooks n ON n.id = s.notebook_id
     LEFT JOIN pages pg ON pg.id = p.parent_id
-    WHERE pl.target_page_id = ? AND p.user_id = ?
+    WHERE pl.target_page_id = ? AND p.user_id = ? AND p.deleted_at IS NULL
     ORDER BY name
   ", page_id, env.auth_id, as: {id: Int64, name: String, type: String, section_name: String, notebook_name: String})
 
@@ -691,7 +670,7 @@ get "/pages/info/:page_id" do |env|
       FROM pages
       LEFT JOIN pages as page_group ON page_group.id = pages.parent_id
       JOIN sections ON sections.id = pages.section_id
-      WHERE pages.id = ? AND pages.user_id = ?
+      WHERE pages.id = ? AND pages.user_id = ? AND pages.deleted_at IS NULL
     ", page_id, env.auth_id, as: pageType)
   rescue
     env.response.content_type = "application/json"
@@ -707,7 +686,7 @@ end
 get "/pages/content/:page_id" do |env|
   page_id = env.params.url["page_id"]
 
-  page = db.query_one("SELECT content from pages WHERE id = ? AND user_id = ?", page_id, env.auth_id, as: {content: Nil | String})
+  page = db.query_one("SELECT content from pages WHERE id = ? AND user_id = ? AND deleted_at IS NULL", page_id, env.auth_id, as: {content: Nil | String})
 
   env.response.content_type = "application/json"
   page.to_json
@@ -885,7 +864,7 @@ end
 post "/upload-image/:page_id" do|env|
   page_id = env.params.url["page_id"]
 
-  found_page_for_user = db.scalar("SELECT id FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(Int64 | Nil)
+  found_page_for_user = db.scalar("SELECT id FROM pages WHERE id = ? AND user_id = ? AND deleted_at IS NULL", page_id, env.auth_id).as(Int64 | Nil)
 
   env.response.content_type = "application/json"
 
@@ -1135,7 +1114,7 @@ post "/duplicate-page/:page_id" do |env|
   if original_page["type"] == "PageGroup"
     child_pages = db.query_all("
       SELECT id, content FROM pages
-      WHERE parent_id = ? AND user_id = ?
+      WHERE parent_id = ? AND user_id = ? AND deleted_at IS NULL
       ORDER BY CASE WHEN sort_order THEN 0 ELSE 1 END, sort_order
     ", original_page["id"], env.auth_id, as: {
       id: Int64,
@@ -1159,7 +1138,7 @@ post "/duplicate-page/:page_id" do |env|
   if page_group_id
     pages_for_section = db.query_all("
       SELECT id FROM pages
-      WHERE parent_id = ?
+      WHERE parent_id = ? AND deleted_at IS NULL
       ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order
     ", page_group_id, as: {
       id: Int64
@@ -1167,7 +1146,7 @@ post "/duplicate-page/:page_id" do |env|
   else
     pages_for_section = db.query_all("
       SELECT id FROM pages
-      WHERE section_id = ?
+      WHERE section_id = ? AND deleted_at IS NULL
       ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order
     ", original_page["section_id"], as: {
       id: Int64
@@ -1263,7 +1242,7 @@ delete "/profiles/delete/:profile_id" do |env|
   })
 
   notebooks.each do |notebook|
-    delete_notebook(db, data_directory, notebook["id"], env.auth_id)
+    soft_delete_notebook(db, notebook["id"], env.auth_id)
   end
 
   db.exec "DELETE FROM profiles WHERE id = ? AND user_id = ?", profile_id, env.auth_id
@@ -1294,7 +1273,7 @@ get "/page-group/:page_id" do |env|
       pages.hide_title
     FROM pages
     JOIN sections ON sections.id = pages.section_id
-    WHERE pages.parent_id = ? AND pages.user_id = ?
+    WHERE pages.parent_id = ? AND pages.user_id = ? AND pages.deleted_at IS NULL
     ORDER BY CASE WHEN pages.sort_order THEN 0 ELSE 1 END, pages.sort_order
   ", page_id, env.auth_id, as: {
     parent_id: Int64,
@@ -1328,7 +1307,7 @@ get "/favorites-pages" do |env|
       sections.notebook_id
     FROM pages
     JOIN sections ON sections.id = pages.section_id
-    WHERE pages.user_id = ? AND pages.type = 'Favorites'
+    WHERE pages.user_id = ? AND pages.type = 'Favorites' AND pages.deleted_at IS NULL
     ORDER BY pages.name
   ", env.auth_id, as: {
     id: Int64,
@@ -1346,7 +1325,7 @@ get "/favorites/:favorites_page_id" do |env|
 
   # Get the favorites page content to retrieve the pageRefs
   favorites_content = db.query_one?(
-    "SELECT content FROM pages WHERE id = ? AND user_id = ? AND type = 'Favorites'",
+    "SELECT content FROM pages WHERE id = ? AND user_id = ? AND type = 'Favorites' AND deleted_at IS NULL",
     favorites_page_id,
     env.auth_id,
     as: {content: String | Nil}
@@ -1394,7 +1373,7 @@ get "/favorites/:favorites_page_id" do |env|
       FROM pages
       JOIN sections ON sections.id = pages.section_id
       LEFT JOIN pages as page_group ON page_group.id = pages.parent_id
-      WHERE pages.id = ? AND pages.user_id = ?
+      WHERE pages.id = ? AND pages.user_id = ? AND pages.deleted_at IS NULL
       ",
       page_id,
       env.auth_id,
@@ -1486,7 +1465,7 @@ post "/pages/search" do |env|
       JOIN sections ON sections.id = pages.section_id
       JOIN notebooks ON notebooks.id = sections.notebook_id
       LEFT JOIN pages AS page_group ON page_group.id = pages.parent_id
-      WHERE pages_fts MATCH ? AND pages.user_id = ?
+      WHERE pages_fts MATCH ? AND pages.user_id = ? AND pages.deleted_at IS NULL
       ORDER BY rank
       LIMIT 10
     ", fts_query, env.auth_id, as: {
@@ -1513,7 +1492,7 @@ post "/pages/search" do |env|
       JOIN sections ON sections.id = pages.section_id
       JOIN notebooks ON notebooks.id = sections.notebook_id
       LEFT JOIN pages AS page_group ON page_group.id = pages.parent_id
-      WHERE pages.user_id = ?
+      WHERE pages.user_id = ? AND pages.deleted_at IS NULL
       AND CASE WHEN pages.parent_id IS NOT NULL THEN page_group.name || ' > ' || pages.name ELSE pages.name END LIKE ?
       ORDER BY name
       LIMIT 10
@@ -1530,4 +1509,160 @@ post "/pages/search" do |env|
 
   env.response.content_type = "application/json"
   pages.to_json
+end
+
+# ─── Recycle Bin ─────────────────────────────────────────────────────────────
+
+get "/recycle-bin" do |env|
+  notebooks = db.query_all(
+    "SELECT id, name, deleted_at FROM notebooks WHERE user_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+    env.auth_id, as: {id: Int64, name: String, deleted_at: String}
+  )
+
+  sections = db.query_all("
+    SELECT s.id, s.name, s.notebook_id, n.name as notebook_name, s.deleted_at
+    FROM sections s
+    JOIN notebooks n ON n.id = s.notebook_id
+    WHERE s.user_id = ? AND s.deleted_at IS NOT NULL
+    ORDER BY s.deleted_at DESC
+  ", env.auth_id, as: {id: Int64, name: String, notebook_id: Int64, notebook_name: String, deleted_at: String})
+
+  pages = db.query_all("
+    SELECT p.id, p.name, p.type, p.section_id, s.name as section_name, n.name as notebook_name,
+           p.parent_id, pg.name as page_group_name, p.deleted_at
+    FROM pages p
+    JOIN sections s ON s.id = p.section_id
+    JOIN notebooks n ON n.id = s.notebook_id
+    LEFT JOIN pages pg ON pg.id = p.parent_id
+    WHERE p.user_id = ? AND p.deleted_at IS NOT NULL
+    ORDER BY p.deleted_at DESC
+  ", env.auth_id, as: {id: Int64, name: String, type: String, section_id: Int64, section_name: String, notebook_name: String, parent_id: Int64 | Nil, page_group_name: String | Nil, deleted_at: String})
+
+  env.response.content_type = "application/json"
+  {notebooks: notebooks, sections: sections, pages: pages}.to_json
+end
+
+post "/recycle-bin/restore/notebook/:id" do |env|
+  id = env.params.url["id"]
+
+  db.exec "UPDATE notebooks SET deleted_at = NULL WHERE id = ? AND user_id = ?", id, env.auth_id
+  db.exec "UPDATE sections SET deleted_at = NULL WHERE notebook_id = ? AND user_id = ?", id, env.auth_id
+  db.exec "UPDATE pages SET deleted_at = NULL WHERE section_id IN (SELECT id FROM sections WHERE notebook_id = ? AND user_id = ?) AND user_id = ?", id, env.auth_id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+post "/recycle-bin/restore/section/:id" do |env|
+  id = env.params.url["id"]
+
+  # Auto-restore parent notebook if it was also soft-deleted
+  db.exec "UPDATE notebooks SET deleted_at = NULL WHERE id = (SELECT notebook_id FROM sections WHERE id = ? AND user_id = ?) AND user_id = ?", id, env.auth_id, env.auth_id
+  db.exec "UPDATE sections SET deleted_at = NULL WHERE id = ? AND user_id = ?", id, env.auth_id
+  db.exec "UPDATE pages SET deleted_at = NULL WHERE section_id = ? AND user_id = ?", id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+post "/recycle-bin/restore/page/:id" do |env|
+  id = env.params.url["id"]
+
+  # Auto-restore parent notebook, section, and page group if soft-deleted
+  db.exec "UPDATE notebooks SET deleted_at = NULL WHERE id = (SELECT s.notebook_id FROM sections s JOIN pages p ON p.section_id = s.id WHERE p.id = ? AND p.user_id = ?) AND user_id = ?", id, env.auth_id, env.auth_id
+  db.exec "UPDATE sections SET deleted_at = NULL WHERE id = (SELECT section_id FROM pages WHERE id = ? AND user_id = ?) AND user_id = ?", id, env.auth_id, env.auth_id
+  db.exec "UPDATE pages SET deleted_at = NULL WHERE id = (SELECT parent_id FROM pages WHERE id = ? AND user_id = ?) AND user_id = ?", id, env.auth_id, env.auth_id
+  # Restore page and any children (PageGroup)
+  db.exec "UPDATE pages SET deleted_at = NULL WHERE (id = ? OR parent_id = ?) AND user_id = ?", id, id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+delete "/recycle-bin/permanent/notebook/:id" do |env|
+  id = env.params.url["id"]
+
+  sections = db.query_all("SELECT id FROM sections WHERE notebook_id = ? AND user_id = ?", id, env.auth_id, as: {id: Int64})
+  sections.each do |section|
+    pages = db.query_all("SELECT id FROM pages WHERE section_id = ? AND user_id = ?", section["id"], env.auth_id, as: {id: Int64})
+    pages.each do |page|
+      page_uploads = db.query_all("SELECT file_path FROM page_uploads WHERE page_id = ? AND user_id = ?", page["id"], env.auth_id, as: {file_path: String})
+      page_uploads.each do |upload|
+        begin
+          File.delete(::File.join([data_directory, upload["file_path"]]))
+        rescue
+        end
+      end
+    end
+  end
+
+  db.exec "DELETE FROM notebooks WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL", id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+delete "/recycle-bin/permanent/section/:id" do |env|
+  id = env.params.url["id"]
+
+  pages = db.query_all("SELECT id FROM pages WHERE section_id = ? AND user_id = ?", id, env.auth_id, as: {id: Int64})
+  pages.each do |page|
+    page_uploads = db.query_all("SELECT file_path FROM page_uploads WHERE page_id = ? AND user_id = ?", page["id"], env.auth_id, as: {file_path: String})
+    page_uploads.each do |upload|
+      begin
+        File.delete(::File.join([data_directory, upload["file_path"]]))
+      rescue
+      end
+    end
+  end
+
+  db.exec "DELETE FROM sections WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL", id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+delete "/recycle-bin/permanent/page/:id" do |env|
+  id = env.params.url["id"]
+
+  page_ids_result = db.query_all("SELECT id FROM pages WHERE (id = ? OR parent_id = ?) AND user_id = ?", id, id, env.auth_id, as: {id: Int64})
+  page_ids = page_ids_result.map { |p| p["id"] }
+
+  unless page_ids.empty?
+    placeholders = page_ids.map { "?" }.join(", ")
+    args = [*page_ids, env.auth_id] of DB::Any
+    page_uploads = db.query_all("SELECT file_path FROM page_uploads WHERE page_id IN (#{placeholders}) AND user_id = ?", args: args, as: {file_path: String})
+    page_uploads.each do |upload|
+      begin
+        File.delete(::File.join([data_directory, upload["file_path"]]))
+      rescue
+      end
+    end
+  end
+
+  db.exec "DELETE FROM pages WHERE (id = ? OR parent_id = ?) AND user_id = ? AND deleted_at IS NOT NULL", id, id, env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+delete "/recycle-bin/permanent/all" do |env|
+  # Collect and delete all upload files belonging to soft-deleted pages
+  deleted_uploads = db.query_all(
+    "SELECT pu.file_path FROM page_uploads pu JOIN pages p ON p.id = pu.page_id WHERE p.user_id = ? AND p.deleted_at IS NOT NULL",
+    env.auth_id, as: {file_path: String}
+  )
+  deleted_uploads.each do |upload|
+    begin
+      File.delete(::File.join([data_directory, upload["file_path"]]))
+    rescue
+    end
+  end
+
+  db.exec "DELETE FROM pages WHERE user_id = ? AND deleted_at IS NOT NULL", env.auth_id
+  db.exec "DELETE FROM sections WHERE user_id = ? AND deleted_at IS NOT NULL", env.auth_id
+  db.exec "DELETE FROM notebooks WHERE user_id = ? AND deleted_at IS NOT NULL", env.auth_id
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
 end

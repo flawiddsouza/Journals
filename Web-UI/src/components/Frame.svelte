@@ -348,7 +348,7 @@ function renameSection() {
 }
 
 function deleteSection() {
-    if (confirm('Are you sure you want to delete this section?')) {
+    if (confirm('Move this section to the recycle bin?')) {
         fetchPlus.delete(`/sections/${sectionItemContextMenu.section.id}`)
         sectionItemContextMenu.notebook.sections =
             sectionItemContextMenu.notebook.sections.filter(
@@ -465,7 +465,7 @@ function renameNotebook() {
 }
 
 function deleteNotebook() {
-    if (confirm('Are you sure you want to delete this notebook?')) {
+    if (confirm('Move this notebook to the recycle bin?')) {
         fetchPlus.delete(`/notebooks/${notebookItemContextMenu.notebook.id}`)
         notebooks = notebooks.filter(
             (notebook) => notebook.id !== notebookItemContextMenu.notebook.id,
@@ -657,6 +657,20 @@ import Page from './Page.svelte'
 import Modal from './Modal.svelte'
 import AddPageModal from './Modals/AddPageModal.svelte'
 import BacklinksPanel from './BacklinksPanel.svelte'
+import RecycleBin from './RecycleBin.svelte'
+
+let showRecycleBin = false
+
+function openRecycleBin() {
+    showRecycleBin = true
+    activePage = {}
+}
+
+function handleRecycleBinRestored() {
+    fetchPlus.get(`/notebooks?profile_id=${selectedProfileId}`).then((response) => {
+        notebooks = response
+    })
+}
 </script>
 
 <div style="display: grid; grid-template-rows: auto 1fr; height: 100%;">
@@ -743,11 +757,13 @@ import BacklinksPanel from './BacklinksPanel.svelte'
                                     on:click={() => {
                                         activeSection = section
                                         pagesFilter = '' // reset pages filter on section change
+                                        showRecycleBin = false
                                     }}
                                     on:keyup={(e) => {
                                         if (e.key === 'Enter') {
                                             activeSection = section
                                             pagesFilter = '' // reset pages filter on section change
+                                            showRecycleBin = false
                                         }
                                     }}
                                     tabindex="0"
@@ -774,15 +790,26 @@ import BacklinksPanel from './BacklinksPanel.svelte'
             <div class="journal-sidebar-item" on:click={addNotebook}>
                 Add Notebook +
             </div>
+            <div
+                class="journal-sidebar-item"
+                class:journal-sidebar-item-selected={showRecycleBin}
+                on:click={openRecycleBin}
+            >
+                Recycle Bin
+            </div>
         </nav>
-        {#key activePage.id}
-            <Page
-                {notebooks}
-                {activePage}
-                {updatePageName}
-                className="journal-page-container"
-            ></Page>
-        {/key}
+        {#if showRecycleBin}
+            <RecycleBin on:restored={handleRecycleBinRestored} />
+        {:else}
+            {#key activePage.id}
+                <Page
+                    {notebooks}
+                    {activePage}
+                    {updatePageName}
+                    className="journal-page-container"
+                ></Page>
+            {/key}
+        {/if}
         <nav
             class="journal-right-sidebar"
             bind:this={rightSidebarElement}
