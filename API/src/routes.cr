@@ -563,7 +563,7 @@ end
 
 def extract_page_link_ids(content : String) : Array(Int64)
   ids = [] of Int64
-  content.scan(/data-page-id="(\d+)"/) { |m| ids << m[1].to_i64 }
+  content.scan(/data-page-id=\\?"(\d+)\\?"/) { |m| ids << m[1].to_i64 }
   content.scan(/"pageId"\s*:\s*(\d+)/) { |m| ids << m[1].to_i64 }
   ids.uniq
 end
