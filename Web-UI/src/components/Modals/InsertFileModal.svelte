@@ -159,10 +159,10 @@ function focus(element) {
             <label class="d-b mt-1em"
                 >From URL<br />
                 <input
+                    class="input w-100p"
                     type="text"
                     bind:value={insertFileModalFile}
                     required
-                    class="w-100p"
                     use:focus
                 />
             </label>
@@ -195,9 +195,9 @@ function focus(element) {
         <label class="d-b mt-1em"
             >Link Label<br />
             <input
+                class="input w-100p"
                 type="text"
                 bind:value={insertFileModalLinkLabel}
-                class="w-100p"
             />
         </label>
         <div style="width: 16rem; margin-top: 0.3rem">

@@ -4,6 +4,7 @@ import PageNav from './PageNav.svelte'
 import BacklinksPanel from './BacklinksPanel.svelte'
 import debounce from '../helpers/debounce.js'
 import fetchPlus from '../helpers/fetchPlus.js'
+import { getTheme, setTheme as persistTheme, initTheme } from '../helpers/theme.js'
 
 let notebooks = []
 let activePageId = document.location.pathname.split('/').slice(-1)[0]
@@ -49,6 +50,14 @@ $: if (activePage && activePage.id) {
 }
 
 getPageInfo()
+
+let theme = getTheme()
+initTheme()
+
+function setTheme(value) {
+    theme = value
+    persistTheme(value)
+}
 </script>
 
 {#if pageNotFound}
@@ -61,8 +70,16 @@ getPageInfo()
     <div style="display: grid; height: 100svh; {gridTemplateRowsMainDiv}">
         {#if activePage.locked === false && activePage.type !== 'PageGroup' && activePage.type !== 'Favorites'}
             <div class="page-header">
-                <div style="margin-left: 2em">
-                    <PageNav bind:activePage bind:showBacklinks></PageNav>
+                <PageNav bind:activePage bind:showBacklinks></PageNav>
+                <div class="page-header-right">
+                    <span class="theme-label">Theme:</span>
+                    <select value={theme} on:change={(e) => setTheme(e.target.value)}>
+                        <option value="golden">Golden</option>
+                        <option value="slate">Slate</option>
+                        <option value="forest">Forest</option>
+                        <option value="midnight">Midnight</option>
+                        <option value="rose">Rose</option>
+                    </select>
                 </div>
             </div>
         {/if}
@@ -88,6 +105,7 @@ getPageInfo()
     overflow-y: auto;
     padding-left: 2rem;
     padding-top: 1.4em;
+    background: var(--bg-center);
 }
 
 :global(.journal-page-container.PageType-RichText) {
@@ -103,12 +121,47 @@ getPageInfo()
 }
 
 .page-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     user-select: none;
     font-size: 1.2em;
     padding-top: 0.5em;
-    padding-right: 1em;
     padding-bottom: 0.6em;
-    border-bottom: 1px solid lightgrey;
-    background-color: white;
+    border-bottom: 1px solid var(--border-topbar);
+    background-color: var(--bg-topbar);
+}
+
+.page-header-right {
+    position: absolute;
+    right: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.7rem;
+}
+
+.theme-label {
+    font-size: 11px;
+    color: var(--color-tb-link);
+    opacity: 0.7;
+}
+
+.page-header-right select {
+    appearance: none;
+    border: 1px solid var(--border-select);
+    background: var(--bg-select);
+    border-radius: 5px;
+    padding: 3px 20px 3px 7px;
+    font-size: 12px;
+    color: inherit;
+    outline: none;
+    cursor: pointer;
+    font-family: inherit;
+    opacity: 0.8;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
 }
 </style>

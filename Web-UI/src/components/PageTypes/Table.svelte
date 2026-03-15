@@ -1686,6 +1686,7 @@ eventStore.subscribe((event) => {
                             <tr>
                                 <td
                                     ><input
+                                        class="input"
                                         type="text"
                                         bind:value={columnToEditCopy.name}
                                         use:focus
@@ -1693,25 +1694,26 @@ eventStore.subscribe((event) => {
                                 >
                                 <td
                                     ><input
+                                        class="input"
                                         type="text"
                                         bind:value={columnToEditCopy.label}
                                     /></td
                                 >
                                 <td>
-                                    <select bind:value={columnToEditCopy.wrap}>
+                                    <select class="input" bind:value={columnToEditCopy.wrap}>
                                         <option value="">Yes</option>
                                         <option>No</option>
                                     </select>
                                 </td>
                                 <td>
-                                    <select bind:value={columnToEditCopy.align}>
+                                    <select class="input" bind:value={columnToEditCopy.align}>
                                         <option value="">Left</option>
                                         <option>Center</option>
                                         <option>Right</option>
                                     </select>
                                 </td>
                                 <td>
-                                    <select bind:value={columnToEditCopy.type}>
+                                    <select class="input" bind:value={columnToEditCopy.type}>
                                         <option value="">Input</option>
                                         <option>Input (Plain Text)</option>
                                         <option>Computed</option>
@@ -1719,6 +1721,7 @@ eventStore.subscribe((event) => {
                                 </td>
                                 <td>
                                     <select
+                                        class="input"
                                         bind:value={
                                             columnToEditCopy.autocomplete
                                         }
@@ -1729,6 +1732,7 @@ eventStore.subscribe((event) => {
                                 </td>
                                 <td>
                                     <select
+                                        class="input"
                                         bind:value={
                                             columnToEditCopy.filterable
                                         }
@@ -1739,12 +1743,14 @@ eventStore.subscribe((event) => {
                                 </td>
                                 <td>
                                     <button
+                                        class="btn-sm"
                                         type="button"
                                         on:click={updateColumn}>Update</button
                                     >
                                 </td>
                                 <td>
                                     <button
+                                        class="btn-sm"
                                         type="button"
                                         on:click={cancelEditColumn}
                                         >Cancel</button
@@ -1762,6 +1768,7 @@ eventStore.subscribe((event) => {
                                 <td>{column.filterable || 'No'}</td>
                                 <td
                                     ><button
+                                        class="btn-sm"
                                         type="button"
                                         on:click={() => moveUp(index)}
                                         >Move Up</button
@@ -1769,6 +1776,7 @@ eventStore.subscribe((event) => {
                                 >
                                 <td
                                     ><button
+                                        class="btn-sm"
                                         type="button"
                                         on:click={() => moveDown(index)}
                                         >Move Down</button
@@ -1776,6 +1784,7 @@ eventStore.subscribe((event) => {
                                 >
                                 <td
                                     ><button
+                                        class="btn-sm"
                                         type="button"
                                         on:click={() => startEditColumn(column)}
                                         >Edit</button
@@ -1783,6 +1792,7 @@ eventStore.subscribe((event) => {
                                 >
                                 <td
                                     ><button
+                                        class="btn-sm"
                                         type="button"
                                         on:click={() =>
                                             deleteColumn(column.name)}
@@ -1796,6 +1806,7 @@ eventStore.subscribe((event) => {
                         <tr>
                             <td
                                 ><input
+                                    class="input"
                                     type="text"
                                     bind:value={column.name}
                                     required
@@ -1804,49 +1815,50 @@ eventStore.subscribe((event) => {
                             >
                             <td
                                 ><input
+                                    class="input"
                                     type="text"
                                     bind:value={column.label}
                                     placeholder="Keep blank to be = name"
                                 /></td
                             >
                             <td>
-                                <select bind:value={column.wrap}>
+                                <select class="input" bind:value={column.wrap}>
                                     <option value="">Yes</option>
                                     <option>No</option>
                                 </select>
                             </td>
                             <td>
-                                <select bind:value={column.align}>
+                                <select class="input" bind:value={column.align}>
                                     <option value="">Left</option>
                                     <option>Center</option>
                                     <option>Right</option>
                                 </select>
                             </td>
                             <td>
-                                <select bind:value={column.type}>
+                                <select class="input" bind:value={column.type}>
                                     <option value="">Input</option>
                                     <option>Input (Plain Text)</option>
                                     <option>Computed</option>
                                 </select>
                             </td>
                             <td>
-                                <select bind:value={column.autocomplete}>
+                                <select class="input" bind:value={column.autocomplete}>
                                     <option value="">No</option>
                                     <option>Yes</option>
                                 </select>
                             </td>
                             <td>
-                                <select bind:value={column.filterable}>
+                                <select class="input" bind:value={column.filterable}>
                                     <option value="">No</option>
                                     <option>Yes</option>
                                 </select>
                             </td>
                             <td>
-                                <button>Add</button>
+                                <button class="btn-sm">Add</button>
                             </td>
                             <td>
                                 <button
-                                    class="ml-0_5em"
+                                    class="btn-sm ml-0_5em"
                                     type="button"
                                     on:click={() => (showAddColumn = false)}
                                     >Cancel</button
@@ -1858,7 +1870,7 @@ eventStore.subscribe((event) => {
             </table>
         </form>
         {#if !showAddColumn}
-            <button class="mt-1em" on:click={() => (showAddColumn = true)}
+            <button class="btn-sm mt-1em" on:click={() => (showAddColumn = true)}
                 >Add Column</button
             >
         {/if}
@@ -1870,6 +1882,7 @@ eventStore.subscribe((event) => {
                     <div class="editor-row">
                         <span>{column.label ? column.label : column.name}</span
                         ><button
+                            class="btn-sm"
                             type="button"
                             on:click={() =>
                                 openAIFor({
@@ -1906,6 +1919,7 @@ eventStore.subscribe((event) => {
                 <div class="editor-row">
                     <span>{column.label ? column.label : column.name}</span
                     ><button
+                        class="btn-sm"
                         type="button"
                         on:click={() =>
                             openAIFor({
@@ -1941,6 +1955,7 @@ eventStore.subscribe((event) => {
                 <div>{column.label ? column.label : column.name}</div>
                 <div>
                     <input
+                        class="input"
                         type="text"
                         value={widths[column.name] ? widths[column.name] : ''}
                         on:input={(e) => (widths[column.name] = e.target.value)}
@@ -1955,6 +1970,7 @@ eventStore.subscribe((event) => {
                 <div class="editor-row">
                     <span>{column.label ? column.label : column.name}</span
                     ><button
+                        class="btn-sm"
                         type="button"
                         on:click={() =>
                             openAIFor({
@@ -1993,6 +2009,7 @@ eventStore.subscribe((event) => {
 
         <div class="config-heading mt-1em editor-row">
             <span>Row Style</span><button
+                class="btn-sm"
                 type="button"
                 on:click={() => openAIFor({ type: 'rowStyle' })}>Ask AI</button
             >
@@ -2020,6 +2037,7 @@ eventStore.subscribe((event) => {
 
         <div class="config-heading mt-1em editor-row">
             <span>Startup Script</span><button
+                class="btn-sm"
                 type="button"
                 on:click={() => openAIFor({ type: 'startup' })}>Ask AI</button
             >
@@ -2062,6 +2080,7 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`}</code
 
         <div class="config-heading mt-1em editor-row">
             <span>Custom Functions</span><button
+                class="btn-sm"
                 type="button"
                 on:click={() => openAIFor({ type: 'customFns' })}>Ask AI</button
             >
@@ -2183,7 +2202,7 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`}</code
 
 .config-holder > div {
     cursor: pointer;
-    color: blue;
+    color: var(--color-pa-btn);
 }
 
 .config {
@@ -2191,7 +2210,7 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`}</code
     right: 24px;
     top: 0;
     cursor: pointer;
-    color: blue;
+    color: var(--color-pa-btn);
 }
 
 .config-heading {
@@ -2229,7 +2248,7 @@ table {
 
 table th,
 table td {
-    border: 1px solid grey;
+    border: 1px solid var(--border-table);
     min-width: 3em;
     padding: 2px 5px;
 }
@@ -2271,11 +2290,11 @@ table td > div[contenteditable] {
     justify-content: flex-end;
     align-items: center;
     padding: 0.5em 0;
-    background: white;
+    background: var(--bg-center);
 }
 
 .pager > button {
-    border: 1px solid grey;
+    border: 1px solid var(--border-table);
     background: transparent;
     padding: 2px 6px;
 }
@@ -2283,7 +2302,7 @@ table td > div[contenteditable] {
 .pager-jump {
     width: 6ch;
     padding: 2px 4px;
-    border: 1px solid grey;
+    border: 1px solid var(--border-table);
     font: inherit;
 }
 
@@ -2301,18 +2320,18 @@ td.table-actions {
     border: 0;
     padding-left: 1rem;
     white-space: nowrap;
-    opacity: 0.5;
 }
 
 td.table-actions button {
-    border: 1px solid grey;
+    border: 1px solid var(--border-table);
     background: transparent;
+    color: var(--color-utility);
 }
 
 :global(.editable-table) > thead th {
     position: sticky;
     top: 0;
-    background-color: white;
+    background-color: var(--bg-center);
     z-index: 1;
 }
 
@@ -2324,8 +2343,8 @@ td.table-actions button {
     border-top: none !important;
     border-bottom: none !important;
     box-shadow:
-        inset 0 1px 0 grey,
-        inset 0 -1px 0 grey;
+        inset 0 1px 0 var(--border-table),
+        inset 0 -1px 0 var(--border-table);
 }
 
 /* ── Column header filter button ── */
@@ -2350,15 +2369,15 @@ td.table-actions button {
 }
 
 .filter-btn--active {
-    color: #005fcc;
+    color: var(--color-pa-btn);
 }
 
 /* ── Filter dropdown panel ── */
 .filter-dropdown {
     position: absolute;
     z-index: 9999;
-    background: white;
-    border: 1px solid #aaa;
+    background: var(--bg-topbar);
+    border: 1px solid var(--border-table);
     box-shadow: 0 4px 12px rgba(0,0,0,0.18);
     min-width: 160px;
     max-width: 280px;
@@ -2384,12 +2403,12 @@ td.table-actions button {
 }
 
 .filter-item:hover {
-    background: #f0f4ff;
+    background: var(--bg-pa-hover);
 }
 
 .filter-select-all {
     font-weight: 600;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--border-topbar);
     margin-bottom: 2px;
     padding-bottom: 3px;
 }

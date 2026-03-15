@@ -1,6 +1,8 @@
 <script>
 import { eventStore } from '../stores.js'
 import { slugify } from '../helpers/string.js'
+import { focus } from '../actions/focus.js'
+import { getTheme, setTheme as persistTheme, initTheme } from '../helpers/theme.js'
 
 let pages = []
 let pagesFilter = ''
@@ -493,9 +495,6 @@ window.addEventListener('click', (e) => {
     }
 })
 
-function focus(element) {
-    element.focus()
-}
 
 import debounce from '../helpers/debounce.js'
 
@@ -661,6 +660,14 @@ import RecycleBin from './RecycleBin.svelte'
 
 let showRecycleBin = false
 
+let theme = getTheme()
+initTheme()
+
+function setTheme(value) {
+    theme = value
+    persistTheme(value)
+}
+
 function openRecycleBin() {
     showRecycleBin = true
     activePage = {}
@@ -675,51 +682,59 @@ function handleRecycleBinRestored() {
 
 <div style="display: grid; grid-template-rows: auto 1fr; height: 100%;">
     <nav class="journal-sidebar-hamburger" on:click={toggleSidebars}>
-        <div class="pos-r">
-            <div
-                class="pos-a"
-                style="margin-left: 1em"
-                on:click|preventDefault|stopPropagation
-            >
-                <select
-                    style="padding: 0.2em; width: 9em"
-                    bind:value={selectedProfileId}
-                >
-                    {#each profiles as profile}
-                        <option value={profile.id}>{profile.name}</option>
-                    {/each}
-                </select>
-                <a
-                    href="#manage-profiles"
-                    on:click|preventDefault|stopPropagation={() =>
-                        (showManageProfilesModal = true)}>Manage</a
-                >
-            </div>
-            <div class="pos-a" style="margin-left: 14em">
-                {#if activePage.locked === false && activePage.type !== 'PageGroup'}
-                    <PageNav bind:activePage {activeSection} bind:showBacklinks></PageNav>
-                {/if}
-            </div>
-            <span class="hide-on-small-screen">
-                <a
-                    href="#add-account"
-                    on:click|preventDefault|stopPropagation={switchAccount}
-                    class="mr-1em">Switch Account</a
-                >
-                <a
-                    href="#change-password"
-                    on:click|preventDefault|stopPropagation={() =>
-                        (showChangePasswordModal = true)}
-                    class="mr-1em">Change Password</a
-                >
-            </span>
+        <span class="tb-brand">Journals</span>
+        <span class="tb-sep-v"></span>
+        <div class="tb-profile" on:click|preventDefault|stopPropagation>
+            <select bind:value={selectedProfileId} style="width: 9em">
+                {#each profiles as profile}
+                    <option value={profile.id}>{profile.name}</option>
+                {/each}
+            </select>
             <a
-                href="#logout"
-                on:click|preventDefault|stopPropagation={logout}
-                class="mr-1em">Logout</a
+                href="#manage-profiles"
+                on:click|preventDefault|stopPropagation={() =>
+                    (showManageProfilesModal = true)}>Manage</a
             >
-            &#9776; Menu
         </div>
+        <span class="tb-sep-v"></span>
+        <div class="tb-page-actions">
+            {#if activePage.locked === false && activePage.type !== 'PageGroup'}
+                <PageNav bind:activePage {activeSection} bind:showBacklinks></PageNav>
+            {/if}
+        </div>
+        <span class="hide-on-small-screen">
+            <a
+                href="#add-account"
+                on:click|preventDefault|stopPropagation={switchAccount}
+                class="mr-1em">Switch Account</a
+            >
+            <a
+                href="#change-password"
+                on:click|preventDefault|stopPropagation={() =>
+                    (showChangePasswordModal = true)}
+                class="mr-1em">Change Password</a
+            >
+        </span>
+        <a
+            href="#logout"
+            on:click|preventDefault|stopPropagation={logout}
+            class="mr-1em">Logout</a
+        >
+        <span class="tb-sep-v"></span>
+        <span class="tb-theme-label">Theme:</span>
+        <select
+            value={theme}
+            on:change={(e) => setTheme(e.target.value)}
+            on:click|stopPropagation
+        >
+            <option value="golden">Golden</option>
+            <option value="slate">Slate</option>
+            <option value="forest">Forest</option>
+            <option value="midnight">Midnight</option>
+            <option value="rose">Rose</option>
+        </select>
+        <span class="tb-sep-v"></span>
+        <button class="tb-hamburger" on:click|stopPropagation={toggleSidebars}>☰</button>
     </nav>
     <div
         style="display: grid; grid-template-columns: 15em 1fr 20em; overflow: auto;"
@@ -734,6 +749,7 @@ function handleRecycleBinRestored() {
                     <div
                         class="journal-sidebar-item journal-sidebar-item-notebook-name"
                         class:journal-sidebar-item-notebook-expanded={!notebook.expanded}
+                        class:journal-sidebar-item-notebook-active={notebook.sections.some(s => s.id === activeSection.id)}
                         on:click={(e) => toggleNotebookExpanded(notebook)}
                         on:contextmenu|preventDefault={(e) =>
                             handleNotebookItemContextMenu(e, notebook)}
@@ -778,7 +794,7 @@ function handleRecycleBinRestored() {
                                 </div>
                             {/each}
                             <div
-                                class="journal-sidebar-item"
+                                class="journal-sidebar-item journal-sidebar-action"
                                 on:click={() => addSectionToNotebook(notebook)}
                             >
                                 Add Section +
@@ -787,11 +803,11 @@ function handleRecycleBinRestored() {
                     {/if}
                 </div>
             {/each}
-            <div class="journal-sidebar-item" on:click={addNotebook}>
+            <div class="journal-sidebar-item journal-sidebar-action" on:click={addNotebook}>
                 Add Notebook +
             </div>
             <div
-                class="journal-sidebar-item"
+                class="journal-sidebar-item journal-sidebar-action"
                 class:journal-sidebar-item-selected={showRecycleBin}
                 on:click={openRecycleBin}
             >
@@ -821,14 +837,14 @@ function handleRecycleBinRestored() {
                     <input
                         type="search"
                         placeholder="Filter..."
-                        class="pos-f"
+                        class="pos-f sidebar-filter"
                         style="top: 50px; width: 20.9em; margin-left: 1px;"
                         bind:value={pagesFilter}
                     />
                 </div>
                 {#if filteredPages.length > 0}
                     <div
-                        class="journal-sidebar-item"
+                        class="journal-sidebar-item journal-sidebar-action"
                         on:click={() => {
                             addPageToTop = true
                             showAddPageModal = true
@@ -855,7 +871,7 @@ function handleRecycleBinRestored() {
                     >
                 {/each}
                 <div
-                    class="journal-sidebar-item"
+                    class="journal-sidebar-item journal-sidebar-action"
                     on:click={() => {
                         addPageToTop = false
                         showAddPageModal = true
@@ -891,23 +907,23 @@ function handleRecycleBinRestored() {
                 <label
                     >Current Password<br />
                     <input
+                        class="input w-100p"
                         type="password"
                         bind:value={changePasswordObj.currentPassword}
                         required
-                        class="w-100p"
                         use:focus
                     />
                 </label>
                 <label class="d-b mt-0_5em"
                     >New Password<br />
                     <input
+                        class="input w-100p"
                         type="password"
                         bind:value={changePasswordObj.newPassword}
                         required
-                        class="w-100p"
                     />
                 </label>
-                <button class="w-100p mt-1em">Update Password</button>
+                <button class="btn-sm w-100p mt-1em">Update Password</button>
             </form>
             <div class="mt-1em red">
                 {#if changePasswordObj.error}
@@ -932,7 +948,7 @@ function handleRecycleBinRestored() {
                         Select Target Notebook<br />
                         <!-- svelte-ignore a11y-no-onchange -->
                         <select
-                            class="w-100p"
+                            class="input w-100p"
                             required
                             bind:value={showMoveSectionModalSelectedNotebookId}
                         >
@@ -945,7 +961,7 @@ function handleRecycleBinRestored() {
                         </select>
                     </label>
                 </div>
-                <button class="mt-1em w-100p">Move Section</button>
+                <button class="btn-sm mt-1em w-100p">Move Section</button>
             </form>
         </Modal>
     {/if}
@@ -964,7 +980,7 @@ function handleRecycleBinRestored() {
                         Select Target Profile<br />
                         <!-- svelte-ignore a11y-no-onchange -->
                         <select
-                            class="w-100p"
+                            class="input w-100p"
                             required
                             bind:value={showMoveNotebookModalSelectedProfileId}
                         >
@@ -977,7 +993,7 @@ function handleRecycleBinRestored() {
                         </select>
                     </label>
                 </div>
-                <button class="mt-1em w-100p">Move Notebook</button>
+                <button class="btn-sm mt-1em w-100p">Move Notebook</button>
             </form>
         </Modal>
     {/if}
@@ -999,6 +1015,7 @@ function handleRecycleBinRestored() {
                             <tr>
                                 <td style="width: 1px">
                                     <input
+                                        class="input"
                                         type="text"
                                         pattern="[0-9]+"
                                         bind:value={section.sort_order}
@@ -1011,7 +1028,7 @@ function handleRecycleBinRestored() {
                         {/each}
                     </table>
                 </div>
-                <button class="mt-1em w-100p">Update Section Sort Order</button>
+                <button class="btn-sm mt-1em w-100p">Update Section Sort Order</button>
             </form>
         </Modal>
     {/if}
@@ -1033,6 +1050,7 @@ function handleRecycleBinRestored() {
                                 {#if profile.id !== null}
                                     <td
                                         ><button
+                                            class="btn-sm"
                                             on:click={() =>
                                                 renameProfile(profile)}
                                             >Rename</button
@@ -1040,6 +1058,7 @@ function handleRecycleBinRestored() {
                                     >
                                     <td
                                         ><button
+                                            class="btn-sm"
                                             on:click={() =>
                                                 deleteProfile(profile.id)}
                                             >Delete</button
@@ -1054,7 +1073,7 @@ function handleRecycleBinRestored() {
                 </table>
             </div>
             <div class="mt-1em">
-                <button on:click={addProfile}>Add Profile +</button>
+                <button class="btn-sm" on:click={addProfile}>Add Profile +</button>
             </div>
         </Modal>
     {/if}
@@ -1097,28 +1116,118 @@ function handleRecycleBinRestored() {
 
 <style>
 .journal-sidebar-hamburger {
+    display: flex;
+    align-items: center;
+    height: 42px;
+    padding: 0 14px;
+    gap: 0;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border-topbar);
+    background-color: var(--bg-topbar);
+    user-select: none;
+}
+
+.journal-sidebar-hamburger a {
+    color: var(--color-tb-link);
+    text-decoration: none;
+}
+
+.journal-sidebar-hamburger a:hover {
+    color: var(--color-tb-hover);
+}
+
+.tb-brand {
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.01em;
+    flex-shrink: 0;
+    margin-right: 8px;
+}
+
+.tb-sep-v {
+    width: 1px;
+    height: 16px;
+    background: var(--border-topbar);
+    margin: 0 10px;
+    flex-shrink: 0;
+}
+
+.tb-profile {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.tb-profile select,
+.journal-sidebar-hamburger > select {
+    appearance: none;
+    border: 1px solid var(--border-select);
+    background: var(--bg-select);
+    border-radius: 5px;
+    padding: 3px 22px 3px 8px;
+    font-size: 14px;
+    color: inherit;
+    outline: none;
     cursor: pointer;
-    font-size: 1.2em;
-    padding-top: 0.5em;
-    padding-right: 1em;
-    padding-bottom: 0.6em;
-    border-bottom: 1px solid lightgrey;
-    text-align: right;
-    background-color: white;
+    font-family: inherit;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+}
+
+.journal-sidebar-hamburger > select {
+    font-size: 12px;
+    opacity: 0.8;
+    margin-right: 6px;
+    padding: 3px 20px 3px 7px;
+}
+
+.tb-page-actions {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tb-hamburger {
+    border: 1px solid var(--border-select);
+    border-radius: 5px;
+    background: none;
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 14px;
+    color: var(--color-tb-link);
+    font-family: inherit;
+    flex-shrink: 0;
+}
+
+.tb-theme-label {
+    font-size: 11px;
+    color: var(--color-tb-link);
+    flex-shrink: 0;
+    margin-right: 4px;
+}
+
+.journal-sidebar-action {
+    color: var(--color-utility);
+}
+
+.journal-sidebar-action:hover {
+    background-color: var(--bg-utility-hover);
+    color: inherit;
 }
 
 .journal-left-sidebar {
     display: none;
-    background-color: wheat;
+    background-color: var(--bg-sidebar);
+    border-right: 0;
 }
 
 .journal-right-sidebar {
     display: none;
-    background-color: wheat;
-}
-
-.journal-sidebar-hamburger {
-    user-select: none;
+    background-color: var(--bg-sidebar);
+    border-left: 0;
 }
 
 .journal-sidebar-item {
@@ -1131,37 +1240,40 @@ function handleRecycleBinRestored() {
 }
 
 .journal-sidebar-item:hover {
-    background-color: #ffffff7d;
+    background-color: var(--bg-section-hover);
     cursor: pointer;
 }
 
 .journal-sidebar-item-selected,
 .journal-sidebar-item-selected:hover {
-    background-color: white;
+    background-color: var(--bg-section-active);
 }
 
 .journal-sidebar-item-notebook:first-of-type {
-    border-top: 1px solid #d08700;
+    border-top: 1px solid var(--border-nb);
 }
 
 .journal-sidebar-item-notebook {
-    border-bottom: 1px solid #d08700;
+    border-bottom: 1px solid var(--border-nb);
 }
 
 .journal-sidebar-item-notebook-name {
-    background-color: #ffc14d4f;
+    background-color: var(--bg-nb-header);
     padding-top: 0.4em;
     padding-bottom: 0.4em;
 }
 
+.journal-sidebar-item-notebook-active {
+}
+
 .journal-sidebar-item-notebook-name:hover {
-    background-color: #ffc14d;
+    background-color: var(--bg-nb-header-hover);
 }
 
 .journal-sidebar-item-notebook-name:not(
     .journal-sidebar-item-notebook-expanded
 ) {
-    border-bottom: 1px solid #d08700;
+    border-bottom: 1px solid var(--border-nb);
 }
 
 .journal-left-sidebar,
@@ -1180,7 +1292,7 @@ function handleRecycleBinRestored() {
     .journal-left-sidebar[style*='block']
         + .journal-page:not(.PageType-RichText):not(.PageType-Spreadsheet):not(.PageType-DrawIO):not(.PageType-MiniApp):not(.PageType-Kanban)
 ) {
-    margin-left: 2em;
+    padding-left: 2em;
 }
 
 :global(
@@ -1216,16 +1328,24 @@ function handleRecycleBinRestored() {
     float: right;
 }
 
-.pos-r {
-    position: relative;
-}
-
-.pos-a {
-    position: absolute;
-}
-
 .pos-f {
     position: fixed;
+}
+
+.sidebar-filter {
+    background: var(--bg-section-active);
+    border: 1px solid var(--border-select);
+    border-radius: 5px;
+    color: var(--color-section);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 0.25em 0.5em;
+    outline: none;
+}
+
+.sidebar-filter::placeholder {
+    color: var(--color-utility);
+    opacity: 0.6;
 }
 
 table.table {

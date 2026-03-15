@@ -82,8 +82,8 @@ function load(id) {
     pointer-events: all;
     width: 300px;
     height: 100%;
-    background: white;
-    border-left: 1px solid #ddd;
+    background: var(--bg-topbar);
+    border-left: 1px solid var(--border-sidebar);
     box-shadow: -4px 0 12px rgba(0,0,0,0.08);
     display: flex;
     flex-direction: column;
@@ -94,7 +94,7 @@ function load(id) {
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border-topbar);
     user-select: none;
 }
 
@@ -108,19 +108,18 @@ function load(id) {
     border: none;
     cursor: pointer;
     font-size: 1em;
-    color: #666;
+    color: var(--color-utility);
     padding: 2px 6px;
     border-radius: 3px;
 }
 
 .backlinks-close:hover {
-    background: #f0f0f0;
+    background: var(--bg-utility-hover);
 }
 
 .backlinks-body {
     flex: 1;
     overflow-y: auto;
-    padding: 8px 0;
 }
 
 .backlinks-section-title {
@@ -129,14 +128,15 @@ function load(id) {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #888;
-    background: #f9f9f9;
-    border-bottom: 1px solid #eee;
+    color: var(--color-section);
+    background: var(--bg-nb-header);
+    border-bottom: 1px solid var(--border-topbar);
 }
 
 .backlinks-empty {
     padding: 10px 16px;
-    color: #888;
+    color: var(--color-section);
+    opacity: 0.6;
     font-size: 0.9em;
 }
 
@@ -145,13 +145,13 @@ function load(id) {
     flex-direction: column;
     gap: 2px;
     padding: 8px 16px;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--border-topbar);
     text-decoration: none;
     color: inherit;
 }
 
 .backlinks-item:hover {
-    background: #f8f9ff;
+    background: var(--bg-pa-hover);
 }
 
 .backlinks-item-name {
@@ -161,6 +161,7 @@ function load(id) {
 
 .backlinks-item-location {
     font-size: 0.75em;
-    color: #999;
+    color: var(--color-section);
+    opacity: 0.6;
 }
 </style>

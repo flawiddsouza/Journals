@@ -2,6 +2,7 @@
 import { createEventDispatcher } from 'svelte'
 import fetchPlus from '../helpers/fetchPlus.js'
 import { format } from 'date-fns'
+import { focus } from '../actions/focus.js'
 
 const dispatch = createEventDispatcher()
 
@@ -22,8 +23,8 @@ async function restore(type, id) {
     if (restoringKey) return
     restoringKey = key
     await fetchPlus.post(`/recycle-bin/restore/${type}/${id}`, {})
-    dispatch('restored')
     await fetchRecycleBin({ silent: true })
+    dispatch('restored')
     restoringKey = null
 }
 
@@ -39,9 +40,8 @@ async function emptyRecycleBin() {
     showEmptyConfirm = false
     emptyConfirmText = ''
     await fetchRecycleBin({ silent: true })
+    dispatch('restored')
 }
-
-function focus(el) { el.focus() }
 
 function formatDate(dateStr) {
     return format(dateStr + 'Z', 'DD-MM-YYYY hh:mm A')
@@ -124,6 +124,7 @@ fetchRecycleBin()
                 <div class="recycle-bin-empty-confirm">
                     <span>Type <strong>yes</strong> to confirm:</span>
                     <input
+                        class="input"
                         type="text"
                         bind:value={emptyConfirmText}
                         placeholder="yes"
@@ -135,7 +136,7 @@ fetchRecycleBin()
                         disabled={emptyConfirmText !== 'yes'}
                         on:click={emptyRecycleBin}
                     >Empty Recycle Bin</button>
-                    <button on:click={() => { showEmptyConfirm = false; emptyConfirmText = '' }}>Cancel</button>
+                    <button class="btn-sm" on:click={() => { showEmptyConfirm = false; emptyConfirmText = '' }}>Cancel</button>
                 </div>
             {:else}
                 <button class="recycle-bin-empty-btn" on:click={() => showEmptyConfirm = true}>
@@ -159,7 +160,7 @@ fetchRecycleBin()
                     <span class="rb-meta">{formatDate(notebook.deleted_at)}</span>
                 </div>
                 <div class="rb-actions">
-                    <button disabled={!!restoringKey} on:click={() => restore('notebook', notebook.id)}>{restoringKey === `notebook-${notebook.id}` ? 'Restoring…' : 'Restore'}</button>
+                    <button class="btn-sm" disabled={!!restoringKey} on:click={() => restore('notebook', notebook.id)}>{restoringKey === `notebook-${notebook.id}` ? 'Restoring…' : 'Restore'}</button>
                     <button class="btn-danger" on:click={() => permanentDelete('notebook', notebook.id)}>Delete Permanently</button>
                 </div>
             </div>
@@ -171,7 +172,7 @@ fetchRecycleBin()
                         <span class="rb-meta">{formatDate(section.deleted_at)}</span>
                     </div>
                     <div class="rb-actions">
-                        <button disabled={!!restoringKey} on:click={() => restore('section', section.id)}>{restoringKey === `section-${section.id}` ? 'Restoring…' : 'Restore'}</button>
+                        <button class="btn-sm" disabled={!!restoringKey} on:click={() => restore('section', section.id)}>{restoringKey === `section-${section.id}` ? 'Restoring…' : 'Restore'}</button>
                         <button class="btn-danger" on:click={() => permanentDelete('section', section.id)}>Delete Permanently</button>
                     </div>
                 </div>
@@ -183,7 +184,7 @@ fetchRecycleBin()
                             <span class="rb-meta">{formatDate(page.deleted_at)}</span>
                         </div>
                         <div class="rb-actions">
-                            <button disabled={!!restoringKey} on:click={() => restore('page', page.id)}>{restoringKey === `page-${page.id}` ? 'Restoring…' : 'Restore'}</button>
+                            <button class="btn-sm" disabled={!!restoringKey} on:click={() => restore('page', page.id)}>{restoringKey === `page-${page.id}` ? 'Restoring…' : 'Restore'}</button>
                             <button class="btn-danger" on:click={() => permanentDelete('page', page.id)}>Delete Permanently</button>
                         </div>
                     </div>
@@ -194,7 +195,7 @@ fetchRecycleBin()
                                 <span class="rb-meta">{formatDate(child.deleted_at)}</span>
                             </div>
                             <div class="rb-actions">
-                                <button disabled={!!restoringKey} on:click={() => restore('page', child.id)}>{restoringKey === `page-${child.id}` ? 'Restoring…' : 'Restore'}</button>
+                                <button class="btn-sm" disabled={!!restoringKey} on:click={() => restore('page', child.id)}>{restoringKey === `page-${child.id}` ? 'Restoring…' : 'Restore'}</button>
                                 <button class="btn-danger" on:click={() => permanentDelete('page', child.id)}>Delete Permanently</button>
                             </div>
                         </div>
@@ -218,7 +219,7 @@ fetchRecycleBin()
                         <span class="rb-meta">{formatDate(section.deleted_at)}</span>
                     </div>
                     <div class="rb-actions">
-                        <button disabled={!!restoringKey} on:click={() => restore('section', section.id)}>{restoringKey === `section-${section.id}` ? 'Restoring…' : 'Restore'}</button>
+                        <button class="btn-sm" disabled={!!restoringKey} on:click={() => restore('section', section.id)}>{restoringKey === `section-${section.id}` ? 'Restoring…' : 'Restore'}</button>
                         <button class="btn-danger" on:click={() => permanentDelete('section', section.id)}>Delete Permanently</button>
                     </div>
                 </div>
@@ -230,7 +231,7 @@ fetchRecycleBin()
                             <span class="rb-meta">{formatDate(page.deleted_at)}</span>
                         </div>
                         <div class="rb-actions">
-                            <button disabled={!!restoringKey} on:click={() => restore('page', page.id)}>{restoringKey === `page-${page.id}` ? 'Restoring…' : 'Restore'}</button>
+                            <button class="btn-sm" disabled={!!restoringKey} on:click={() => restore('page', page.id)}>{restoringKey === `page-${page.id}` ? 'Restoring…' : 'Restore'}</button>
                             <button class="btn-danger" on:click={() => permanentDelete('page', page.id)}>Delete Permanently</button>
                         </div>
                     </div>
@@ -241,7 +242,7 @@ fetchRecycleBin()
                                 <span class="rb-meta">{formatDate(child.deleted_at)}</span>
                             </div>
                             <div class="rb-actions">
-                                <button disabled={!!restoringKey} on:click={() => restore('page', child.id)}>{restoringKey === `page-${child.id}` ? 'Restoring…' : 'Restore'}</button>
+                                <button class="btn-sm" disabled={!!restoringKey} on:click={() => restore('page', child.id)}>{restoringKey === `page-${child.id}` ? 'Restoring…' : 'Restore'}</button>
                                 <button class="btn-danger" on:click={() => permanentDelete('page', child.id)}>Delete Permanently</button>
                             </div>
                         </div>
@@ -269,7 +270,7 @@ fetchRecycleBin()
                         <span class="rb-meta">{formatDate(page.deleted_at)}</span>
                     </div>
                     <div class="rb-actions">
-                        <button disabled={!!restoringKey} on:click={() => restore('page', page.id)}>{restoringKey === `page-${page.id}` ? 'Restoring…' : 'Restore'}</button>
+                        <button class="btn-sm" disabled={!!restoringKey} on:click={() => restore('page', page.id)}>{restoringKey === `page-${page.id}` ? 'Restoring…' : 'Restore'}</button>
                         <button class="btn-danger" on:click={() => permanentDelete('page', page.id)}>Delete Permanently</button>
                     </div>
                 </div>
@@ -280,7 +281,7 @@ fetchRecycleBin()
                             <span class="rb-meta">{formatDate(child.deleted_at)}</span>
                         </div>
                         <div class="rb-actions">
-                            <button disabled={!!restoringKey} on:click={() => restore('page', child.id)}>{restoringKey === `page-${child.id}` ? 'Restoring…' : 'Restore'}</button>
+                            <button class="btn-sm" disabled={!!restoringKey} on:click={() => restore('page', child.id)}>{restoringKey === `page-${child.id}` ? 'Restoring…' : 'Restore'}</button>
                             <button class="btn-danger" on:click={() => permanentDelete('page', child.id)}>Delete Permanently</button>
                         </div>
                     </div>

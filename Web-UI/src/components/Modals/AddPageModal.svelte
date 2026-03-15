@@ -125,17 +125,17 @@ function handleAddPageInput(e) {
         <label
             >Name<br />
             <input
+                class="input w-100p"
                 type="text"
                 bind:value={addPageSettings.name}
                 required
-                class="w-100p"
                 use:focus
                 on:keydown={handleAddPageInput}
             />
         </label>
         <label class="d-b mt-0_5em"
             >Type<br />
-            <select bind:value={addPageSettings.type} required class="w-100p">
+            <select class="input w-100p" bind:value={addPageSettings.type} required>
                 <option value="FlatPage">Flat Page</option>
                 <option value="FlatPageV2">Flat Page v2</option>
                 <option value="RichText">Rich Text</option>
@@ -153,7 +153,7 @@ function handleAddPageInput(e) {
         {#if addPageSettings.type !== 'PageGroup' && addPageSettings.type !== 'Favorites' && !pageGroupId}
             <label class="d-b mt-0_5em"
                 >Page Group<br />
-                <select bind:value={addPageSettings.parentId} class="w-100p">
+                <select class="input w-100p" bind:value={addPageSettings.parentId}>
                     <option value="">No Page Group</option>
                     {#each pages as page (page.id)}
                         {#if page.type === 'PageGroup'}
@@ -163,7 +163,7 @@ function handleAddPageInput(e) {
                 </select>
             </label>
         {/if}
-        <button class="w-100p mt-1em" disabled={adding}>{adding ? 'Adding...' : 'Add'}</button>
+        <button class="btn w-100p mt-1em" disabled={adding}>{adding ? 'Adding...' : 'Add'}</button>
     </form>
 </Modal>
 

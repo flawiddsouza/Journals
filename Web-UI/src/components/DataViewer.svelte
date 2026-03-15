@@ -91,16 +91,19 @@ $: filteredEntries = dataFilter.trim()
         <div class="data-title">Stored Data</div>
         <div class="data-actions">
             <input
+                class="input"
                 type="search"
                 placeholder="Filter by key"
                 bind:value={dataFilter}
                 aria-label="Filter stored keys"
             />
             <button
+                class="btn-sm"
                 on:click={() => copyToClipboard(JSON.stringify(kv, null, 2))}
                 title="Copy all as JSON">Copy all</button
             >
             <button
+                class="btn-sm"
                 on:click={() => downloadJSON('miniapp-data.json', kv)}
                 title="Download JSON">Download</button
             >
@@ -153,6 +156,7 @@ $: filteredEntries = dataFilter.trim()
                     </div>
                     <div class="data-actions">
                         <button
+                            class="btn-sm"
                             on:click={() =>
                                 copyToClipboard(JSON.stringify(value, null, 2))}
                             title="Copy value">Copy</button

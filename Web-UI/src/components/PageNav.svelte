@@ -2,6 +2,7 @@
 export let activePage = null
 export let activeSection = null
 export let showBacklinks = false
+export let compact = false
 
 import fetchPlus from '../helpers/fetchPlus.js'
 import { slugify } from '../helpers/string.js'
@@ -344,19 +345,14 @@ function isLastLink(index, array) {
 }
 </script>
 
-<span class="hide-on-small-screen">
-    Page [
-    {#each pageLinks as { type, href, text, onClick, target }, pageIndex}
+<span class="hide-on-small-screen page-nav-links" class:compact>
+    {#each pageLinks as { type, href, text, onClick, target }}
         {#if type === 'link'}
-            <a {href} {target}>{text}</a>
+            <a {href} {target} class="special">{text}</a>
         {:else}
-            <a {href} on:click|preventDefault|stopPropagation={onClick}
-                >{text}</a
-            >
+            <a {href} on:click|preventDefault|stopPropagation={onClick}>{text}</a>
         {/if}
-        {#if !isLastLink(pageIndex, pageLinks)}|&nbsp;{/if}
     {/each}
-    ]
 </span>
 
 <Portal>
@@ -383,6 +379,7 @@ function isLastLink(index, array) {
                                 </td>
                                 <td>
                                     <button
+                                        class="btn-sm"
                                         on:click={() =>
                                             viewPageHistoryItem(
                                                 pageHistoryItem,
@@ -391,6 +388,7 @@ function isLastLink(index, array) {
                                 </td>
                                 <td>
                                     <button
+                                        class="btn-sm"
                                         on:click|stopPropagation={() =>
                                             restorePageHistoryItem(
                                                 pageHistoryItem.id,
@@ -399,6 +397,7 @@ function isLastLink(index, array) {
                                 </td>
                                 <td>
                                     <button
+                                        class="btn-sm"
                                         title={pageHistoryItem.pinned &&
                                         pageHistoryItem.pinned == 1
                                             ? 'Unpin'
@@ -495,12 +494,14 @@ function isLastLink(index, array) {
                             <!-- show view if image, show download if file -->
                             <td
                                 ><button
+                                    class="btn-sm"
                                     on:click={() => viewImage(pageUploadsItem)}
                                     >View</button
                                 ></td
                             >
                             <td
                                 ><button
+                                    class="btn-sm"
                                     on:click={() =>
                                         deleteImage(pageUploadsItem.id)}
                                     >Delete</button
@@ -524,7 +525,7 @@ function isLastLink(index, array) {
                         <div>Font</div>
                         <div>
                             <select
-                                class="w-100p"
+                                class="input w-100p"
                                 bind:value={pageStyles.font}
                                 required
                             >
@@ -543,12 +544,14 @@ function isLastLink(index, array) {
                         <div>Font Size</div>
                         <div>
                             <input
+                                class="input"
                                 type="text"
                                 pattern="[0-9]+"
                                 bind:value={pageStyles.fontSize}
                                 required
                             />
                             <select
+                                class="input"
                                 bind:value={pageStyles.fontSizeUnit}
                                 required
                             >
@@ -561,7 +564,7 @@ function isLastLink(index, array) {
                     </label>
                 </div>
                 <div class="mt-1em">
-                    <button class="w-100p">Save Styles</button>
+                    <button class="btn w-100p">Save Styles</button>
                 </div>
             </form>
             <div class="mt-1em" style="text-align: center">
@@ -576,6 +579,34 @@ function isLastLink(index, array) {
 </Portal>
 
 <style>
+.page-nav-links {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+a {
+    color: var(--color-pa-btn);
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.compact a {
+    padding: 2px 6px;
+    font-size: 13px;
+}
+
+a:hover {
+    background: var(--bg-pa-hover);
+    color: var(--color-pa-hover);
+}
+
+a.special {
+    font-weight: 500;
+}
+
 .oy-a {
     overflow-y: auto;
 }

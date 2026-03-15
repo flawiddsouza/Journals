@@ -1092,7 +1092,7 @@ function processContent(content, hasDiffs) {
                 >
                     <span
                         >Configure AI{#if !isConfigured}<span
-                                style="margin-left:.4rem; color:#b91c1c;"
+                                class="required"
                                 >(required)</span
                             >{/if}</span
                     >
@@ -1128,6 +1128,7 @@ function processContent(content, hasDiffs) {
                         <div class="row">
                             <label for="ai-api-url">API URL</label>
                             <input
+                                class="input"
                                 id="ai-api-url"
                                 type="text"
                                 bind:value={config.apiUrl}
@@ -1137,6 +1138,7 @@ function processContent(content, hasDiffs) {
                         <div class="row">
                             <label for="ai-model">Model</label>
                             <input
+                                class="input"
                                 id="ai-model"
                                 type="text"
                                 bind:value={config.model}
@@ -1148,6 +1150,7 @@ function processContent(content, hasDiffs) {
                             <div class="input-with-toggle">
                                 {#if showApiKey}
                                     <input
+                                        class="input"
                                         id="ai-api-key"
                                         type="text"
                                         bind:value={config.apiKey}
@@ -1158,6 +1161,7 @@ function processContent(content, hasDiffs) {
                                     />
                                 {:else}
                                     <input
+                                        class="input"
                                         id="ai-api-key"
                                         type="password"
                                         bind:value={config.apiKey}
@@ -1182,6 +1186,7 @@ function processContent(content, hasDiffs) {
                         </div>
                         <div class="row actions">
                             <button
+                                class="btn-sm"
                                 on:click={() => {
                                     saveConfig()
                                 }}>Save</button
@@ -1212,8 +1217,9 @@ function processContent(content, hasDiffs) {
 .ai-panel {
     width: min(980px, 96vw);
     height: min(640px, 90vh);
-    background: #fff;
-    border: 1px solid #d0d7de;
+    background: var(--bg-topbar);
+    color: var(--color-section);
+    border: 1px solid var(--border-sidebar);
     border-radius: 8px;
     display: grid;
     grid-template-rows: auto 1fr auto auto;
@@ -1224,7 +1230,7 @@ function processContent(content, hasDiffs) {
     align-items: center;
     gap: 0.5rem;
     padding: 0.6rem 0.8rem;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border-topbar);
 }
 .ai-header .title {
     font-weight: 700;
@@ -1232,11 +1238,23 @@ function processContent(content, hasDiffs) {
 .ai-header .spacer {
     flex: 1;
 }
+.ghost {
+    border: 1px solid var(--border-select);
+    background: var(--bg-topbar);
+    color: var(--color-section);
+    border-radius: 5px;
+    padding: 0.2rem 0.5rem;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.85rem;
+}
+
 .ai-header .ghost {
     border: 0;
     background: none;
-    cursor: pointer;
+    padding: 0;
     font-size: 1.1rem;
+    color: var(--color-utility);
 }
 
 .ai-body {
@@ -1248,7 +1266,7 @@ function processContent(content, hasDiffs) {
 }
 .messages {
     overflow: auto;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-topbar);
     border-radius: 6px;
     padding: 0.5rem;
 }
@@ -1257,20 +1275,20 @@ function processContent(content, hasDiffs) {
 }
 .message .label {
     font-size: 0.8rem;
-    color: #6b7280;
+    color: var(--color-utility);
     margin-bottom: 0.1rem;
 }
 .message.user .content {
-    background: #eef2ff;
+    background: var(--bg-pa-hover);
 }
 .message.assistant .content {
-    background: #f1f5f9;
+    background: var(--bg-select);
 }
 .message .content {
     white-space: pre-wrap;
     padding: 0.5rem;
     border-radius: 6px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-topbar);
     font-family:
         ui-sans-serif,
         system-ui,
@@ -1286,12 +1304,12 @@ function processContent(content, hasDiffs) {
         'Segoe UI Emoji';
 }
 .message.checkpoint .content {
-    background: #fff7ed;
-    border-color: #fdba74;
+    background: rgba(251, 146, 60, 0.12);
+    border-color: rgba(251, 146, 60, 0.4);
 }
 .message.revert .content {
-    background: #fef2f2;
-    border-color: #fecaca;
+    background: rgba(220, 38, 38, 0.08);
+    border-color: rgba(220, 38, 38, 0.3);
 }
 .checkpoint-row {
     display: flex;
@@ -1300,8 +1318,9 @@ function processContent(content, hasDiffs) {
     gap: 0.5rem;
 }
 .checkpoint-actions button {
-    border: 1px solid #d1d5db;
-    background: #fff;
+    border: 1px solid var(--border-select);
+    background: var(--bg-topbar);
+    color: var(--color-section);
     padding: 0.25rem 0.5rem;
     border-radius: 6px;
     cursor: pointer;
@@ -1311,21 +1330,20 @@ function processContent(content, hasDiffs) {
     cursor: default;
 }
 .muted {
-    color: #6b7280;
+    color: var(--color-utility);
     font-size: 0.8rem;
 }
 
 .system-prompt {
     width: 100%;
     height: 10rem;
-    height: 10rem;
     resize: none;
     overflow: auto;
     font: inherit;
     line-height: 1.2;
-    color: #111827;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
+    color: var(--color-section);
+    background: var(--bg-select);
+    border: 1px solid var(--border-topbar);
     border-radius: 6px;
     padding: 0.4rem 0.5rem;
 }
@@ -1340,7 +1358,7 @@ function processContent(content, hasDiffs) {
 .typing .dot {
     width: 6px;
     height: 6px;
-    background: #9ca3af;
+    background: var(--color-utility);
     border-radius: 50%;
     display: inline-block;
     animation: typing-bounce 1.2s infinite ease-in-out;
@@ -1369,19 +1387,21 @@ function processContent(content, hasDiffs) {
     grid-template-columns: 1fr auto;
     gap: 0.5rem;
     padding: 0.6rem;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--border-topbar);
 }
 .ai-input textarea {
     resize: none;
     font: inherit;
     padding: 0.5rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-select);
     border-radius: 6px;
+    background: var(--bg-select);
+    color: var(--color-section);
 }
 .ai-input .send {
     min-width: 84px;
-    border: 1px solid #2563eb;
-    background: #2563eb;
+    border: 1px solid var(--color-pa-btn);
+    background: var(--color-pa-btn);
     color: #fff;
     border-radius: 6px;
     padding: 0 0.9rem;
@@ -1395,8 +1415,12 @@ function processContent(content, hasDiffs) {
 .ai-footer {
     padding: 0.4rem 0.6rem;
     font-size: 0.85rem;
-    color: #6b7280;
-    border-top: 1px solid #e5e7eb;
+    color: var(--color-utility);
+    border-top: 1px solid var(--border-topbar);
+}
+.required {
+    margin-left: 0.4rem;
+    color: #c0392b;
 }
 .ctx-row {
     margin-top: 0.4rem;
@@ -1417,13 +1441,15 @@ function processContent(content, hasDiffs) {
 }
 .settings .row label {
     font-size: 0.8rem;
-    color: #4b5563;
+    color: var(--color-utility);
 }
 .settings .row input {
     padding: 0.4rem 0.5rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-select);
     border-radius: 6px;
     font: inherit;
+    background: var(--bg-select);
+    color: var(--color-section);
 }
 .settings .row.actions {
     display: flex;
@@ -1441,8 +1467,8 @@ function processContent(content, hasDiffs) {
 }
 .settings .input-with-toggle .eye {
     margin-left: 0.4rem;
-    border: 1px solid #d1d5db;
-    background: #f9fafb;
+    border: 1px solid var(--border-select);
+    background: var(--bg-select);
     border-radius: 6px;
     padding: 0.3rem 0.5rem;
     cursor: pointer;
@@ -1451,7 +1477,7 @@ function processContent(content, hasDiffs) {
 .diff-view {
     font-family: monospace;
     font-size: 0.8rem;
-    background: #f4f4f4;
+    background: var(--bg-select);
     padding: 0.5rem;
     border-radius: 4px;
     white-space: pre-wrap;
@@ -1460,17 +1486,17 @@ function processContent(content, hasDiffs) {
     margin: 0;
 }
 .diff-line.add {
-    color: green;
+    color: #22c55e;
 }
 .diff-line.del {
-    color: red;
+    color: #ef4444;
 }
 .diff-line.hunk {
-    color: blue;
+    color: var(--color-pa-btn);
     font-weight: bold;
 }
 .diff-line.context {
-    color: black;
+    color: var(--color-section);
 }
 
 .diff-header {
@@ -1484,12 +1510,13 @@ function processContent(content, hasDiffs) {
     margin: 0;
     font-size: 0.9rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--color-section);
 }
 
 .diff-header button {
-    border: 1px solid #d1d5db;
-    background: #fff;
+    border: 1px solid var(--border-select);
+    background: var(--bg-topbar);
+    color: var(--color-section);
     padding: 0.25rem 0.5rem;
     border-radius: 6px;
     cursor: pointer;
@@ -1502,8 +1529,9 @@ function processContent(content, hasDiffs) {
     margin-top: 0.75rem;
 }
 .apply-actions button {
-    border: 1px solid #d1d5db;
-    background: #fff;
+    border: 1px solid var(--border-select);
+    background: var(--bg-topbar);
+    color: var(--color-section);
     padding: 0.25rem 0.5rem;
     border-radius: 6px;
     cursor: pointer;

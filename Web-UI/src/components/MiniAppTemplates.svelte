@@ -459,12 +459,12 @@ async function saveEdit() {
         <div class="actions">
             <label
                 >Sort:
-                <select bind:value={sortAll} aria-label="Sort templates">
+                <select class="input" bind:value={sortAll} aria-label="Sort templates">
                     <option value="stars">Stars</option>
                     <option value="alpha">A → Z</option>
                 </select>
             </label>
-            <button on:click={togglePublish}>Publish current mini app</button>
+            <button class="btn-sm" on:click={togglePublish}>Publish current mini app</button>
         </div>
     </div>
 

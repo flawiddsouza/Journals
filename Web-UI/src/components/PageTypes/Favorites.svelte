@@ -170,7 +170,7 @@ window.addEventListener('click', (e) => {
 
     {#if activePage && pages.length > 0}
         <div style="margin-bottom: 1rem">
-            <PageNav bind:activePage></PageNav>
+            <PageNav bind:activePage compact></PageNav>
         </div>
         {#key activePage.id}
             <Page {activePage} {updatePageName} {viewOnly} />

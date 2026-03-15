@@ -83,9 +83,9 @@ onMount(() => {
             >
                 <div>
                     <input
+                        class="input w-100p"
                         type="text"
                         bind:value={query}
-                        style="width: 100%"
                         autofocus
                     />
                 </div>

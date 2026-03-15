@@ -530,9 +530,9 @@ $: fetchPageGroupsForSectionId(showMovePageModalSelectedSectionId)
                             >
                                 <span>{favoritesPage.name}</span>
                                 <button
+                                    class="btn-sm"
                                     on:click={() =>
                                         removeFromFavoritesPage(favoritesPage)}
-                                    style="padding: 0.25rem 0.5rem;"
                                 >
                                     Remove
                                 </button>
@@ -561,7 +561,7 @@ $: fetchPageGroupsForSectionId(showMovePageModalSelectedSectionId)
                         Select Target Notebook<br />
                         <!-- svelte-ignore a11y-no-onchange -->
                         <select
-                            class="w-100p"
+                            class="input w-100p"
                             required
                             bind:value={showMovePageModalSelectedNotebook}
                             on:change={() =>
@@ -579,7 +579,7 @@ $: fetchPageGroupsForSectionId(showMovePageModalSelectedSectionId)
                     <label>
                         Select Target Section<br />
                         <select
-                            class="w-100p"
+                            class="input w-100p"
                             required
                             bind:value={showMovePageModalSelectedSectionId}
                             on:change={() =>
@@ -607,7 +607,7 @@ $: fetchPageGroupsForSectionId(showMovePageModalSelectedSectionId)
                         <label>
                             Select Page Group<br />
                             <select
-                                class="w-100p"
+                                class="input w-100p"
                                 bind:value={
                                     showMovePageModalSelectedPageGroupId
                                 }

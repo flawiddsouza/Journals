@@ -92,8 +92,8 @@ $: if (anchorRect) {
 .page-link-dropdown {
     position: fixed;
     z-index: 9999;
-    background: white;
-    border: 1px solid #ccc;
+    background: var(--bg-topbar);
+    border: 1px solid var(--border-select);
     border-radius: 4px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     min-width: 240px;
@@ -104,7 +104,7 @@ $: if (anchorRect) {
 
 .page-link-dropdown-empty {
     padding: 8px 12px;
-    color: #888;
+    color: var(--color-utility);
     font-size: 0.9em;
 }
 
@@ -119,7 +119,8 @@ $: if (anchorRect) {
 
 .page-link-dropdown-item:hover,
 .page-link-dropdown-item.selected {
-    background: #e8f0fe;
+    background: var(--bg-pa-hover);
+    color: var(--color-pa-hover);
 }
 
 .page-link-dropdown-name {
@@ -131,7 +132,7 @@ $: if (anchorRect) {
 
 .page-link-dropdown-type {
     font-size: 0.75em;
-    color: #888;
+    color: var(--color-utility);
     flex-shrink: 0;
 }
 </style>

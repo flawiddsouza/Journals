@@ -1,9 +1,9 @@
 <script>
 import fetchPlus from '../helpers/fetchPlus.js'
+import { focus } from '../actions/focus.js'
+import { initTheme } from '../helpers/theme.js'
 
-function focus(element) {
-    element.focus()
-}
+initTheme()
 
 let type = 'login'
 let loginUsername = ''
@@ -83,31 +83,31 @@ function switchAccount() {
                 <label>
                     Username:<br />
                     <input
+                        class="input w-100p"
                         type="text"
                         required
                         bind:value={loginUsername}
-                        class="w-100p"
                         use:focus
                     />
                 </label>
                 <label class="mt-0_5em">
                     Password:<br />
                     <input
+                        class="input w-100p"
                         type="password"
                         required
                         bind:value={loginPassword}
-                        class="w-100p"
                     />
                 </label>
                 <label class="mt-0_5em"
                     >Login Duration:<br />
-                    <select bind:value={loginDuration} class="w-100p">
+                    <select class="input w-100p" bind:value={loginDuration}>
                         <option>30 Minutes</option>
                         <option>9 Hours</option>
                         <option>Permanent</option>
                     </select>
                 </label>
-                <button class="mt-1em w-100p">Login</button>
+                <button class="btn mt-1em w-100p">Login</button>
             </form>
         {:else}
             <h1 class="ta-c">Register</h1>
@@ -115,6 +115,7 @@ function switchAccount() {
                 <label>
                     Username:<br />
                     <input
+                        class="input w-100p"
                         type="text"
                         required
                         bind:value={registerUsername}
@@ -124,12 +125,13 @@ function switchAccount() {
                 <label class="mt-0_5em">
                     Password:<br />
                     <input
+                        class="input w-100p"
                         type="password"
                         required
                         bind:value={registerPassword}
                     />
                 </label>
-                <button class="mt-1em w-100p">Register</button>
+                <button class="btn mt-1em w-100p">Register</button>
             </form>
         {/if}
         <div class="mt-1em red">
@@ -141,12 +143,12 @@ function switchAccount() {
             <div style="margin-top: 2em">
                 Currently Logged In Accounts:
                 <div style="display: flex;" class="mt-0_5em">
-                    <select class="w-100p" bind:value={accountIndexToSwitchTo}>
+                    <select class="input w-100p" bind:value={accountIndexToSwitchTo}>
                         {#each accounts as account, index}
                             <option value={index}>{account.username}</option>
                         {/each}
                     </select>
-                    <button style="margin-left: 0.5em;" on:click={switchAccount}
+                    <button class="btn" style="margin-left: 0.5em;" on:click={switchAccount}
                         >Switch</button
                     >
                 </div>
@@ -161,21 +163,37 @@ function switchAccount() {
     justify-content: center;
     align-items: center;
     height: 100vh;
+    background: var(--bg-body);
 }
 
 .box {
-    padding: 1em;
-    margin: 0 auto;
-    border: 1px solid black;
+    background: var(--bg-topbar);
+    border: 1px solid var(--border-topbar);
+    border-radius: 8px;
+    padding: 2em 2.5em;
+    min-width: 300px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
 }
 
 h1 {
     margin-top: 0;
+    margin-bottom: 0.75em;
+    font-size: 1.4em;
 }
 
 label {
     display: block;
 }
+
+a {
+    color: var(--color-tb-link);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--color-tb-hover);
+}
+
 
 .mt-0_5em {
     margin-top: 0.5em;

@@ -41,7 +41,7 @@ onMount(() => {
     z-index: 1;
     width: 100vw;
     height: 100vh;
-    background-color: rgba(0, 0, 0, 0.377);
+    background-color: rgba(0, 0, 0, 0.4);
 }
 
 .modal-container {
@@ -57,5 +57,10 @@ onMount(() => {
 
 dialog {
     padding: 14px;
+    background: var(--bg-section-active);
+    color: var(--color-section);
+    border: 1px solid var(--border-nb);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 </style>
