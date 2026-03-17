@@ -6,6 +6,7 @@ export let activePageId = null
 
 let pages = []
 let activePage = null
+let showBacklinks = false
 let pageItemContextMenu = {
     left: 0,
     top: 0,
@@ -19,6 +20,7 @@ import fetchPlus from '../../helpers/fetchPlus.js'
 import Page from '../Page.svelte'
 import debounce from '../../helpers/debounce.js'
 import PageNav from '../PageNav.svelte'
+import BacklinksPanel from '../BacklinksPanel.svelte'
 import { dragSort } from '../../actions/dragSort.js'
 import { eventStore } from '../../stores.js'
 import PageContextMenu from '../PageContextMenu.svelte'
@@ -170,11 +172,18 @@ window.addEventListener('click', (e) => {
 
     {#if activePage && pages.length > 0}
         <div style="margin-bottom: 1rem">
-            <PageNav bind:activePage compact></PageNav>
+            <PageNav bind:activePage bind:showBacklinks compact></PageNav>
         </div>
         {#key activePage.id}
             <Page {activePage} {updatePageName} {viewOnly} />
         {/key}
+    {/if}
+
+    {#if showBacklinks && activePage}
+        <BacklinksPanel
+            pageId={activePage.id}
+            on:close={() => (showBacklinks = false)}
+        ></BacklinksPanel>
     {/if}
 
     {#if pageItemContextMenu.page || pageContextMenuHasOpenModal || (activePage !== null && activePage.id !== undefined && activePage.id !== null)}
