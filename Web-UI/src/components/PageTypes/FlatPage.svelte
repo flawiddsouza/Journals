@@ -256,21 +256,41 @@ function handlePaste(event) {
             ) {
                 event.preventDefault()
 
-                let html = text
-                    .split('\n')
-                    .map((line) => {
-                        return line.replace(
-                            linksRegex,
-                            '<a href="$1" target="_blank" contenteditable="false">$1</a>',
-                        )
-                    })
-                    .join('<br>')
+                const sel = window.getSelection()
+                if (!sel || sel.rangeCount === 0) return
+                const range = sel.getRangeAt(0)
+                range.deleteContents()
 
+                const fragment = document.createDocumentFragment()
+                text.split('\n').forEach((line, lineIndex) => {
+                    if (lineIndex > 0) {
+                        fragment.appendChild(document.createElement('br'))
+                    }
+                    line.split(/(https?:\/\/[^\s]+)/).forEach((part) => {
+                        if (/^https?:\/\//.test(part)) {
+                            const a = document.createElement('a')
+                            a.href = part
+                            a.target = '_blank'
+                            a.contentEditable = 'false'
+                            a.textContent = part
+                            fragment.appendChild(a)
+                        } else if (part) {
+                            fragment.appendChild(document.createTextNode(part))
+                        }
+                    })
+                })
                 if (text.endsWith('\n')) {
-                    html += '<br>'
+                    fragment.appendChild(document.createElement('br'))
                 }
 
-                document.execCommand('insertHTML', false, html)
+                const lastNode = fragment.lastChild
+                range.insertNode(fragment)
+
+                const afterRange = document.createRange()
+                afterRange.setStartAfter(lastNode)
+                afterRange.collapse(true)
+                sel.removeAllRanges()
+                sel.addRange(afterRange)
             }
         }
     }
