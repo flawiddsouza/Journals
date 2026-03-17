@@ -161,26 +161,35 @@ function closePageLinkDropdown() {
 
 function insertPageLink(page) {
     const sel = window.getSelection()
-    if (pageLinkStartRange && sel) {
-        const endRange = sel.getRangeAt(0).cloneRange()
-        const replaceRange = document.createRange()
-        replaceRange.setStart(pageLinkStartRange.startContainer, pageLinkStartRange.startOffset)
-        replaceRange.setEnd(endRange.startContainer, endRange.startOffset)
-        sel.removeAllRanges()
-        sel.addRange(replaceRange)
-    }
-    const markerId = `plm-${Date.now()}`
-    document.execCommand('insertHTML', false,
-        `<a data-page-id="${page.id}" class="page-link" href="/page/${page.id}" target="_blank" contenteditable="false">${page.name}</a><span id="${markerId}"></span>`)
-    const marker = document.getElementById(markerId)
-    if (marker) {
-        const range = document.createRange()
-        range.setStartAfter(marker)
-        range.collapse(true)
-        sel.removeAllRanges()
-        sel.addRange(range)
-        marker.parentNode.removeChild(marker)
-    }
+    if (!pageLinkStartRange || !sel) return
+
+    const endRange = sel.getRangeAt(0).cloneRange()
+    const replaceRange = document.createRange()
+    replaceRange.setStart(pageLinkStartRange.startContainer, pageLinkStartRange.startOffset)
+    replaceRange.setEnd(endRange.startContainer, endRange.startOffset)
+
+    // Delete [[query text
+    replaceRange.deleteContents()
+
+    // Build and insert the <a> element directly (avoids Chrome contenteditable="false" line-break quirk with execCommand insertHTML)
+    const a = document.createElement('a')
+    a.dataset.pageId = page.id
+    a.className = 'page-link'
+    a.href = `/page/${page.id}`
+    a.target = '_blank'
+    a.contentEditable = 'false'
+    a.textContent = page.name
+
+    const cursorRange = sel.getRangeAt(0)
+    cursorRange.insertNode(a)
+
+    // Move cursor to just after the inserted link
+    const afterRange = document.createRange()
+    afterRange.setStartAfter(a)
+    afterRange.collapse(true)
+    sel.removeAllRanges()
+    sel.addRange(afterRange)
+
     closePageLinkDropdown()
     pageContainer.dispatchEvent(new Event('input'))
 }
