@@ -43,32 +43,32 @@ let autocompleteData = {
     columnName: null,
 }
 
+const rowStyleCache = new Map()
+const colStyleCache = new Map() // Map<rowIndex, Map<colName, string>>
+
 function computeRowStyle(rowIndex) {
     if (!rowStyle) return ''
-    return evalulateJS('Row Style', rowStyle, rowIndex)
+    if (rowStyleCache.has(rowIndex)) return rowStyleCache.get(rowIndex)
+    const result = evalulateJS('Row Style', rowStyle, rowIndex, null, engine.getEnrichedItem(rowIndex))
+    rowStyleCache.set(rowIndex, result)
+    return result
 }
 
 function computeColumnStyle(rowIndex, columnIndex, columnName) {
     if (!columns[columnIndex].style) return ''
-    return evalulateJS(
-        'Column Style',
-        columns[columnIndex].style,
-        rowIndex,
-        columnName,
-    )
+    const rowCache = colStyleCache.get(rowIndex)
+    if (rowCache?.has(columnName)) return rowCache.get(columnName)
+    const result = evalulateJS('Column Style', columns[columnIndex].style, rowIndex, columnName, engine.getEnrichedItem(rowIndex))
+    if (!colStyleCache.has(rowIndex)) colStyleCache.set(rowIndex, new Map())
+    colStyleCache.get(rowIndex).set(columnName, result)
+    return result
 }
 
-function computeComputedColumn(rowIndex, columnIndex) {
-    const column = columns[columnIndex]
-    if (!column.expression) return ''
-    return evalulateJS(
-        'Computed Column',
-        column.expression,
-        rowIndex,
-        column.name,
-    )
-}
 
+$: { engine.setColumns(columns); rowStyleCache.clear(); colStyleCache.clear() }
+$: engine.setItems(items)
+$: { engine.setCustomFunctions(customFunctions); evalFnCache.clear(); rowStyleCache.clear(); colStyleCache.clear() }
+$: { rowStyle; rowStyleCache.clear() }
 $: if (pageContentOverride) {
     let parsedPage = JSON.parse(pageContentOverride)
     loaded = false
@@ -340,8 +340,7 @@ function focusLastEditableCell() {
     document.getSelection().collapseToEnd()
 }
 
-function evalulateJS(source, jsString, rowIndex = null, columnName = null) {
-    // Track evaluation stats instead of logging each call
+function evalulateJS(source, jsString, rowIndex = null, columnName = null, enrichedItem = undefined, enrichedItemsOverride = undefined) {
     if (source.includes('Row Style')) {
         evalStats.rowStyle++
     } else if (source.includes('Column Style')) {
@@ -351,7 +350,6 @@ function evalulateJS(source, jsString, rowIndex = null, columnName = null) {
     }
     evalStats.total++
 
-    // Debounce consolidated log (only log once after evaluations settle)
     clearTimeout(evalStatsTimer)
     evalStatsTimer = setTimeout(() => {
         if (evalStats.total > 0) {
@@ -370,23 +368,16 @@ function evalulateJS(source, jsString, rowIndex = null, columnName = null) {
         }
     }, 100)
 
+    const code = (customFunctions ? customFunctions + '\n' : '') + jsString
+    if (!evalFnCache.has(code)) {
+        evalFnCache.set(code, new Function('items', 'rowIndex', 'item', 'columnName', code))
+    }
+    const fn = evalFnCache.get(code)
+    const itemsArg = enrichedItemsOverride ?? items
+    const itemArg = enrichedItem ?? (rowIndex !== null ? itemsArg[rowIndex] : null)
+
     try {
-        const customFunctionsCode = customFunctions
-            ? customFunctions + '\n'
-            : ''
-        return new Function(
-            'items',
-            'rowIndex',
-            'item',
-            'columnName',
-            customFunctionsCode + jsString,
-        ).call(
-            this,
-            items,
-            rowIndex,
-            rowIndex !== null ? items[rowIndex] : null,
-            columnName,
-        )
+        return fn.call(this, itemsArg, rowIndex, itemArg, columnName)
     } catch (e) {
         console.error(`${source}:`, e)
         return 'error evaluating given expression'
@@ -398,8 +389,11 @@ let undoStackForRemoveRow = []
 // Consolidated logging for evalulateJS calls
 let evalStats = { rowStyle: 0, columnStyle: 0, computedColumn: 0, total: 0 }
 let evalStatsTimer = null
+const evalFnCache = new Map()
 
 import defaultKeydownHandlerForContentEditableArea from '../../helpers/defaultKeydownHandlerForContentEditableArea.js'
+import { createTableComputeEngine } from '../../helpers/tableComputeEngine.js'
+const engine = createTableComputeEngine()
 
 // From: https://stackoverflow.com/a/7478420/4932305
 function getSelectionTextInfo(el) {
@@ -448,6 +442,9 @@ function insertRow(rowIndex, insertAbove) {
         // insert row above if ctrl + shift + enter
         items.splice(rowIndex, 0, insertObj)
     }
+    engine.onStructuralChange()
+    rowStyleCache.clear()
+    colStyleCache.clear()
     items = items
 
     // styles and computed columns are now computed on the fly
@@ -514,6 +511,9 @@ function deleteRow(rowIndex) {
     undoStackForRemoveRow.push({ index: rowIndex, item: items[rowIndex] }) // save undo
 
     items.splice(rowIndex, 1)
+    engine.onStructuralChange()
+    rowStyleCache.clear()
+    colStyleCache.clear()
     items = items
 
     // move focus to the first focusable cell of the row before the removed row
@@ -708,6 +708,9 @@ function handleUndoStacks(e) {
             } else if (items.length > 1) {
                 items.splice(undo.index, 0, undo.item)
             }
+            engine.onStructuralChange()
+            rowStyleCache.clear()
+            colStyleCache.clear()
             items = items
         }
     }
@@ -1103,7 +1106,11 @@ function handleInputInTD(e, itemIndex, columnName) {
         autocompleteData.show = false
     }
 
-    // styles and computed columns are computed on demand now
+    for (const row of engine.onRawCellChanged(itemIndex, columnName)) {
+        rowStyleCache.delete(row)
+        colStyleCache.delete(row)
+    }
+    items = items // re-evaluate row/column styles for affected rows
 }
 
 function getSuggestionPosition(element) {
@@ -1119,6 +1126,10 @@ function handleSelectSuggestion(event) {
     const { itemIndex, columnName } = autocompleteData
     if (itemIndex !== null && columnName) {
         items[itemIndex][columnName] = suggestion
+        for (const row of engine.onRawCellChanged(itemIndex, columnName)) {
+            rowStyleCache.delete(row)
+            colStyleCache.delete(row)
+        }
         items = items // Trigger reactivity
 
         autocompleteData.show = false
@@ -1334,24 +1345,24 @@ function openAIFor(target) {
     if (target.type === 'computed') {
         const col = columns[target.columnIndex]
         ctx =
-            `Field: Computed Column Expression\nColumn: ${col.label || col.name} (${col.name})\nRuntime: The code runs as new Function('items','rowIndex','item','columnName', customFunctions + code) and executes per visible cell.\nVariables: items (array of rows), rowIndex (number), item (items[rowIndex]), columnName (string).\nAccessing other columns: use item['Other Column Name'] (sanitized as needed).\nContract: Return the computed display value as a string/number/HTML. Avoid DOM access.` +
+            `Field: Computed Column Expression\nColumn: ${col.label || col.name} (${col.name})\nRuntime: The code runs as new Function('items','rowIndex','item','columnName', customFunctions + code) and executes per visible cell.\nVariables: items (array of rows), rowIndex (number), item (items[rowIndex]), columnName (string).\nAccessing other columns: use item['Other Column Name'] (sanitized as needed).\nAccessing computed columns: use item['ComputedColName'] — computed columns defined earlier in the column list are available.\nContract: Return the computed display value as a string/number/HTML. Expressions should be read-only. Avoid DOM access.` +
             schema
         current = col.expression || ''
     } else if (target.type === 'total') {
         const col = columns[target.columnIndex]
         ctx =
-            `Field: Totals Expression\nColumn: ${col.label || col.name} (${col.name})\nRuntime: The code runs as new Function('items','rowIndex','item','columnName', customFunctions + code) with rowIndex=null and item=null.\nVariables: items (array of rows), columnName (string).\nAccessing other columns: iterate items and read row['Other']. Derive text/number as needed.\nContract: Return the footer/total content (string/number/HTML).` +
+            `Field: Totals Expression\nColumn: ${col.label || col.name} (${col.name})\nRuntime: The code runs as new Function('items','rowIndex','item','columnName', customFunctions + code) with rowIndex=null and item=null.\nVariables: items (enriched array of rows — each row includes computed column values), columnName (string).\nAccessing columns: iterate items and read row['ColName'] or row['ComputedColName']. Derive text/number as needed.\nNote: item (3rd parameter) is null for totals — access row data by iterating items.\nContract: Return the footer/total content (string/number/HTML). Expressions should be read-only.` +
             schema
         current = totals[col.name] || ''
     } else if (target.type === 'colStyle') {
         const col = columns[target.columnIndex]
         ctx =
-            `Field: Column Style\nColumn: ${col.label || col.name} (${col.name})\nRuntime: The code runs as new Function('items','rowIndex','item','columnName', customFunctions + code) per visible cell.\nVariables: items, rowIndex, item, columnName.\nCell value is item[columnName]. You may also reference other columns via item['Other'].\nContract: Return an inline CSS string (e.g., "color: red; font-weight: bold").\nExample: return (String(item?.[columnName] ?? '').replace(/<[^>]*>/g,'').trim().toLowerCase() === 'red') ? 'background-color: red;' : '';` +
+            `Field: Column Style\nColumn: ${col.label || col.name} (${col.name})\nRuntime: The code runs as new Function('items','rowIndex','item','columnName', customFunctions + code) per visible cell.\nVariables: items, rowIndex, item (enriched — includes computed column values), columnName.\nCell value is item[columnName]. Access computed columns via item['ComputedColName'].\nContract: Return an inline CSS string (e.g., "color: red; font-weight: bold"). Expressions should be read-only.\nExample: return (String(item?.[columnName] ?? '').replace(/<[^>]*>/g,'').trim().toLowerCase() === 'red') ? 'background-color: red;' : '';` +
             schema
         current = col.style || ''
     } else if (target.type === 'rowStyle') {
         ctx =
-            `Field: Row Style\nRuntime: The code runs as new Function('items','rowIndex','item', customFunctions + code) per visible row.\nVariables: items, rowIndex, item.\nAccessing columns: use item['Column Name'] for any column needed; derive text/number as needed.\nContract: Return an inline CSS string (e.g., "background: #fee").` +
+            `Field: Row Style\nRuntime: The code runs as new Function('items','rowIndex','item', customFunctions + code) per visible row.\nVariables: items, rowIndex, item (enriched — includes computed column values).\nAccessing columns: use item['Column Name'] or item['ComputedColName'] for any column; derive text/number as needed.\nContract: Return an inline CSS string (e.g., "background: #fee"). Expressions should be read-only.` +
             schema
         current = rowStyle || ''
     } else if (target.type === 'startup') {
@@ -1463,6 +1474,8 @@ eventStore.subscribe((event) => {
             </thead>
             <tbody>
                 {#each visibleItems as item, localRowIndex (visibleStartIndex + localRowIndex)}
+                    {@const rowIdx = visibleStartIndex + localRowIndex}
+                    {@const rowStyleStr = computeRowStyle(rowIdx)}
                     <tr>
                         {#each columns as column, columnIndex}
                             <td
@@ -1474,10 +1487,8 @@ eventStore.subscribe((event) => {
                                     ? 'white-space: nowrap;'
                                     : 'word-break: break-word;'} {column.align
                                     ? `text-align: ${column.align};`
-                                    : 'text-align: left;'} {computeRowStyle(
-                                    visibleStartIndex + localRowIndex,
-                                )}; {computeColumnStyle(
-                                    visibleStartIndex + localRowIndex,
+                                    : 'text-align: left;'} {rowStyleStr}; {computeColumnStyle(
+                                    rowIdx,
                                     columnIndex,
                                     column.name,
                                 )}"
@@ -1528,10 +1539,7 @@ eventStore.subscribe((event) => {
                                     {/if}
                                 {:else if column.type === 'Computed'}
                                     <div>
-                                        {@html computeComputedColumn(
-                                            visibleStartIndex + localRowIndex,
-                                            columnIndex,
-                                        )}
+                                        {@html engine.getComputedValue(rowIdx, column.name)}
                                     </div>
                                 {:else}
                                     <div>
@@ -1580,6 +1588,7 @@ eventStore.subscribe((event) => {
                 {/each}
             </tbody>
             {#if Object.keys(totals).length > 0}
+                {@const enrichedItems = engine.getEnrichedItems()}
                 <tr>
                     {#each columns as column}
                         {#if totals.hasOwnProperty(column.name)}
@@ -1592,6 +1601,8 @@ eventStore.subscribe((event) => {
                                     totals[column.name],
                                     null,
                                     column.name,
+                                    null,
+                                    enrichedItems,
                                 )}</th
                             >
                         {:else}
