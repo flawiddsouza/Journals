@@ -365,6 +365,12 @@ get "/install" do
     user_version = 16
   end
 
+  if user_version == 16
+    db.exec "CREATE INDEX IF NOT EXISTS idx_pages_user_active ON pages(user_id) WHERE deleted_at IS NULL"
+    db.exec "PRAGMA user_version = 17"
+    user_version = 17
+  end
+
   "Installation Complete!"
 end
 
