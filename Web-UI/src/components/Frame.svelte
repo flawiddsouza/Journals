@@ -1,5 +1,5 @@
 <script>
-import { eventStore } from '../stores.js'
+import { eventStore, role } from '../stores.js'
 import { slugify } from '../helpers/string.js'
 import { focus } from '../actions/focus.js'
 import { getTheme, setTheme as persistTheme, initTheme } from '../helpers/theme.js'
@@ -49,6 +49,7 @@ function clearDocumentLocationHash() {
 }
 
 function setSelectedProfileFromLocationHash() {
+    if (document.location.hash === '#admin' && $role === 'admin') return
     if (document.location.hash) {
         let localionHashProfile = profiles.find(
             (profile) =>
@@ -703,6 +704,9 @@ function handleRecycleBinRestored() {
             {/if}
         </div>
         <span class="hide-on-small-screen">
+            {#if $role === 'admin'}
+                <a href="#admin" class="mr-1em">Admin Panel</a>
+            {/if}
             <a
                 href="#add-account"
                 on:click|preventDefault|stopPropagation={switchAccount}

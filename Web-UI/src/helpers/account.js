@@ -10,6 +10,7 @@ export const logoutAccount = () => {
     localStorage.removeItem('username')
     localStorage.removeItem('password')
     localStorage.removeItem('token')
+    localStorage.removeItem('role')
     localStorage.removeItem('activePage')
     localStorage.removeItem('activeSection')
     document.location.reload()
@@ -45,6 +46,7 @@ export const switchAccount = () => {
     localStorage.removeItem('username')
     localStorage.removeItem('password')
     localStorage.removeItem('token')
+    localStorage.removeItem('role')
     localStorage.removeItem('activePage')
     localStorage.removeItem('activeSection')
 

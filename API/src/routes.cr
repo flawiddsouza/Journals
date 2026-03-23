@@ -339,6 +339,32 @@ get "/install" do
     user_version = 15
   end
 
+  if user_version == 15
+    db.exec "ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"
+    db.exec "ALTER TABLE users ADD COLUMN last_seen_at TIMESTAMP"
+    db.exec "UPDATE users SET role = 'admin' WHERE id = (SELECT MIN(id) FROM users)"
+    db.exec "
+      CREATE TABLE IF NOT EXISTS app_settings (
+          key   TEXT PRIMARY KEY,
+          value TEXT
+      );
+    "
+    db.exec "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('allow_registration', 'true')"
+    db.exec "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('activity_logging', 'true')"
+    db.exec "
+      CREATE TABLE IF NOT EXISTS activity_log (
+          id         INTEGER PRIMARY KEY,
+          user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          action     TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    "
+    db.exec "CREATE INDEX IF NOT EXISTS activity_log_user_id ON activity_log(user_id)"
+    db.exec "CREATE INDEX IF NOT EXISTS activity_log_created_at ON activity_log(created_at)"
+    db.exec "PRAGMA user_version = 16"
+    user_version = 16
+  end
+
   "Installation Complete!"
 end
 
@@ -385,6 +411,7 @@ post "/notebooks" do |env|
   notebook_name = env.params.json["notebookName"].as(String)
   profile_id = env.params.json["profileId"].as(Int64 | Nil)
   result = db.exec "INSERT INTO notebooks(name, profile_id, user_id) VALUES(?, ?, ?)", notebook_name, profile_id, env.auth_id
+  log_activity(env.auth_id, "created_notebook")
 
   env.response.content_type = "application/json"
   {insertedRowId: result.last_insert_id}.to_json
@@ -394,6 +421,7 @@ post "/sections" do |env|
   notebook_id = env.params.json["notebookId"].as(Int64)
   section_name = env.params.json["sectionName"].as(String)
   result = db.exec "INSERT INTO sections(notebook_id, name, user_id) VALUES(?, ?, ?)", notebook_id, section_name, env.auth_id
+  log_activity(env.auth_id, "created_section")
 
   env.response.content_type = "application/json"
   {insertedRowId: result.last_insert_id}.to_json
@@ -407,6 +435,7 @@ post "/pages" do |env|
 
   hide_title = ["DrawIO", "Spreadsheet", "MiniApp", "Kanban"].includes?(page_type) ? 1 : 0
   result = db.exec "INSERT INTO pages(section_id, type, name, parent_id, user_id, hide_title) VALUES(?, ?, ?, ?, ?, ?)", section_id, page_type, page_name, page_parent_id, env.auth_id, hide_title
+  log_activity(env.auth_id, "created_page")
 
   created_at = db.query_one("SELECT created_at FROM pages WHERE id = ?", result.last_insert_id, as: {
     created_at: String
@@ -481,6 +510,7 @@ delete "/pages/:page_id" do |env|
   page_id_placeholder = page_ids.map { "?" }.join(", ")
 
   db.exec "UPDATE pages SET deleted_at = CURRENT_TIMESTAMP WHERE id IN (#{page_id_placeholder}) AND user_id = ?", args: args
+  log_activity(env.auth_id, "deleted_page")
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -491,6 +521,7 @@ delete "/sections/:section_id" do |env|
 
   db.exec "UPDATE pages SET deleted_at = CURRENT_TIMESTAMP WHERE section_id = ? AND user_id = ?", section_id, env.auth_id
   db.exec "UPDATE sections SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", section_id, env.auth_id
+  log_activity(env.auth_id, "deleted_section")
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -535,6 +566,7 @@ delete "/notebooks/:notebook_id" do |env|
   notebook_id = env.params.url["notebook_id"]
 
   soft_delete_notebook(db, notebook_id, env.auth_id)
+  log_activity(env.auth_id, "deleted_notebook")
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -568,6 +600,7 @@ put "/pages/:page_id" do |env|
   # end of save page history
 
   result = db.exec "UPDATE pages SET content=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", page_content, page_id, env.auth_id
+  log_activity(env.auth_id, "edited_page")
 
   # Sync page links extracted from content
   if result.rows_affected > 0
@@ -816,6 +849,7 @@ put "/sections/name/:section_id" do |env|
   section_name = env.params.json["sectionName"].as(String)
 
   db.exec "UPDATE sections SET name=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", section_name, section_id, env.auth_id
+  log_activity(env.auth_id, "edited_section")
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -826,6 +860,7 @@ put "/notebooks/name/:notebook_id" do |env|
   notebook_name = env.params.json["notebookName"].as(String)
 
   db.exec "UPDATE notebooks SET name=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", notebook_name, notebook_id, env.auth_id
+  log_activity(env.auth_id, "edited_notebook")
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -890,6 +925,7 @@ post "/upload-image/:page_id" do|env|
     file_path_to_save = "uploads/images/" + unix_timestamp + "_" + File.basename(file.path) + file_extension
 
     db.exec "INSERT INTO page_uploads(page_id, user_id, file_path) VALUES(?, ?, ?)", page_id, env.auth_id, file_path_to_save
+    log_activity(env.auth_id, "uploaded_file")
 
     {imageUrl: file_path_to_save, filename: File.basename(file_path_to_save)}.to_json
   else
@@ -1061,6 +1097,7 @@ post "/pages/sort-order/update" do |env|
   page_sort_orders.each do |page_sort_order|
     db.exec "UPDATE pages SET sort_order=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", page_sort_order.sortOrder, page_sort_order.pageId, env.auth_id
   end
+  log_activity(env.auth_id, "reordered_pages")
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -1079,6 +1116,7 @@ post "/sections/sort-order/update" do |env|
   section_sort_orders.each do |section_sort_order|
     db.exec "UPDATE sections SET sort_order=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", section_sort_order.sortOrder, section_sort_order.sectionId, env.auth_id
   end
+  log_activity(env.auth_id, "reordered_sections")
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -1219,6 +1257,7 @@ end
 post "/profiles" do |env|
   profile_name = env.params.json["profileName"].as(String)
   result = db.exec "INSERT INTO profiles(name, user_id) VALUES(?, ?)", profile_name, env.auth_id
+  log_activity(env.auth_id, "created_profile")
 
   env.response.content_type = "application/json"
   {insertedRowId: result.last_insert_id}.to_json
@@ -1229,6 +1268,7 @@ put "/profiles/name/:profile_id" do |env|
   profile_name = env.params.json["profileName"].as(String)
 
   db.exec "UPDATE profiles SET name=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", profile_name, profile_id, env.auth_id
+  log_activity(env.auth_id, "edited_profile")
 
   env.response.content_type = "application/json"
   {success: true}.to_json
@@ -1246,6 +1286,7 @@ delete "/profiles/delete/:profile_id" do |env|
   end
 
   db.exec "DELETE FROM profiles WHERE id = ? AND user_id = ?", profile_id, env.auth_id
+  log_activity(env.auth_id, "deleted_profile")
 
   env.response.content_type = "application/json"
   {success: true}.to_json

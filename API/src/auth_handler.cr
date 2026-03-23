@@ -1,3 +1,9 @@
+def log_activity(user_id : Int64, action : String)
+  logging_enabled = db.scalar("SELECT value FROM app_settings WHERE key = 'activity_logging'").as(String?)
+  return unless logging_enabled == "true"
+  db.exec "INSERT INTO activity_log (user_id, action) VALUES (?, ?)", user_id, action
+end
+
 post "/register" do |env|
   username = env.params.json["username"]?
   password = env.params.json["password"]?
@@ -12,6 +18,13 @@ post "/register" do |env|
   username = username.as(String)
   password = password.as(String)
 
+  allow_reg = db.scalar("SELECT value FROM app_settings WHERE key = 'allow_registration'").as(String?)
+  if allow_reg != "true"
+    env.response.status_code = 403
+    env.response << {error: "Registration is disabled"}.to_json
+    next
+  end
+
   user = db.query_one?("SELECT username FROM users WHERE username = ?", username, as: {
     username: String,
   })
@@ -22,7 +35,13 @@ post "/register" do |env|
   end
 
   hashed_password = Crypto::Bcrypt::Password.create(password).to_s
-  result = db.exec "INSERT INTO users(username, password) VALUES(?, ?)", username, hashed_password
+
+  role = "user"
+  db.transaction do |tx|
+    count = tx.connection.scalar("SELECT COUNT(*) FROM users").as(Int64)
+    role = "admin" if count == 0
+    tx.connection.exec "INSERT INTO users(username, password, role) VALUES(?, ?, ?)", username, hashed_password, role
+  end
 
   {success: true}.to_json
 end
@@ -31,6 +50,7 @@ post "/login" do |env|
   username = env.params.json["username"]?
   password = env.params.json["password"]?
   duration = env.params.json["duration"]?
+  refresh  = env.params.json["refresh"]?.try(&.as(Bool)) || false
 
   env.response.content_type = "application/json"
 
@@ -43,9 +63,11 @@ post "/login" do |env|
   password = password.as(String)
   duration = duration != nil ? duration.as(String) : ""
 
-  user = db.query_one?("SELECT username, password FROM users WHERE username = ?", username, as: {
+  user = db.query_one?("SELECT id, username, password, role FROM users WHERE username = ?", username, as: {
+    id: Int64,
     username: String,
     password: String,
+    role: String,
   })
 
   env.response.content_type = "application/json"
@@ -64,7 +86,8 @@ post "/login" do |env|
       # Also set HttpOnly cookie for cross-origin <img>/<a> usage
       max_age = exp - Time.utc.to_unix
       env.response.headers.add "Set-Cookie", "token=#{jwt}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=#{max_age}"
-      {token: jwt, expiresIn: "1 hour"}.to_json
+      log_activity(user["id"], "login") unless refresh
+      {token: jwt, expiresIn: "1 hour", role: user["role"]}.to_json
     else
       {error: "Authentication Failed"}.to_json
     end
@@ -76,6 +99,7 @@ end
 class HTTP::Server
   class Context
     property! auth_id : Int64
+    property! auth_role : String
   end
 end
 
@@ -131,7 +155,28 @@ class AuthHandler < Kemal::Handler
       env.response << {"error": "Authentication Failed: Invalid Token"}.to_json
       return env
     else
-      env.auth_id = db.scalar("SELECT id FROM users WHERE username = ?", token_decoded[0]["username"].as_s).as(Int64)
+      user_row = db.query_one?(
+        "SELECT id, role, last_seen_at FROM users WHERE username = ?",
+        token_decoded[0]["username"].as_s,
+        as: {id: Int64, role: String, last_seen_at: String | Nil}
+      )
+
+      if user_row.nil?
+        env.response.content_type = "application/json"
+        env.response.status_code = 401
+        env.response << {"error": "Authentication Failed: User not found"}.to_json
+        return env
+      end
+
+      env.auth_id   = user_row[:id]
+      env.auth_role = user_row[:role]
+
+      last_seen = user_row[:last_seen_at]
+      should_update = last_seen.nil? || (Time.utc - Time.parse(last_seen, "%Y-%m-%d %H:%M:%S", Time::Location::UTC)) > 60.seconds
+      if should_update
+        db.exec "UPDATE users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?", env.auth_id
+      end
+
       return call_next(env)
     end
   end

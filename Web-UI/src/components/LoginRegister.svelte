@@ -2,6 +2,7 @@
 import fetchPlus from '../helpers/fetchPlus.js'
 import { focus } from '../actions/focus.js'
 import { initTheme } from '../helpers/theme.js'
+import { role } from '../stores.js'
 
 initTheme()
 
@@ -29,6 +30,8 @@ function login() {
                 }
                 localStorage.setItem('username', loginUsername)
                 localStorage.setItem('token', response.token)
+                localStorage.setItem('role', response.role)
+                role.set(response.role)
                 location.reload()
             }
         })

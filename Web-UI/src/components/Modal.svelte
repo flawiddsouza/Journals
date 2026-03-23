@@ -2,6 +2,8 @@
 import { createEventDispatcher } from 'svelte'
 import { onMount } from 'svelte'
 
+export let width = undefined
+
 const dispatch = createEventDispatcher()
 
 function closeModal(event) {
@@ -28,7 +30,7 @@ onMount(() => {
 
 <div class="dialog-background"></div>
 <div class="modal-container" on:click={closeModal}>
-    <dialog open>
+    <dialog open style={width ? `width:${width}` : undefined}>
         <slot></slot>
     </dialog>
 </div>

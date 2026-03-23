@@ -22,6 +22,7 @@ const fetchPlus = function (method, url, data, headers = {}) {
                     .post('/login', {
                         username: localStorage.getItem('username'),
                         password: localStorage.getItem('password'),
+                        refresh: true,
                     })
                     .then((response) => {
                         if (response.hasOwnProperty('error')) {

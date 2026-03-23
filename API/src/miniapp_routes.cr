@@ -80,6 +80,7 @@ post "/miniapp/templates" do |env|
   db.exec "INSERT INTO mini_app_template_revisions(template_id, revision_number, content) VALUES(?, ?, ?)", template_id, 1, content
   db.exec "UPDATE mini_app_templates SET revision_counter = 1, updated_at=CURRENT_TIMESTAMP WHERE id = ?", template_id
   upsert_page_template_link(db, page_id, template_id, 1_i64)
+  log_activity(env.auth_id, "created_miniapp_template")
 
   env.response.content_type = "application/json"
   {insertedRowId: template_id}.to_json
@@ -218,6 +219,7 @@ put "/miniapp/templates/:id" do |env|
       args << id
       db.exec sql, args: args
     end
+    log_activity(env.auth_id, "edited_miniapp_template")
     env.response.content_type = "application/json"
     {success: true}.to_json
   end
@@ -232,6 +234,7 @@ delete "/miniapp/templates/:id" do |env|
     {error: "Forbidden"}.to_json
   else
     db.exec "DELETE FROM mini_app_templates WHERE id = ?", id
+    log_activity(env.auth_id, "deleted_miniapp_template")
     env.response.content_type = "application/json"
     {success: true}.to_json
   end
