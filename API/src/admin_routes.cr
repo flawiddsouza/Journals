@@ -9,6 +9,13 @@ def require_admin(env)
   end
 end
 
+get "/admin/users/list" do |env|
+  next unless require_admin(env)
+  env.response.content_type = "application/json"
+  users = db.query_all("SELECT id, username FROM users ORDER BY username", as: {id: Int64, username: String})
+  users.to_json
+end
+
 get "/admin/users" do |env|
   next unless require_admin(env)
   env.response.content_type = "application/json"

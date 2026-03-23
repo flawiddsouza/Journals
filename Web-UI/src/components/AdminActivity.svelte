@@ -9,10 +9,10 @@ let currentPage = 1
 
 onMount(async () => {
     const [res] = await Promise.all([
-        fetchPlus.get('/admin/users?page=1'),
+        fetchPlus.get('/admin/users/list'),
         fetchActivity(),
     ])
-    users = res.users || []
+    users = res
 })
 
 async function fetchActivity() {
