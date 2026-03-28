@@ -401,6 +401,13 @@ async function askAI() {
                 // Scroll to bottom after diffs are rendered
                 tick().then(scrollToLatestDiff)
             }
+            if (extracted.widgets) {
+                updated[assistantIndex].widgets = extracted.widgets
+                if (!updated[assistantIndex].applied)
+                    updated[assistantIndex].applied = { html: false, css: false, js: false, modules: false }
+                updated[assistantIndex].applied.widgets = false
+                tick().then(scrollToBottom)
+            }
             messages = updated
             busy = false
             return
@@ -517,6 +524,13 @@ async function askAI() {
             // Scroll to bottom after diffs are rendered
             tick().then(scrollToLatestDiff)
         }
+        if (extracted.widgets) {
+            updated[assistantIndex].widgets = extracted.widgets
+            if (!updated[assistantIndex].applied)
+                updated[assistantIndex].applied = { html: false, css: false, js: false, modules: false }
+            updated[assistantIndex].applied.widgets = false
+            tick().then(scrollToBottom)
+        }
         messages = updated
 
         busy = false
@@ -583,7 +597,7 @@ async function askAI() {
     }
 }
 
-// Extract first set of html/css/js/modules blocks from a message content
+// Extract first set of html/css/js/modules/widgets blocks from a message content
 function extractCodeBlocks(text) {
     const re = /```(\w+)?\n([\s\S]*?)```/g
     let m
@@ -592,6 +606,7 @@ function extractCodeBlocks(text) {
         css: undefined,
         js: undefined,
         modules: undefined,
+        widgets: undefined,
         blocks: [],
     }
     while ((m = re.exec(text))) {
@@ -611,6 +626,8 @@ function extractCodeBlocks(text) {
             out.js = code
         else if (lang === 'modules' && out.modules === undefined)
             out.modules = code
+        else if (lang === 'widgets' && out.widgets === undefined)
+            out.widgets = code
     }
     return out
 }
@@ -746,6 +763,16 @@ function applySelection(
     ]
 
     dispatch('apply', delta)
+}
+
+function applyWidgets(m) {
+    if (m.applied?.widgets || !m.widgets) return
+    if (!m.applied) m.applied = { html: false, css: false, js: false, modules: false }
+    m.applied.widgets = true
+    const index = messages.indexOf(m)
+    if (index !== -1) messages[index] = { ...messages[index] }
+    messages = [...messages]
+    dispatch('apply', { widgets: m.widgets })
 }
 
 function keydown(e) {
@@ -930,6 +957,14 @@ function processContent(content, hasDiffs) {
                                     {processContent(m.content, !!m.diffs)}
                                 {/if}
                             </div>
+                            {#if m.widgets !== undefined}
+                                <div class="widgets-apply-row">
+                                    <button
+                                        on:click={() => applyWidgets(m)}
+                                        disabled={m.applied?.widgets}
+                                    >{m.applied?.widgets ? 'Widgets added' : 'Add Widgets'}</button>
+                                </div>
+                            {/if}
                             {#if m.diffs}
                                 <div class="diff-preview">
                                     {#if m.diffs.html}
@@ -1536,5 +1571,22 @@ function processContent(content, hasDiffs) {
     border-radius: 6px;
     cursor: pointer;
     font-weight: 500;
+}
+.widgets-apply-row {
+    margin-top: 0.5rem;
+}
+.widgets-apply-row button {
+    border: 1px solid var(--border-select);
+    background: var(--bg-topbar);
+    color: var(--color-section);
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+.widgets-apply-row button:disabled {
+    opacity: 0.5;
+    cursor: default;
 }
 </style>
