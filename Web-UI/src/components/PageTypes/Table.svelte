@@ -14,6 +14,9 @@ let rowStyle = ''
 let startupScript = ''
 let customFunctions = ''
 let note = ''
+let stats = { widgets: [] }
+let statsView = false
+let statsEditMode = false
 let showInsertFileModal = false
 let insertFileModalLinkLabel = ''
 let currentTd = null
@@ -112,6 +115,8 @@ function fetchPage(pageId) {
     loaded = false
     // reset variables on page change
     configuration = false
+    statsView = false
+    statsEditMode = false
     showAddColumn = false
     cancelEditColumn()
     undoStackForRemoveRow = [] // reset undo stack
@@ -143,6 +148,7 @@ function fetchPage(pageId) {
             ? parsedResponse.customFunctions
             : ''
         note = parsedResponse.note ? parsedResponse.note : ''
+        stats = parsedResponse.stats ?? { widgets: [] }
 
         if (
             !viewOnly &&
@@ -198,6 +204,7 @@ const savePageContent = debounce(function () {
             startupScript,
             customFunctions,
             note,
+            stats,
         }),
     })
 }, 500)
@@ -1160,8 +1167,10 @@ function getColumnValue(type, value) {
     alert('Invalid column type')
 }
 
+import { onDestroy } from 'svelte'
 import 'code-mirror-custom-element'
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
+import TableStats from './TableStats.svelte'
 import { eventStore } from '../../stores.js'
 import Autocomplete from '../Autocomplete.svelte'
 import { baseURL } from '../../../config.js'
@@ -1419,11 +1428,25 @@ function handleAIApply(event) {
     }
 }
 
-eventStore.subscribe((event) => {
+const unsubEventStore = eventStore.subscribe((event) => {
     if (event && event.event === 'configureTable') {
         configuration = true
     }
+    if (event && event.event === 'tableConfigureExit') {
+        configuration = false
+    }
+    if (event && event.event === 'tableStatsView') {
+        statsView = event.data.active
+        if (statsView && !(stats.widgets?.length)) {
+            statsEditMode = true
+            eventStore.set({ event: 'tableStatsEditMode', data: { active: true } })
+        }
+    }
+    if (event && event.event === 'tableStatsEditMode') {
+        statsEditMode = event.data.active
+    }
 })
+onDestroy(unsubEventStore)
 </script>
 
 <svelte:window on:click={handleWindowClick} />
@@ -1433,11 +1456,7 @@ eventStore.subscribe((event) => {
         <div>Loading…</div>
     {/if}
     {#if !configuration}
-        {#if pageContentOverride === undefined && viewOnly === false && loaded}
-            <div class="config" on:click={() => (configuration = true)}>
-                Configure Table
-            </div>
-        {/if}
+        {#if !statsView}
         {#if hasActiveFilters && loaded}
             <div class="filter-clear" on:click={clearAllFilters}>
                 ✕ Clear Filters
@@ -1664,12 +1683,20 @@ eventStore.subscribe((event) => {
                 {@html note}
             </div>
         {/if}
+        {:else}
+            <TableStats
+                {engine}
+                widgets={stats.widgets}
+                editMode={statsEditMode}
+                on:update-widgets={(e) => {
+                    stats = { ...stats, widgets: e.detail }
+                    savePageContent()
+                }}
+            />
+        {/if}
     {:else}
         <div class="config-holder">
-            <div on:click={() => (configuration = false)}>
-                Exit Configuration
-            </div>
-            <div on:click={copyConfiguration} style="margin-top: 0.5rem">
+            <div on:click={copyConfiguration}>
                 Copy Configuration
             </div>
             <div on:click={pasteConfiguration} style="margin-top: 0.25rem">
@@ -2212,14 +2239,6 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`}</code
 }
 
 .config-holder > div {
-    cursor: pointer;
-    color: var(--color-pa-btn);
-}
-
-.config {
-    position: absolute;
-    right: 24px;
-    top: 0;
     cursor: pointer;
     color: var(--color-pa-btn);
 }

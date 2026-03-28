@@ -3,6 +3,7 @@ import { createEventDispatcher } from 'svelte'
 import { onMount } from 'svelte'
 
 export let width = undefined
+export let backdrop = true
 
 const dispatch = createEventDispatcher()
 
@@ -28,7 +29,7 @@ onMount(() => {
 })
 </script>
 
-<div class="dialog-background"></div>
+{#if backdrop}<div class="dialog-background"></div>{/if}
 <div class="modal-container" on:click={closeModal}>
     <dialog open style={width ? `width:${width}` : undefined}>
         <slot></slot>
@@ -64,5 +65,7 @@ dialog {
     border: 1px solid var(--border-nb);
     border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    max-height: calc(100dvh - 40px);
+    overflow-y: auto;
 }
 </style>

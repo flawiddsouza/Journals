@@ -16,6 +16,7 @@ import DrawIO from './PageTypes/DrawIO.svelte'
 import MiniApp from './PageTypes/MiniApp.svelte'
 import { format } from 'date-fns'
 import { eventStore } from '../stores.js'
+import { onDestroy } from 'svelte'
 
 let showPageHistoryModal = false
 let showPageUploadsModal = false
@@ -28,7 +29,17 @@ let pageStyles = {}
 let activePageHistoryItem = null
 let pageHistoryItemViewPageContent = null
 let miniAppConfigMode = false
+let tableStatsView = false
+let tableStatsEditMode = false
+let tableConfigureMode = false
 let lastActivePageId = null
+
+const unsubEventStore = eventStore.subscribe((event) => {
+    if (event?.event === 'tableStatsEditMode') {
+        tableStatsEditMode = event.data.active
+    }
+})
+onDestroy(unsubEventStore)
 
 $: if (showPageHistoryModal && activePage) {
     fetchPlus.get(`/page-history/${activePage.id}`).then((response) => {
@@ -227,10 +238,27 @@ async function exportPage() {
 }
 
 function configureTable() {
-    eventStore.set({
-        event: 'configureTable',
-        data: {},
-    })
+    tableConfigureMode = true
+    eventStore.set({ event: 'configureTable', data: {} })
+}
+
+function exitConfigureTable() {
+    tableConfigureMode = false
+    eventStore.set({ event: 'tableConfigureExit' })
+}
+
+function toggleTableStats() {
+    tableStatsView = !tableStatsView
+    if (!tableStatsView && tableStatsEditMode) {
+        tableStatsEditMode = false
+        eventStore.set({ event: 'tableStatsEditMode', data: { active: false } })
+    }
+    eventStore.set({ event: 'tableStatsView', data: { active: tableStatsView } })
+}
+
+function toggleTableStatsEdit() {
+    tableStatsEditMode = !tableStatsEditMode
+    eventStore.set({ event: 'tableStatsEditMode', data: { active: tableStatsEditMode } })
 }
 
 function configureMiniApp() {
@@ -279,11 +307,38 @@ function generatePageLinks() {
             })
 
             if (activePage.type === 'Table' && activePage.view_only === false) {
-                links.push({
-                    href: '#configure-table',
-                    text: 'Configure Table',
-                    onClick: () => configureTable(),
-                })
+                if (!tableStatsView) {
+                    if (!tableConfigureMode) {
+                        links.push({
+                            href: '#configure-table',
+                            text: 'Configure Table',
+                            onClick: () => configureTable(),
+                        })
+                    } else {
+                        links.push({
+                            href: '#exit-configure-table',
+                            text: 'Exit Configuration',
+                            active: true,
+                            onClick: () => exitConfigureTable(),
+                        })
+                    }
+                }
+                if (!tableConfigureMode) {
+                    links.push({
+                        href: '#stats',
+                        text: 'Stats',
+                        active: tableStatsView,
+                        onClick: () => toggleTableStats(),
+                    })
+                    if (tableStatsView) {
+                        links.push({
+                            href: '#edit-stats',
+                            text: 'Edit Stats',
+                            active: tableStatsEditMode,
+                            onClick: () => toggleTableStatsEdit(),
+                        })
+                    }
+                }
             }
 
             if (
@@ -330,7 +385,7 @@ function generatePageLinks() {
 
 let pageLinks = generatePageLinks()
 
-$: if ((miniAppConfigMode, activePage)) {
+$: if ((miniAppConfigMode, tableStatsView, tableStatsEditMode, tableConfigureMode, activePage)) {
     pageLinks = generatePageLinks()
 }
 
@@ -338,6 +393,9 @@ $: if ((miniAppConfigMode, activePage)) {
 $: if ((activePage?.id ?? null) !== lastActivePageId) {
     lastActivePageId = activePage?.id ?? null
     if (miniAppConfigMode) miniAppConfigMode = false
+    if (tableStatsView) tableStatsView = false
+    if (tableStatsEditMode) tableStatsEditMode = false
+    if (tableConfigureMode) tableConfigureMode = false
 }
 
 function isLastLink(index, array) {
@@ -346,11 +404,11 @@ function isLastLink(index, array) {
 </script>
 
 <span class="hide-on-small-screen page-nav-links" class:compact>
-    {#each pageLinks as { type, href, text, onClick, target }}
+    {#each pageLinks as { type, href, text, onClick, target, active }}
         {#if type === 'link'}
-            <a {href} {target} class="special">{text}</a>
+            <a {href} {target} class="special" class:active>{text}</a>
         {:else}
-            <a {href} on:click|preventDefault|stopPropagation={onClick}>{text}</a>
+            <a {href} on:click|preventDefault|stopPropagation={onClick} class:active>{text}</a>
         {/if}
     {/each}
 </span>
@@ -601,6 +659,17 @@ a {
 a:hover {
     background: var(--bg-pa-hover);
     color: var(--color-pa-hover);
+}
+
+a.active {
+    background: var(--color-pa-btn);
+    color: #fff;
+}
+
+a.active:hover {
+    background: var(--color-pa-btn);
+    color: #fff;
+    opacity: 0.9;
 }
 
 a.special {
