@@ -32,6 +32,8 @@ let showPagination = false
 let visibleStartIndex = 0
 let visibleItems = []
 let gotoPageInput = ''
+let savedPage = 1
+let savedScrollTop = 0
 
 // ── Column filter state ──────────────────────────────────────────────────
 let activeFilters = {}  // { [columnName]: Set<string> }
@@ -314,6 +316,30 @@ function scrollTableTop() {
         block: 'start',
         inline: 'nearest',
     })
+}
+
+function getScrollContainer(el) {
+    let node = el?.parentElement
+    while (node) {
+        const style = window.getComputedStyle(node)
+        if (style.overflow === 'auto' || style.overflow === 'scroll' ||
+            style.overflowY === 'auto' || style.overflowY === 'scroll') {
+            return node
+        }
+        node = node.parentElement
+    }
+    return null
+}
+
+function saveScrollState() {
+    savedPage = currentPage
+    savedScrollTop = getScrollContainer(editableTable)?.scrollTop ?? 0
+}
+
+function restoreScrollState() {
+    currentPage = savedPage
+    const sc = getScrollContainer(editableTable)
+    if (sc) sc.scrollTop = savedScrollTop
 }
 
 function goToPage(n) {
@@ -1167,7 +1193,7 @@ function getColumnValue(type, value) {
     alert('Invalid column type')
 }
 
-import { onDestroy } from 'svelte'
+import { onDestroy, tick } from 'svelte'
 import 'code-mirror-custom-element'
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
 import TableStats from './TableStats.svelte'
@@ -1430,16 +1456,24 @@ function handleAIApply(event) {
 
 const unsubEventStore = eventStore.subscribe((event) => {
     if (event && event.event === 'configureTable') {
+        saveScrollState()
         configuration = true
     }
     if (event && event.event === 'tableConfigureExit') {
         configuration = false
+        tick().then(restoreScrollState)
     }
     if (event && event.event === 'tableStatsView') {
+        if (event.data.active) {
+            saveScrollState()
+        }
         statsView = event.data.active
         if (statsView && !(stats.widgets?.length)) {
             statsEditMode = true
             eventStore.set({ event: 'tableStatsEditMode', data: { active: true } })
+        }
+        if (!event.data.active) {
+            tick().then(restoreScrollState)
         }
     }
     if (event && event.event === 'tableStatsEditMode') {
