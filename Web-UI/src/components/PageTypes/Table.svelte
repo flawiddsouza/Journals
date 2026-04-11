@@ -1611,15 +1611,15 @@ onDestroy(unsubEventStore)
                                     on:click={() =>
                                         insertRow(
                                             visibleStartIndex + localRowIndex,
-                                            true,
-                                        )}>↑</button
+                                            false,
+                                        )}>↓</button
                                 >
                                 <button
                                     on:click={() =>
                                         insertRow(
                                             visibleStartIndex + localRowIndex,
-                                            false,
-                                        )}>↓</button
+                                            true,
+                                        )}>↑</button
                                 >
                                 <button
                                     on:click={() => {
