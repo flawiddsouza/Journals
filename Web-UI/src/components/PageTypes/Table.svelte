@@ -31,6 +31,12 @@ let totalPages = 1
 let showPagination = false
 let visibleStartIndex = 0
 let visibleItems = []
+// Rows absorbed onto the current page beyond PAGE_SIZE so inserts don't
+// jump the UI to the next page. Resets on page navigation / reload.
+let overflowCount = 0
+// Per-page scroll memory so navigating back to a page restores where the
+// user was. Cleared when content changes (fetch/paste/filter).
+let pageScrollPositions = new Map()
 let gotoPageInput = ''
 let savedPage = 1
 let savedScrollTop = 0
@@ -79,6 +85,8 @@ $: if (pageContentOverride) {
     loaded = false
     activeFilters = {}
     filterDropdown = { show: false, columnName: null, position: { top: 0, left: 0 } }
+    overflowCount = 0
+    pageScrollPositions.clear()
     columns = parsedPage.columns
     items = parsedPage.items
     totals = parsedPage.totals
@@ -124,6 +132,8 @@ function fetchPage(pageId) {
     undoStackForRemoveRow = [] // reset undo stack
     activeFilters = {}
     filterDropdown = { show: false, columnName: null, position: { top: 0, left: 0 } }
+    overflowCount = 0
+    pageScrollPositions.clear()
     // end of reset variables on page change
     fetchPlus.get(`/pages/content/${pageId}`).then((response) => {
         let parsedResponse = response.content
@@ -264,9 +274,10 @@ $: filteredItems = (items || []).filter((item) =>
 // Only treat filter as active when rows are actually being hidden (full Set = show all = not active)
 $: hasActiveFilters = filteredItems.length < (items || []).length
 
-// Reactive pagination derivations
-$: totalPages = Math.max(1, Math.ceil((filteredItems?.length || 0) / PAGE_SIZE))
-$: showPagination = (filteredItems?.length || 0) > PAGE_SIZE
+// Overflow rows are excluded from totalPages so the current page absorbs
+// them without spawning a near-empty next page.
+$: totalPages = Math.max(1, Math.ceil(((filteredItems?.length || 0) - overflowCount) / PAGE_SIZE))
+$: showPagination = totalPages > 1
 
 // Initialize to last page once per page load (no jumps on subsequent edits)
 // handled explicitly after data loads (fetchPage and pageContentOverride)
@@ -282,7 +293,7 @@ $: if (currentPage < 1) {
 // Compute visible slice
 $: visibleStartIndex = showPagination ? (currentPage - 1) * PAGE_SIZE : 0
 $: visibleItems = showPagination
-    ? (filteredItems || []).slice(visibleStartIndex, visibleStartIndex + PAGE_SIZE)
+    ? (filteredItems || []).slice(visibleStartIndex, visibleStartIndex + PAGE_SIZE + overflowCount)
     : filteredItems || []
 
 function evalulateStartupScript(jsString, dynamicVariables) {
@@ -345,9 +356,21 @@ function restoreScrollState() {
 function goToPage(n) {
     const clamped = Math.min(totalPages, Math.max(1, n))
     if (clamped !== currentPage) {
+        const sc = getScrollContainer(editableTable)
+        if (sc) pageScrollPositions.set(currentPage, sc.scrollTop)
+
+        overflowCount = 0
         currentPage = clamped
-        // Scroll table top into view without smooth behavior to avoid lag
-        scrollTableTop()
+
+        tick().then(() => {
+            const saved = pageScrollPositions.get(clamped)
+            if (saved !== undefined) {
+                const container = getScrollContainer(editableTable)
+                if (container) container.scrollTop = saved
+            } else {
+                scrollTableTop()
+            }
+        })
     }
 }
 
@@ -478,49 +501,24 @@ function insertRow(rowIndex, insertAbove) {
     engine.onStructuralChange()
     rowStyleCache.clear()
     colStyleCache.clear()
+    overflowCount++
     items = items
-
-    // styles and computed columns are now computed on the fly
 
     // move focus to the first focusable cell of the inserted row, if shift key is not pressed
     if (!insertAbove) {
         setTimeout(() => {
-            // Check if the newly inserted row is on a different page
             const newRowIndex = rowIndex + 1
-            const newRowPage = Math.ceil((newRowIndex + 1) / PAGE_SIZE)
-
-            if (newRowPage !== currentPage) {
-                // Navigate to the page containing the new row
-                goToPage(newRowPage)
-                // Wait for page change to complete before focusing
-                setTimeout(() => {
-                    const localIndex = newRowIndex - visibleStartIndex
-                    let rows =
-                        document
-                            .querySelector('.editable-table tbody')
-                            ?.querySelectorAll('tr') || []
-                    let bottomRow = rows[localIndex]
-                    if (typeof bottomRow !== 'undefined') {
-                        let bottomCell = bottomRow.querySelector(
-                            'div[contenteditable]',
-                        )
-                        bottomCell.focus()
-                    }
-                }, 50)
-            } else {
-                // convert global index to local visible index since we render a slice
-                const localIndex = rowIndex - visibleStartIndex
-                let rows =
-                    document
-                        .querySelector('.editable-table tbody')
-                        ?.querySelectorAll('tr') || []
-                let bottomRow = rows[localIndex + 1]
-                if (typeof bottomRow !== 'undefined') {
-                    let bottomCell = bottomRow.querySelector(
-                        'div[contenteditable]',
-                    )
-                    bottomCell.focus()
-                }
+            const localIndex = newRowIndex - visibleStartIndex
+            const rows =
+                document
+                    .querySelector('.editable-table tbody')
+                    ?.querySelectorAll('tr') || []
+            const bottomRow = rows[localIndex]
+            if (typeof bottomRow !== 'undefined') {
+                const bottomCell = bottomRow.querySelector(
+                    'div[contenteditable]',
+                )
+                bottomCell?.focus()
             }
         }, 0)
     }
@@ -1036,6 +1034,8 @@ async function pasteConfiguration() {
         columns = parsedClipboardText.columns
         activeFilters = {}
         closeFilterDropdown()
+        overflowCount = 0
+        pageScrollPositions.clear()
         if (items.length === 0) {
             items.push({})
         }
@@ -1315,6 +1315,14 @@ function closeFilterDropdown() {
     filterDropdown = { show: false, columnName: null, position: { top: 0, left: 0 } }
 }
 
+// Overflow is tied to the current page identity, so any jump back to page 1
+// must zero it too. Keep the pair together to prevent future drift.
+function resetPagination() {
+    overflowCount = 0
+    currentPage = 1
+    pageScrollPositions.clear()
+}
+
 function toggleFilterValue(columnName, value) {
     const current = activeFilters[columnName] ?? new Set()
     const next = new Set(current)
@@ -1324,7 +1332,7 @@ function toggleFilterValue(columnName, value) {
         next.add(value)
     }
     activeFilters = { ...activeFilters, [columnName]: next }
-    currentPage = 1
+    resetPagination()
 }
 
 function toggleSelectAll(columnName) {
@@ -1338,12 +1346,12 @@ function toggleSelectAll(columnName) {
         // not all checked → check all (full Set)
         activeFilters = { ...activeFilters, [columnName]: new Set(uniqueVals) }
     }
-    currentPage = 1
+    resetPagination()
 }
 
 function clearAllFilters() {
     activeFilters = {}
-    currentPage = 1
+    resetPagination()
 }
 
 function handleWindowClick() {
