@@ -8,6 +8,7 @@ export let pageContentOverride = undefined
 import fetchPlus from '../../helpers/fetchPlus.js'
 import debounce from '../../helpers/debounce.js'
 import { onMount, tick } from 'svelte'
+import { watchPageUpdates } from '../../helpers/pageEventSource.js'
 import { eventStore } from '../../stores.js'
 
 import 'code-mirror-custom-element'
@@ -27,6 +28,7 @@ let showData = false
 let showTemplates = false
 let autoBuild = true
 let contentReady = false
+let clientId = null
 let aiOpen = false
 let activeTab = 'html'
 // Keys to force-refresh editors on external updates (AI/apply or fetch)
@@ -343,12 +345,18 @@ const savePageContent = debounce(async function () {
     if (readOnlyMode) return
     const payload = JSON.stringify({ files: { ...files, modules }, kv })
     try {
-        await fetchPlus.put(`/pages/${pageId}`, { pageContent: payload })
+        await fetchPlus.put(`/pages/${pageId}`, { pageContent: payload }, { 'X-Client-Id': clientId })
     } catch (e) {
         console.error(e)
         alert('Page Save Failed')
     }
 }, 500)
+
+onMount(() => watchPageUpdates(
+    () => pageId,
+    (id) => { clientId = id },
+    () => fetchPage(pageId)
+))
 
 function handleEditorInput(kind, e) {
     if (readOnlyMode) return

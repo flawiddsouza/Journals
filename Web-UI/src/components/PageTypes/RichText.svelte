@@ -16,9 +16,11 @@ import fetchPlus from '../../helpers/fetchPlus.js'
 let pageContainer
 
 let loaded = false
+let clientId = null
 
 function fetchPage(pageId) {
     if (pageId) {
+        loaded = false
         fetchPlus.get(`/pages/content/${pageId}`).then((response) => {
             pageContent = JSON.parse(response.content)
             loaded = true
@@ -27,22 +29,29 @@ function fetchPage(pageId) {
 }
 
 import debounce from '../../helpers/debounce.js'
+import { watchPageUpdates } from '../../helpers/pageEventSource.js'
+import { onDestroy, onMount } from 'svelte'
 
 const savePageContent = debounce(function () {
     fetchPlus
         .put(`/pages/${pageId}`, {
             pageContent: JSON.stringify(pageContent),
-        })
+        }, { 'X-Client-Id': clientId })
         .catch(() => {
             alert('Page Save Failed')
         })
 }, 500)
 
+onMount(() => watchPageUpdates(
+    () => pageId,
+    (id) => { clientId = id },
+    () => fetchPage(pageId)
+))
+
 let showInsertFileModal = false
 let insertFileModalLinkLabel = ''
 let savedCursorPosition = null
 
-import { onDestroy } from 'svelte'
 import EditorJS from '@editorjs/editorjs'
 import Table from '@editorjs/table'
 import EditorjsList from '@editorjs/list'

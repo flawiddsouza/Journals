@@ -15,9 +15,10 @@ $: fetchPage(pageId)
 import fetchPlus from '../../helpers/fetchPlus.js'
 let pageContainer
 
-import { tick } from 'svelte'
+import { tick, onMount } from 'svelte'
 
 let loaded = false
+let clientId = null
 
 function fetchPage(pageId) {
     if (pageId) {
@@ -56,16 +57,23 @@ function fetchPage(pageId) {
 }
 
 import debounce from '../../helpers/debounce.js'
+import { watchPageUpdates } from '../../helpers/pageEventSource.js'
 
 const savePageContent = debounce(function () {
     fetchPlus
         .put(`/pages/${pageId}`, {
             pageContent,
-        })
+        }, { 'X-Client-Id': clientId })
         .catch(() => {
             alert('Page Save Failed')
         })
 }, 500)
+
+onMount(() => watchPageUpdates(
+    () => pageId,
+    (id) => { clientId = id },
+    () => fetchPage(pageId)
+))
 
 import defaultKeydownHandlerForContentEditableArea from '../../helpers/defaultKeydownHandlerForContentEditableArea.js'
 

@@ -1,3 +1,27 @@
+record PageSSEClient, client_id : String, response : HTTP::Server::Response
+
+PAGE_SSE_CLIENTS = {} of String => Array(PageSSEClient)
+PAGE_SSE_MUTEX = Mutex.new
+
+def notify_page_sse_clients(page_id : String, sender_client_id : String?)
+  PAGE_SSE_MUTEX.synchronize do
+    PAGE_SSE_CLIENTS[page_id]?.try do |clients|
+      dead = [] of PageSSEClient
+      clients.each do |entry|
+        next if sender_client_id && entry.client_id == sender_client_id
+        begin
+          entry.response << "data: {}\n\n"
+          entry.response.flush
+        rescue
+          dead << entry
+        end
+      end
+      dead.each { |e| clients.delete(e) }
+      PAGE_SSE_CLIENTS.delete(page_id) if clients.empty?
+    end
+  end
+end
+
 get "/" do
   "Journals API"
 end
@@ -625,6 +649,9 @@ put "/pages/:page_id" do |env|
     end
   end
 
+  sender_client_id = env.request.headers["X-Client-Id"]?
+  notify_page_sse_clients(page_id, sender_client_id)
+
   env.response.content_type = "application/json"
   {success: true}.to_json
 end
@@ -729,6 +756,55 @@ get "/pages/content/:page_id" do |env|
 
   env.response.content_type = "application/json"
   page.to_json
+end
+
+get "/pages/events/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  page = db.query_one?(
+    "SELECT id FROM pages WHERE id = ? AND user_id = ? AND deleted_at IS NULL",
+    page_id, env.auth_id,
+    as: {id: Int64}
+  )
+
+  unless page
+    env.response.status_code = 404
+    next({error: "Page not found"}.to_json)
+  end
+
+  client_id = Random::Secure.hex(16)
+
+  env.response.headers["Content-Type"] = "text/event-stream"
+  env.response.headers["Cache-Control"] = "no-cache"
+  env.response.headers["Connection"] = "keep-alive"
+  env.response.headers["X-Accel-Buffering"] = "no"
+
+  env.response << "data: #{ ({clientId: client_id}).to_json }\n\n"
+  env.response.flush
+
+  entry = PageSSEClient.new(client_id: client_id, response: env.response)
+
+  PAGE_SSE_MUTEX.synchronize do
+    PAGE_SSE_CLIENTS[page_id] ||= [] of PageSSEClient
+    PAGE_SSE_CLIENTS[page_id] << entry
+  end
+
+  loop do
+    sleep 30.seconds
+    begin
+      env.response << ": heartbeat\n\n"
+      env.response.flush
+    rescue IO::Error
+      break
+    end
+  end
+
+  PAGE_SSE_MUTEX.synchronize do
+    PAGE_SSE_CLIENTS[page_id]?.try do |clients|
+      clients.reject! { |e| e.response == env.response }
+      PAGE_SSE_CLIENTS.delete(page_id) if clients.empty?
+    end
+  end
 end
 
 put "/pages/name/:page_id" do |env|

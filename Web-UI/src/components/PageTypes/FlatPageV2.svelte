@@ -16,9 +16,11 @@ import fetchPlus from '../../helpers/fetchPlus.js'
 let pageContainer
 
 let loaded = false
+let clientId = null
 
 function fetchPage(pageId) {
     if (pageId) {
+        loaded = false
         fetchPlus.get(`/pages/content/${pageId}`).then((response) => {
             pageContent = JSON.parse(response.content)
             loaded = true
@@ -27,16 +29,24 @@ function fetchPage(pageId) {
 }
 
 import debounce from '../../helpers/debounce.js'
+import { watchPageUpdates } from '../../helpers/pageEventSource.js'
+import { onDestroy, onMount } from 'svelte'
 
 const savePageContent = debounce(function () {
     fetchPlus
         .put(`/pages/${pageId}`, {
             pageContent: JSON.stringify(pageContent),
-        })
+        }, { 'X-Client-Id': clientId })
         .catch(() => {
             alert('Page Save Failed')
         })
 }, 500)
+
+onMount(() => watchPageUpdates(
+    () => pageId,
+    (id) => { clientId = id },
+    () => fetchPage(pageId)
+))
 
 let showInsertFileModal = false
 let insertFileModalLinkLabel = ''
@@ -49,7 +59,6 @@ function saveCursorPosition() {
 }
 
 import { format } from 'date-fns'
-import { onDestroy } from 'svelte'
 import { Editor, Node as TiptapNode, getSchema } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Paragraph from '@tiptap/extension-paragraph'

@@ -4,6 +4,7 @@ export let viewOnly = false
 export let pageContentOverride = undefined
 
 let pageContent = ''
+let clientId = null
 
 $: if (pageContentOverride !== undefined) {
     pageContent = pageContentOverride
@@ -12,6 +13,7 @@ $: if (pageContentOverride !== undefined) {
 $: fetchPage(pageId)
 
 import fetchPlus from '../../helpers/fetchPlus.js'
+import { watchPageUpdates } from '../../helpers/pageEventSource.js'
 let iframe
 
 import { tick } from 'svelte'
@@ -30,7 +32,7 @@ const savePageContent = debounce(function () {
     fetchPlus
         .put(`/pages/${pageId}`, {
             pageContent,
-        })
+        }, { 'X-Client-Id': clientId })
         .catch(() => {
             alert('Page Save Failed')
         })
@@ -73,6 +75,12 @@ onMount(() => {
         window.removeEventListener('message', receive)
     }
 })
+
+onMount(() => watchPageUpdates(
+    () => pageId,
+    (id) => { clientId = id },
+    () => fetchPage(pageId)
+))
 
 function getViewerJSON(xml) {
     return JSON.stringify({

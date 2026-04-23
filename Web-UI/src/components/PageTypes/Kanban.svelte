@@ -4,15 +4,18 @@ export let viewOnly = false
 export let pageContentOverride = undefined
 export let style = ''
 
+import { onMount } from 'svelte'
 import fetchPlus from '../../helpers/fetchPlus.js'
 import { dndzone, dragHandleZone, dragHandle } from 'svelte-dnd-action'
 import { flip } from 'svelte/animate'
 import debounce from '../../helpers/debounce.js'
+import { watchPageUpdates } from '../../helpers/pageEventSource.js'
 
 let pageContent = null
 let loaded = false
 let boards = []
 let flipDurationMs = 300
+let clientId = null
 
 // Detect touch-capable devices to tweak DnD behavior for mobile
 let isTouch = false
@@ -161,11 +164,17 @@ const savePageContent = debounce(function () {
             pageContent: JSON.stringify({
                 boards,
             }),
-        })
+        }, { 'X-Client-Id': clientId })
         .catch(() => {
             alert('Page Save Failed')
         })
 }, 500)
+
+onMount(() => watchPageUpdates(
+    () => pageId,
+    (id) => { clientId = id },
+    () => fetchPage(pageId)
+))
 
 function handleAddCard(boardId) {
     const board = boards.find((b) => b.id === boardId)

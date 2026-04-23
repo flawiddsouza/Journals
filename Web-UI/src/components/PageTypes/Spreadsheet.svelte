@@ -6,6 +6,7 @@ export let pageContentOverride = undefined
 let pageContent = ''
 let pageContainer
 let spreadsheet
+let clientId = null
 
 import { tick } from 'svelte'
 
@@ -46,11 +47,12 @@ function fetchPage(pageId) {
 }
 
 import debounce from '../../helpers/debounce.js'
+import { watchPageUpdates } from '../../helpers/pageEventSource.js'
 
 const savePageContent = debounce(function () {
     fetchPlus.put(`/pages/${pageId}`, {
         pageContent: JSON.stringify(pageContent),
-    })
+    }, { 'X-Client-Id': clientId })
 }, 500)
 
 import { onMount } from 'svelte'
@@ -78,6 +80,12 @@ onMount(() => {
 
     return () => resizeObserver.disconnect()
 })
+
+onMount(() => watchPageUpdates(
+    () => pageId,
+    (id) => { clientId = id },
+    () => fetchPage(pageId)
+))
 </script>
 
 <div bind:this={pageContainer}></div>

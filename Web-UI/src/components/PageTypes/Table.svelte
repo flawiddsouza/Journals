@@ -5,6 +5,7 @@ export let pageContentOverride = undefined
 export let style = ''
 
 let loaded = false
+let clientId = null
 
 let columns = []
 let items = []
@@ -191,6 +192,8 @@ function fetchPage(pageId) {
 }
 
 import debounce from '../../helpers/debounce.js'
+import { watchPageUpdates } from '../../helpers/pageEventSource.js'
+import { onDestroy, onMount, tick } from 'svelte'
 
 const savePageContent = debounce(function () {
     if (pageId === null) {
@@ -208,7 +211,7 @@ const savePageContent = debounce(function () {
             note,
             stats,
         }),
-    })
+    }, { 'X-Client-Id': clientId })
 }, 500)
 
 let dontTriggerSave = true
@@ -216,6 +219,12 @@ let dontTriggerSave = true
 function save() {
     items = items // save
 }
+
+onMount(() => watchPageUpdates(
+    () => pageId,
+    (id) => { clientId = id },
+    () => fetchPage(pageId)
+))
 
 $: if (items) {
     totals = totals
@@ -1193,7 +1202,6 @@ function getColumnValue(type, value) {
     alert('Invalid column type')
 }
 
-import { onDestroy, tick } from 'svelte'
 import 'code-mirror-custom-element'
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
 import TableStats from './TableStats.svelte'
