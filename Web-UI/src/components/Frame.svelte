@@ -1,7 +1,10 @@
 <script>
+import { onMount, onDestroy } from 'svelte'
 import { eventStore, role } from '../stores.js'
 import { slugify } from '../helpers/string.js'
 import { focus } from '../actions/focus.js'
+import { isTouchPrimary, isMobileViewport, mobileViewportMql } from '../actions/touchGuard.js'
+import { clickOutside } from '../actions/clickOutside.js'
 import { getTheme, setTheme as persistTheme, initTheme } from '../helpers/theme.js'
 
 let pages = []
@@ -14,24 +17,69 @@ $: filteredPages =
           )
         : pages
 
-let leftSidebarElement = null
-let rightSidebarElement = null
+let leftOpen = true
+let rightOpen = true
 
-function toggleSidebar(sidebarElement) {
-    let sidebarStyle = getComputedStyle(sidebarElement)
-    if (sidebarStyle.display === 'block') {
-        sidebarElement.style.display = 'none'
-        sidebarElement.parentElement.style.gridTemplateColumns = '1fr'
-    } else {
-        sidebarElement.style.display = 'block'
-        sidebarElement.parentElement.style.gridTemplateColumns = '15em 1fr 20em'
-    }
+// Mobile: drawers are exclusive overlays (opening one closes the other);
+// hamburger toggles only the left drawer. Desktop: both sidebars toggle
+// together via hamburger, individual drawers can be toggled independently.
+
+function toggleLeftDrawer() {
+    if (isMobileViewport() && !leftOpen) rightOpen = false
+    leftOpen = !leftOpen
+}
+
+function toggleRightDrawer() {
+    if (isMobileViewport() && !rightOpen) leftOpen = false
+    rightOpen = !rightOpen
 }
 
 function toggleSidebars() {
-    toggleSidebar(leftSidebarElement)
-    toggleSidebar(rightSidebarElement)
+    if (isMobileViewport()) {
+        toggleLeftDrawer()
+    } else {
+        const newOpen = !(leftOpen && rightOpen)
+        leftOpen = newOpen
+        rightOpen = newOpen
+    }
 }
+
+function closeDrawers() {
+    leftOpen = false
+    rightOpen = false
+}
+
+function clampMenuPos(e) {
+    const MENU_W = 220
+    const MENU_H = 200
+    return {
+        left: Math.min(e.pageX, window.innerWidth - MENU_W - 8),
+        top: Math.min(e.pageY, window.innerHeight - MENU_H - 8),
+    }
+}
+
+let mobileMql = null
+
+function handleMqlChange(e) {
+    const desired = !e.matches
+    if (leftOpen !== desired) leftOpen = desired
+    if (rightOpen !== desired) rightOpen = desired
+}
+
+onMount(() => {
+    mobileMql = mobileViewportMql()
+    if (mobileMql) {
+        if (mobileMql.matches) {
+            leftOpen = false
+            rightOpen = false
+        }
+        mobileMql.addEventListener('change', handleMqlChange)
+    }
+})
+
+onDestroy(() => {
+    if (mobileMql) mobileMql.removeEventListener('change', handleMqlChange)
+})
 
 let notebooks = []
 
@@ -214,7 +262,6 @@ $: if (activeSection) {
 let activePage = {}
 let firstLoad = true
 let showBacklinks = false
-
 function closeBacklinks() { showBacklinks = false }
 
 $: if (activePage && activePage.id) {
@@ -271,8 +318,9 @@ let pageItemContextMenu = {
 let pageContextMenuHasOpenModal = false
 
 function handlePageItemContextMenu(e, page) {
-    pageItemContextMenu.left = e.pageX
-    pageItemContextMenu.top = e.pageY
+    const { left, top } = clampMenuPos(e)
+    pageItemContextMenu.left = left
+    pageItemContextMenu.top = top
     pageItemContextMenu.page = page
 }
 
@@ -284,8 +332,9 @@ let sectionItemContextMenu = {
 }
 
 function handleSectionItemContextMenu(e, section, notebook) {
-    sectionItemContextMenu.left = e.pageX
-    sectionItemContextMenu.top = e.pageY
+    const { left, top } = clampMenuPos(e)
+    sectionItemContextMenu.left = left
+    sectionItemContextMenu.top = top
     sectionItemContextMenu.section = section
     sectionItemContextMenu.notebook = notebook
 }
@@ -380,8 +429,9 @@ let notebookItemContextMenu = {
 }
 
 function handleNotebookItemContextMenu(e, notebook) {
-    notebookItemContextMenu.left = e.pageX
-    notebookItemContextMenu.top = e.pageY
+    const { left, top } = clampMenuPos(e)
+    notebookItemContextMenu.left = left
+    notebookItemContextMenu.top = top
     notebookItemContextMenu.notebook = notebook
 }
 
@@ -487,15 +537,6 @@ function deleteNotebook() {
     notebookItemContextMenu.notebook = null
 }
 
-window.addEventListener('click', (e) => {
-    if (!e.target.closest('.context-menu')) {
-        pageItemContextMenu.page = null
-        sectionItemContextMenu.section = null
-        sectionItemContextMenu.notebook = null
-        notebookItemContextMenu.notebook = null
-    }
-})
-
 
 import debounce from '../helpers/debounce.js'
 
@@ -556,6 +597,8 @@ function changePassword() {
 let activeElement = null
 
 function makeDraggableContainer(element, sidebarItemClass) {
+    if (isTouchPrimary()) return
+
     function dragover(e) {
         if (pagesFilter !== '') {
             // disable drag sort order functionality when pages are filtered
@@ -612,6 +655,8 @@ function makeDraggableContainer(element, sidebarItemClass) {
 }
 
 function makeDraggableItem(element) {
+    if (isTouchPrimary()) return
+
     element.draggable = true
 
     function dragstart(e) {
@@ -674,6 +719,12 @@ function openRecycleBin() {
     activePage = {}
 }
 
+const accountDrawerActions = [
+    { href: '#add-account', text: 'Switch Account', onClick: switchAccount },
+    { href: '#change-password', text: 'Change Password', onClick: () => (showChangePasswordModal = true) },
+    { href: '#logout', text: 'Logout', onClick: logout },
+]
+
 function handleRecycleBinRestored() {
     fetchPlus.get(`/notebooks?profile_id=${selectedProfileId}`).then((response) => {
         notebooks = response
@@ -703,6 +754,15 @@ function handleRecycleBinRestored() {
                 <PageNav bind:activePage {activeSection} bind:showBacklinks></PageNav>
             {/if}
         </div>
+        <button
+            class="mobile-page-title"
+            type="button"
+            on:click|stopPropagation={toggleRightDrawer}
+            aria-label="Open pages"
+        >
+            <span class="title-text">{activePage?.name || activeSection?.name || ''}</span>
+            <span class="chevron">▾</span>
+        </button>
         <span class="hide-on-small-screen">
             {#if $role === 'admin'}
                 <a href="#admin" class="mr-1em">Admin Panel</a>
@@ -741,12 +801,14 @@ function handleRecycleBinRestored() {
         <button class="tb-hamburger" on:click|stopPropagation={toggleSidebars}>☰</button>
     </nav>
     <div
-        style="display: grid; grid-template-columns: 15em 1fr 20em; overflow: auto;"
+        class="grid-wrapper"
+        class:left-open={leftOpen}
+        class:right-open={rightOpen}
+        class:any-drawer-open={leftOpen || rightOpen}
     >
         <nav
             class="journal-left-sidebar"
-            bind:this={leftSidebarElement}
-            style="display: block"
+            class:open={leftOpen}
         >
             {#each notebooks as notebook}
                 <div class="journal-sidebar-item-notebook">
@@ -817,6 +879,56 @@ function handleRecycleBinRestored() {
             >
                 Recycle Bin
             </div>
+            <div class="drawer-mobile-only">
+                <div class="drawer-section">
+                    <div class="drawer-section-label">Profile</div>
+                    <div class="drawer-section-body">
+                        <select bind:value={selectedProfileId} class="input w-100p">
+                            {#each profiles as profile}
+                                <option value={profile.id}>{profile.name}</option>
+                            {/each}
+                        </select>
+                        <a
+                            href="#manage-profiles"
+                            class="drawer-link"
+                            on:click|preventDefault|stopPropagation={() => (showManageProfilesModal = true)}
+                        >Manage Profiles</a>
+                    </div>
+                </div>
+
+                <div class="drawer-section">
+                    <div class="drawer-section-label">Account</div>
+                    <div class="drawer-section-body">
+                        {#if $role === 'admin'}
+                            <a href="#admin" class="drawer-link">Admin Panel</a>
+                        {/if}
+                        {#each accountDrawerActions as { href, text, onClick }}
+                            <a
+                                {href}
+                                class="drawer-link"
+                                on:click|preventDefault|stopPropagation={onClick}
+                            >{text}</a>
+                        {/each}
+                    </div>
+                </div>
+
+                <div class="drawer-section">
+                    <div class="drawer-section-label">Theme</div>
+                    <div class="drawer-section-body">
+                        <select
+                            value={theme}
+                            on:change={(e) => setTheme(e.target.value)}
+                            class="input w-100p"
+                        >
+                            <option value="golden">Golden</option>
+                            <option value="slate">Slate</option>
+                            <option value="forest">Forest</option>
+                            <option value="midnight">Midnight</option>
+                            <option value="rose">Rose</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
         </nav>
         {#if showRecycleBin}
             <RecycleBin on:restored={handleRecycleBinRestored} />
@@ -832,17 +944,15 @@ function handleRecycleBinRestored() {
         {/if}
         <nav
             class="journal-right-sidebar"
-            bind:this={rightSidebarElement}
-            style="display: block"
+            class:open={rightOpen}
             use:makeDraggableContainer={'page-sidebar-item'}
         >
             {#if activeSection.id !== undefined && activeSection.id !== null}
-                <div class="w-100p" style="height: 1.6em">
+                <div class="sidebar-filter-placeholder">
                     <input
                         type="search"
                         placeholder="Filter..."
-                        class="pos-f sidebar-filter"
-                        style="top: 50px; width: 20.9em; margin-left: 1px;"
+                        class="sidebar-filter"
                         bind:value={pagesFilter}
                     />
                 </div>
@@ -885,6 +995,9 @@ function handleRecycleBinRestored() {
                 </div>
             {/if}
         </nav>
+        {#if leftOpen || rightOpen}
+            <div class="drawer-scrim" on:click={closeDrawers}></div>
+        {/if}
     </div>
     {#if showBacklinks}
         <BacklinksPanel
@@ -1086,6 +1199,10 @@ function handleRecycleBinRestored() {
         <div
             class="context-menu"
             style="left: {sectionItemContextMenu.left}px; top: {sectionItemContextMenu.top}px"
+            use:clickOutside={() => {
+                sectionItemContextMenu.section = null
+                sectionItemContextMenu.notebook = null
+            }}
         >
             <div on:click={startMoveSection}>Move section</div>
             <div on:click={renameSection}>Rename section</div>
@@ -1096,6 +1213,7 @@ function handleRecycleBinRestored() {
         <div
             class="context-menu"
             style="left: {notebookItemContextMenu.left}px; top: {notebookItemContextMenu.top}px"
+            use:clickOutside={() => (notebookItemContextMenu.notebook = null)}
         >
             <div on:click={startMoveNotebook}>Move notebook</div>
             <div on:click={startConfigureSectionSortOrder}>
@@ -1223,15 +1341,81 @@ function handleRecycleBinRestored() {
 }
 
 .journal-left-sidebar {
-    display: none;
     background-color: var(--bg-sidebar);
     border-right: 0;
 }
 
 .journal-right-sidebar {
-    display: none;
     background-color: var(--bg-sidebar);
     border-left: 0;
+}
+
+.grid-wrapper {
+    display: grid;
+    grid-template-columns: 15em 1fr 20em;
+    overflow: auto;
+}
+
+/* Desktop: when only one side is hidden, content takes its space. */
+.grid-wrapper:not(.left-open):not(.right-open) {
+    grid-template-columns: 1fr;
+}
+.grid-wrapper.left-open:not(.right-open) {
+    grid-template-columns: 15em 1fr;
+}
+.grid-wrapper:not(.left-open).right-open {
+    grid-template-columns: 1fr 20em;
+}
+
+.journal-left-sidebar:not(.open),
+.journal-right-sidebar:not(.open) {
+    display: none;
+}
+.journal-left-sidebar.open,
+.journal-right-sidebar.open {
+    display: block;
+}
+
+@media (max-width: 768px) {
+    /* On mobile, sidebars are absolute overlays inside the topbar grid row. */
+    .grid-wrapper {
+        grid-template-columns: 1fr !important;
+    }
+
+    .grid-wrapper.any-drawer-open {
+        overflow: hidden;
+    }
+
+    .journal-left-sidebar.open,
+    .journal-right-sidebar.open {
+        position: fixed;
+        top: 42px;
+        bottom: 0;
+        width: min(280px, 80vw);
+        z-index: 10;
+        overflow-y: auto;
+    }
+    .journal-left-sidebar.open {
+        left: 0;
+        box-shadow: 4px 0 12px rgba(0, 0, 0, 0.18);
+    }
+    .journal-right-sidebar.open {
+        right: 0;
+        box-shadow: -4px 0 12px rgba(0, 0, 0, 0.18);
+    }
+}
+
+.drawer-scrim {
+    position: fixed;
+    inset: 42px 0 0 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 9;
+}
+
+@media (min-width: 769px) {
+    .drawer-scrim {
+        display: none;
+    }
 }
 
 .journal-sidebar-item {
@@ -1293,14 +1477,14 @@ function handleRecycleBinRestored() {
 }
 
 :global(
-    .journal-left-sidebar[style*='block']
+    .journal-left-sidebar.open
         + .journal-page:not(.PageType-RichText):not(.PageType-Spreadsheet):not(.PageType-DrawIO):not(.PageType-MiniApp):not(.PageType-Kanban)
 ) {
     padding-left: 2em;
 }
 
 :global(
-    .journal-left-sidebar[style*='none'] + .journal-page:not(.PageType-RichText):not(.PageType-Spreadsheet):not(.PageType-DrawIO):not(.PageType-MiniApp):not(.PageType-Kanban)
+    .journal-left-sidebar:not(.open) + .journal-page:not(.PageType-RichText):not(.PageType-Spreadsheet):not(.PageType-DrawIO):not(.PageType-MiniApp):not(.PageType-Kanban)
 ) {
     padding-left: 2rem;
 }
@@ -1332,11 +1516,16 @@ function handleRecycleBinRestored() {
     float: right;
 }
 
-.pos-f {
-    position: fixed;
+.sidebar-filter-placeholder {
+    width: 100%;
+    height: 1.6em;
 }
 
 .sidebar-filter {
+    position: fixed;
+    top: 50px;
+    width: 20.9em;
+    margin-left: 1px;
     background: var(--bg-section-active);
     border: 1px solid var(--border-select);
     border-radius: 5px;
@@ -1345,6 +1534,20 @@ function handleRecycleBinRestored() {
     font-size: 14px;
     padding: 0.25em 0.5em;
     outline: none;
+}
+
+/* On mobile the right sidebar becomes a narrow drawer (min(280px, 80vw)),
+ * so the desktop fixed-positioned 20.9em input would overflow it. Flow the
+ * input normally inside the drawer instead. */
+@media (max-width: 768px) {
+    .sidebar-filter-placeholder {
+        height: auto;
+    }
+    .sidebar-filter {
+        position: static;
+        width: 100%;
+        margin-left: 0;
+    }
 }
 
 .sidebar-filter::placeholder {
@@ -1365,5 +1568,107 @@ a.page-sidebar-item {
     display: block;
     color: inherit;
     text-decoration: none;
+}
+
+.mobile-page-title {
+    display: none;
+    flex: 1;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 0;
+    padding: 4px 8px;
+    color: inherit;
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    min-width: 0;
+    overflow: hidden;
+    text-align: left;
+}
+
+.mobile-page-title .title-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.mobile-page-title .chevron {
+    color: var(--color-utility);
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.mobile-page-title:hover {
+    background: var(--bg-utility-hover);
+    border-radius: 4px;
+}
+
+.drawer-mobile-only {
+    display: none;
+    border-top: 1px solid var(--border-nb);
+    margin-top: 1em;
+}
+
+@media (max-width: 768px) {
+    .mobile-page-title {
+        display: inline-flex;
+    }
+
+    .journal-sidebar-hamburger .tb-brand,
+    .journal-sidebar-hamburger .tb-sep-v,
+    .journal-sidebar-hamburger .tb-profile,
+    .journal-sidebar-hamburger .tb-theme-label,
+    .journal-sidebar-hamburger > select,
+    .journal-sidebar-hamburger > a[href="#logout"] {
+        display: none;
+    }
+
+    .journal-sidebar-hamburger .tb-page-actions {
+        flex: 0 0 auto;
+        justify-content: flex-end;
+    }
+
+    /* Visible mobile topbar order: hamburger / title / overflow menu. */
+    .journal-sidebar-hamburger .tb-hamburger { order: -1; }
+    .journal-sidebar-hamburger .mobile-page-title { order: 0; }
+    .journal-sidebar-hamburger .tb-page-actions { order: 1; }
+
+    .drawer-mobile-only {
+        display: block;
+    }
+}
+
+.drawer-section {
+    padding: 0.6em 0.9em;
+    border-bottom: 1px solid var(--border-nb);
+}
+
+.drawer-section-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-utility);
+    margin-bottom: 0.4em;
+}
+
+.drawer-section-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+}
+
+.drawer-link {
+    color: var(--color-tb-link);
+    text-decoration: none;
+    padding: 0.4em 0;
+    font-size: 14px;
+}
+
+.drawer-link:hover {
+    color: var(--color-tb-hover);
 }
 </style>

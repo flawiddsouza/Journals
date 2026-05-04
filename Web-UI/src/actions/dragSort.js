@@ -1,4 +1,15 @@
+import { isTouchPrimary } from './touchGuard.js'
+
 export function dragSort(node, { item, onSort }) {
+    function update(newOptions) {
+        if (newOptions.onSort) onSort = newOptions.onSort
+        if (newOptions.item) item = newOptions.item
+    }
+
+    if (isTouchPrimary()) {
+        return { update, destroy() {} }
+    }
+
     function handleDragStart(e) {
         e.dataTransfer.effectAllowed = 'move'
         e.dataTransfer.setData('text/plain', JSON.stringify(item))
@@ -20,19 +31,10 @@ export function dragSort(node, { item, onSort }) {
     node.addEventListener('dragstart', handleDragStart)
     node.addEventListener('dragover', handleDragOver)
     node.addEventListener('drop', handleDrop)
-
     node.draggable = true
 
     return {
-        update(newOptions) {
-            if (newOptions.onSort) {
-                onSort = newOptions.onSort
-            }
-
-            if (newOptions.item) {
-                item = newOptions.item
-            }
-        },
+        update,
         destroy() {
             node.removeEventListener('dragstart', handleDragStart)
             node.removeEventListener('dragover', handleDragOver)

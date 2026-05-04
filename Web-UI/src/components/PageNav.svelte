@@ -6,6 +6,13 @@ export let compact = false
 
 import fetchPlus from '../helpers/fetchPlus.js'
 import { slugify } from '../helpers/string.js'
+import { generatePageLinks } from '../helpers/pageNavLinks.js'
+import MobilePageNavMenu from './MobilePageNavMenu.svelte'
+
+let miniAppConfigMode = false
+let tableStatsView = false
+let tableStatsEditMode = false
+let tableConfigureMode = false
 import Modal from './Modal.svelte'
 import Portal from './Portal.svelte'
 import FlatPage from './PageTypes/FlatPage.svelte'
@@ -28,10 +35,6 @@ let pageStyles = {}
 
 let activePageHistoryItem = null
 let pageHistoryItemViewPageContent = null
-let miniAppConfigMode = false
-let tableStatsView = false
-let tableStatsEditMode = false
-let tableConfigureMode = false
 let lastActivePageId = null
 
 const unsubEventStore = eventStore.subscribe((event) => {
@@ -277,117 +280,27 @@ function exitConfigureMiniApp() {
     })
 }
 
-function generatePageLinks() {
-    const links = []
-
-    if (activePage.id) {
-        links.push({
-            href: '#view-page-history',
-            text: 'History',
-            onClick: () => (showPageHistoryModal = true),
-        })
-
-        links.push({
-            href: '#view-page-uploads',
-            text: 'Uploads',
-            onClick: () => (showPageUploadsModal = true),
-        })
-
-        links.push({
-            href: '#backlinks',
-            text: 'Backlinks',
-            onClick: () => (showBacklinks = !showBacklinks),
-        })
-
-        if (activePage.type !== 'Spreadsheet' && activePage.type !== 'DrawIO') {
-            links.push({
-                href: '#view-page-styles',
-                text: 'Styles',
-                onClick: () => startShowPageStylesModal(),
-            })
-
-            if (activePage.type === 'Table' && activePage.view_only === false) {
-                if (!tableStatsView) {
-                    if (!tableConfigureMode) {
-                        links.push({
-                            href: '#configure-table',
-                            text: 'Configure Table',
-                            onClick: () => configureTable(),
-                        })
-                    } else {
-                        links.push({
-                            href: '#exit-configure-table',
-                            text: 'Exit Configuration',
-                            active: true,
-                            onClick: () => exitConfigureTable(),
-                        })
-                    }
-                }
-                if (!tableConfigureMode) {
-                    links.push({
-                        href: '#stats',
-                        text: 'Stats',
-                        active: tableStatsView,
-                        onClick: () => toggleTableStats(),
-                    })
-                    if (tableStatsView) {
-                        links.push({
-                            href: '#edit-stats',
-                            text: 'Edit Stats',
-                            active: tableStatsEditMode,
-                            onClick: () => toggleTableStatsEdit(),
-                        })
-                    }
-                }
-            }
-
-            if (
-                activePage.type === 'MiniApp' &&
-                activePage.view_only === false
-            ) {
-                if (!miniAppConfigMode) {
-                    links.push({
-                        href: '#configure-mini-app',
-                        text: 'Configure Mini App',
-                        onClick: () => configureMiniApp(),
-                    })
-                } else {
-                    links.push({
-                        href: '#exit-configure-mini-app',
-                        text: 'Exit Configuration',
-                        onClick: () => exitConfigureMiniApp(),
-                    })
-                }
-            }
-
-            links.push({
-                href: '#export',
-                text: 'Export',
-                onClick: () => exportPage(),
-            })
-        }
-
-        if (
-            activePage.parent_id !== undefined &&
-            activePage.parent_id !== null
-        ) {
-            links.push({
-                type: 'link',
-                href: `/page/${activePage.parent_id}`,
-                text: 'Open Page Group',
-                target: '_blank',
-            })
-        }
-    }
-
-    return links
+const linkHandlers = {
+    openHistory: () => (showPageHistoryModal = true),
+    openUploads: () => (showPageUploadsModal = true),
+    toggleBacklinks: () => (showBacklinks = !showBacklinks),
+    openStyles: () => startShowPageStylesModal(),
+    configureTable,
+    exitConfigureTable,
+    toggleTableStats,
+    toggleTableStatsEdit,
+    configureMiniApp,
+    exitConfigureMiniApp,
+    exportPage,
 }
 
-let pageLinks = generatePageLinks()
-
-$: if ((miniAppConfigMode, tableStatsView, tableStatsEditMode, tableConfigureMode, activePage)) {
-    pageLinks = generatePageLinks()
-}
+$: pageLinks = generatePageLinks(activePage, {
+    miniAppConfigMode,
+    tableStatsView,
+    tableStatsEditMode,
+    tableConfigureMode,
+    handlers: linkHandlers,
+})
 
 // Reset Mini App config mode whenever the page changes
 $: if ((activePage?.id ?? null) !== lastActivePageId) {
@@ -397,13 +310,9 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
     if (tableStatsEditMode) tableStatsEditMode = false
     if (tableConfigureMode) tableConfigureMode = false
 }
-
-function isLastLink(index, array) {
-    return index === array.length - 1
-}
 </script>
 
-<span class="hide-on-small-screen page-nav-links" class:compact>
+<span class="page-nav-links" class:compact>
     {#each pageLinks as { type, href, text, onClick, target, active }}
         {#if type === 'link'}
             <a {href} {target} class="special" class:active>{text}</a>
@@ -412,6 +321,8 @@ function isLastLink(index, array) {
         {/if}
     {/each}
 </span>
+
+<MobilePageNavMenu links={pageLinks} />
 
 <Portal>
     {#if showPageHistoryModal}
@@ -643,6 +554,12 @@ function isLastLink(index, array) {
     gap: 2px;
 }
 
+@media only screen and (max-width: 1000px) {
+    .page-nav-links {
+        display: none;
+    }
+}
+
 a {
     color: var(--color-pa-btn);
     text-decoration: none;
@@ -682,23 +599,16 @@ a.special {
 
 .page-history-container {
     display: flex;
+    flex-direction: column;
     height: 85vh;
-    width: 90vw;
+    width: 100%;
+    min-width: 0;
     gap: 1rem;
 }
 
 .page-history-sidebar {
     flex: 0 0 auto;
-}
-
-.page-history-container .page-history-sidebar {
-    height: 85vh;
-    min-width: 400px;
-    max-width: 500px;
-}
-
-.page-history-sidebar:not(.page-history-container .page-history-sidebar) {
-    max-height: 80vh;
+    min-width: 0;
 }
 
 .page-history-sidebar table tr.active {
@@ -707,9 +617,35 @@ a.special {
 
 .page-history-content {
     flex: 1;
-    height: 85vh;
-    min-width: 600px;
-    border-left: 1px solid #ccc;
-    padding-left: 1rem;
+    height: 50vh;
+    min-width: 0;
+    border-top: 1px solid #ccc;
+    padding-top: 1rem;
+}
+
+.page-history-sidebar:not(.page-history-container .page-history-sidebar) {
+    max-height: 80vh;
+}
+
+@media (min-width: 769px) {
+    .page-history-container {
+        flex-direction: row;
+        width: 90vw;
+    }
+
+    .page-history-container .page-history-sidebar {
+        height: 85vh;
+        min-width: 400px;
+        max-width: 500px;
+    }
+
+    .page-history-content {
+        height: 85vh;
+        min-width: 600px;
+        border-top: none;
+        border-left: 1px solid #ccc;
+        padding-top: 0;
+        padding-left: 1rem;
+    }
 }
 </style>

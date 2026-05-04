@@ -8,25 +8,15 @@ import fetchPlus from '../../helpers/fetchPlus.js'
 import { dndzone, dragHandleZone, dragHandle } from 'svelte-dnd-action'
 import { flip } from 'svelte/animate'
 import debounce from '../../helpers/debounce.js'
+import { isTouchPrimary } from '../../actions/touchGuard.js'
 
 let pageContent = null
 let loaded = false
 let boards = []
 let flipDurationMs = 300
 
-// Detect touch-capable devices to tweak DnD behavior for mobile
-let isTouch = false
-if (typeof window !== 'undefined') {
-    try {
-        isTouch =
-            window.matchMedia && window.matchMedia('(pointer: coarse)').matches
-    } catch (_) {
-        isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0
-    }
-}
-
-// When on touch devices, require drag handles to start dragging
-// Cards & Boards use handles on touch; desktop keeps normal behavior
+// On touch devices, require drag handles; desktop keeps free dragging.
+const isTouch = isTouchPrimary()
 const cardsDndAction = isTouch ? dragHandleZone : dndzone
 const boardsDndAction = isTouch ? dragHandleZone : dndzone
 

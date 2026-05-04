@@ -68,4 +68,10 @@ dialog {
     max-height: calc(100dvh - 40px);
     overflow-y: auto;
 }
+
+@media (max-width: 768px) {
+    dialog {
+        max-width: calc(100vw - 32px);
+    }
+}
 </style>

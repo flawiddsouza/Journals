@@ -16,6 +16,7 @@ import {
 import Portal from './Portal.svelte'
 import Modal from './Modal.svelte'
 import { eventStore } from '../stores.js'
+import { clickOutside } from '../actions/clickOutside.js'
 
 let showMovePageModal = false
 let showMovePageModalData = null
@@ -454,6 +455,7 @@ $: fetchPageGroupsForSectionId(showMovePageModalSelectedSectionId)
         <div
             class="context-menu"
             style="left: {pageItemContextMenu.left}px; top: {pageItemContextMenu.top}px"
+            use:clickOutside={() => (pageItemContextMenu.page = null)}
         >
             {#if pageItemContextMenu.page.locked === false}
                 <div on:click={openPageNewTab}>Open page in a new tab</div>

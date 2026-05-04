@@ -252,9 +252,46 @@ h2.heading {
     margin-bottom: 0.5em;
 }
 
+/* RESPONSIVE TIERS
+ * Two deliberate breakpoints:
+ *   1000px (this rule, .hide-on-small-screen): wide-tablet tier. Hides
+ *     desktop-only topbar links AND swaps the inline PageNav strip for
+ *     the MobilePageNavMenu (rendered conditionally in Frame.svelte).
+ *   768px (block below): mobile tier. Adds drawer overlays, topbar
+ *     restructure, hamburger behavior split, sticky-right Table actions
+ *     column, and touch-target sizing.
+ * The two tiers deliberately interact: between 769-1000px the desktop
+ * sidebar layout is intact but the page-actions surface is the overflow
+ * menu.
+ */
 @media only screen and (max-width: 1000px) {
     .hide-on-small-screen {
         display: none;
+    }
+}
+
+@media only screen and (max-width: 768px) {
+    /* Prevent iOS Safari focus-zoom on inputs (<16px triggers it). */
+    .input,
+    select,
+    textarea,
+    input[type="text"],
+    input[type="password"],
+    input[type="search"],
+    input[type="number"],
+    input[type="email"] {
+        font-size: 16px;
+    }
+
+    /* Touch-target minimums. */
+    .btn,
+    .btn-sm {
+        min-height: 40px;
+        padding: 0.5em 1em;
+    }
+    .journal-sidebar-item {
+        min-height: 40px;
+        padding: 0.6em 0.9em;
     }
 }
 

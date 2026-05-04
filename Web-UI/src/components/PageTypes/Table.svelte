@@ -1504,6 +1504,7 @@ onDestroy(unsubEventStore)
                 ✕ Clear Filters
             </div>
         {/if}
+        <div class="table-scroll">
         <table
             on:paste={handlePaste}
             on:keydown={(e) => handleUndoStacks(e)}
@@ -1673,6 +1674,7 @@ onDestroy(unsubEventStore)
                 </tr>
             {/if}
         </table>
+        </div>
         {#if showPagination}
             <div class="pager">
                 <button
@@ -2376,6 +2378,49 @@ table td > div[contenteditable] {
     padding: 2px 4px;
     border: 1px solid var(--border-table);
     font: inherit;
+}
+
+@media (max-width: 768px) {
+    /* Mobile: scope horizontal scroll to the table itself so the sticky-right
+     * actions column stays at the visible table edge instead of the viewport.
+     * Desktop tables continue to use page-level horizontal scroll as before. */
+    .table-scroll {
+        overflow-x: auto;
+        overflow-y: visible;
+    }
+
+    .pager {
+        flex-wrap: wrap;
+    }
+
+    .pager > button {
+        min-width: 36px;
+        min-height: 36px;
+        padding: 4px 10px;
+        font-size: 16px;
+    }
+
+    .pager-jump {
+        font-size: 16px;
+        min-height: 36px;
+        padding: 4px 8px;
+        width: 8ch;
+    }
+
+    td.table-actions {
+        position: sticky;
+        right: 0;
+        background: var(--bg-section-active);
+        border-left: 2px solid var(--border-table);
+        z-index: 1;
+    }
+
+    td.table-actions button {
+        min-width: 36px;
+        min-height: 36px;
+        font-size: 16px;
+        padding: 4px 8px;
+    }
 }
 
 .config-area-note {
