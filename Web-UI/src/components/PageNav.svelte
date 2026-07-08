@@ -21,6 +21,7 @@ import Table from './PageTypes/Table.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
 import MiniApp from './PageTypes/MiniApp.svelte'
+import VersatileCalculator from './PageTypes/VersatileCalculator.svelte'
 import { format } from 'date-fns'
 import { eventStore } from '../stores.js'
 import { onDestroy } from 'svelte'
@@ -437,6 +438,13 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                                     pageHistoryItemViewPageContent
                                 }
                             ></MiniApp>
+                        {/if}
+                        {#if activePage.type === 'VersatileCalculator'}
+                            <VersatileCalculator
+                                bind:pageContentOverride={
+                                    pageHistoryItemViewPageContent
+                                }
+                            ></VersatileCalculator>
                         {/if}
                     </div>
                 {/if}

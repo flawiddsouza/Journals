@@ -9,6 +9,7 @@ import PageGroup from './PageTypes/PageGroup.svelte'
 import Favorites from './PageTypes/Favorites.svelte'
 import Kanban from './PageTypes/Kanban.svelte'
 import MiniApp from './PageTypes/MiniApp.svelte'
+import VersatileCalculator from './PageTypes/VersatileCalculator.svelte'
 import { format } from 'date-fns'
 import defaultKeydownHandlerForContentEditableArea from '../helpers/defaultKeydownHandlerForContentEditableArea.js'
 
@@ -154,6 +155,15 @@ function makeContentEditableSingleLine(e) {
                     bind:viewOnly={viewOnlyComputed}
                 ></MiniApp>
             {/if}
+            {#if activePage.type === 'VersatileCalculator'}
+                <VersatileCalculator
+                    bind:pageId={activePage.id}
+                    style="font-size: {activePage.font_size ||
+                        '14'}{activePage.font_size_unit ||
+                        'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                    bind:viewOnly={viewOnlyComputed}
+                ></VersatileCalculator>
+            {/if}
         </div>
     {/if}
     {#if activePage.locked === true}
@@ -180,14 +190,16 @@ h1.journal-page-title {
 :global(.PageType-Spreadsheet) .page-title-wrapper,
 :global(.PageType-DrawIO) .page-title-wrapper,
 :global(.PageType-MiniApp) .page-title-wrapper,
-:global(.PageType-Kanban) .page-title-wrapper {
+:global(.PageType-Kanban) .page-title-wrapper,
+:global(.PageType-VersatileCalculator) .page-title-wrapper {
     padding: 0.5rem;
 }
 
 :global(.PageType-Spreadsheet .journal-page-entries),
 :global(.PageType-DrawIO .journal-page-entries),
 :global(.PageType-MiniApp .journal-page-entries),
-:global(.PageType-Kanban .journal-page-entries) {
+:global(.PageType-Kanban .journal-page-entries),
+:global(.PageType-VersatileCalculator .journal-page-entries) {
     margin-top: 0;
     margin-right: 0;
 }

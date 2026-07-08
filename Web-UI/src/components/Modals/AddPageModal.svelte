@@ -51,7 +51,7 @@ async function handleAddPage() {
         password_exists: false,
         locked: false,
         created_at: response.createdAt,
-        hide_title: ['DrawIO', 'Spreadsheet', 'MiniApp', 'Kanban'].includes(pageType),
+        hide_title: ['DrawIO', 'Spreadsheet', 'MiniApp', 'Kanban', 'VersatileCalculator'].includes(pageType),
     }
 
     if (addPageSettings.parentId) {
@@ -144,6 +144,7 @@ function handleAddPageInput(e) {
                 <option value="DrawIO">Draw.io</option>
                 <option value="Kanban">Kanban</option>
                 <option value="MiniApp">Mini App</option>
+                <option value="VersatileCalculator">Versatile Calculator</option>
                 {#if !pageGroupId}
                     <option value="PageGroup">Page Group</option>
                     <option value="Favorites">Favorites</option>
