@@ -1,9 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="golden">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Versatile Calculator</title>
+    <!-- Load the app's global stylesheet so specs exercise the real cascade
+         (Journals defines a global `.badge` rule that the component must survive). -->
+    <link rel="stylesheet" href="/global.css" />
     <style> body { font: 15px/1.5 system-ui, sans-serif; margin: 0; } #host { max-width: 720px; margin: 0 auto; padding: 24px; } h1 { font-size: 18px; margin: 0 0 16px; } </style>
   </head>
   <body>

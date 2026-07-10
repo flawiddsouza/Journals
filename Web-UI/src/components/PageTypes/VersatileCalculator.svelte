@@ -14,7 +14,8 @@ let loaded = false
 
 function parseContent(content) {
     try {
-        const parsed = typeof content === 'string' ? JSON.parse(content) : content
+        const parsed =
+            typeof content === 'string' ? JSON.parse(content) : content
         return normalizeSections(parsed ? parsed.sections : null)
     } catch (e) {
         return normalizeSections(null)

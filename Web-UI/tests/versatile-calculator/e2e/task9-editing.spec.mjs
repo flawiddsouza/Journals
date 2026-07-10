@@ -6,48 +6,48 @@ const textOf = (locator) => locator.evaluate((el) => el.textContent);
 
 test('Enter in the middle of a line splits it into two rows', async ({ page }) => {
   await page.goto(appUrl);
-  const rows = page.locator('.row');
+  const rows = page.locator('.vcalc-row');
   const before = await rows.count();
-  const first = rows.nth(0).locator('.line'); // "Dev sprint 2h"
+  const first = rows.nth(0).locator('.vcalc-line'); // "Dev sprint 2h"
   await first.click();
   await page.keyboard.press('Home');
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight'); // caret after "Dev"
   await page.keyboard.press('Enter');
   await expect(rows).toHaveCount(before + 1);
-  expect(await textOf(rows.nth(0).locator('.line'))).toBe('Dev');
-  expect(await textOf(rows.nth(1).locator('.line'))).toBe(' sprint 2h');
+  expect(await textOf(rows.nth(0).locator('.vcalc-line'))).toBe('Dev');
+  expect(await textOf(rows.nth(1).locator('.vcalc-line'))).toBe(' sprint 2h');
 });
 
 test('Enter at end of the last line appends a new empty row with the caret in it', async ({ page }) => {
   await page.goto(appUrl);
-  const rows = page.locator('.row');
+  const rows = page.locator('.vcalc-row');
   const before = await rows.count();
-  await rows.last().locator('.line').click();
+  await rows.last().locator('.vcalc-line').click();
   await page.keyboard.press('End');
   await page.keyboard.press('Enter');
   await expect(rows).toHaveCount(before + 1);
-  expect(await textOf(rows.last().locator('.line'))).toBe('');
+  expect(await textOf(rows.last().locator('.vcalc-line'))).toBe('');
   const activeIdx = await page.evaluate(() => document.activeElement?.parentElement?.dataset?.idx);
   expect(activeIdx).toBe(String(before)); // new last row index
 });
 
 test('Backspace at the start of a row merges it into the previous row', async ({ page }) => {
   await page.goto(appUrl);
-  const rows = page.locator('.row');
+  const rows = page.locator('.vcalc-row');
   const before = await rows.count();
-  const firstText = await textOf(rows.nth(0).locator('.line'));
-  const secondText = await textOf(rows.nth(1).locator('.line'));
-  const second = rows.nth(1).locator('.line');
+  const firstText = await textOf(rows.nth(0).locator('.vcalc-line'));
+  const secondText = await textOf(rows.nth(1).locator('.vcalc-line'));
+  const second = rows.nth(1).locator('.vcalc-line');
   await second.click();
   await page.keyboard.press('Home');
   await page.keyboard.press('Backspace');
   await expect(rows).toHaveCount(before - 1);
-  expect(await textOf(rows.nth(0).locator('.line'))).toBe(firstText + secondText);
+  expect(await textOf(rows.nth(0).locator('.vcalc-line'))).toBe(firstText + secondText);
 });
 
 test('ArrowDown moves the caret focus to the next row', async ({ page }) => {
   await page.goto(appUrl);
-  await page.locator('.row').nth(0).locator('.line').click();
+  await page.locator('.vcalc-row').nth(0).locator('.vcalc-line').click();
   await page.keyboard.press('ArrowDown');
   const idx = await page.evaluate(() => document.activeElement?.parentElement?.dataset?.idx);
   expect(idx).toBe('1');
@@ -55,9 +55,9 @@ test('ArrowDown moves the caret focus to the next row', async ({ page }) => {
 
 test('pasting multiple lines expands into multiple rows and totals update', async ({ page }) => {
   await page.goto(appUrl);
-  const rows = page.locator('.row');
+  const rows = page.locator('.vcalc-row');
   const before = await rows.count();
-  const target = rows.nth(0).locator('.line');
+  const target = rows.nth(0).locator('.vcalc-line');
   await target.click();
   await page.keyboard.press('End');
   await target.evaluate((el) => {
@@ -67,6 +67,6 @@ test('pasting multiple lines expands into multiple rows and totals update', asyn
   });
   // one existing row absorbs head+first pasted line, two more rows appended
   await expect(rows).toHaveCount(before + 2);
-  await expect(page.locator('.section .totals .tot.money b')).toHaveText('$4.00');
-  await expect(page.locator('.section .totals .tot.number b')).toHaveText('10');
+  await expect(page.locator('.vcalc-section .vcalc-totals .vcalc-tot.vcalc-money b')).toHaveText('$4.00');
+  await expect(page.locator('.vcalc-section .vcalc-totals .vcalc-tot.vcalc-number b')).toHaveText('10');
 });
