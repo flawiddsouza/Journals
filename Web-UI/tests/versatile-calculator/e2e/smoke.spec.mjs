@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-const appUrl = '/versatile-calc-test.html';
+const appUrl = '/tests/versatile-calculator/harness.html';
 
 test('page loads with the app title', async ({ page }) => {
   await page.goto(appUrl);

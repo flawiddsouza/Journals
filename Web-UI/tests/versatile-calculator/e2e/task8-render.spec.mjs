@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-const appUrl = '/versatile-calc-test.html';
+const appUrl = '/tests/versatile-calculator/harness.html';
 
 // Task 8: render editable rows with inline badges + live totals.
 // The controller seeds the four canonical lines (which sum to 5h).

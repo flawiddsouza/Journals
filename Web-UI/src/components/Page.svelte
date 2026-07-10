@@ -190,16 +190,14 @@ h1.journal-page-title {
 :global(.PageType-Spreadsheet) .page-title-wrapper,
 :global(.PageType-DrawIO) .page-title-wrapper,
 :global(.PageType-MiniApp) .page-title-wrapper,
-:global(.PageType-Kanban) .page-title-wrapper,
-:global(.PageType-VersatileCalculator) .page-title-wrapper {
+:global(.PageType-Kanban) .page-title-wrapper {
     padding: 0.5rem;
 }
 
 :global(.PageType-Spreadsheet .journal-page-entries),
 :global(.PageType-DrawIO .journal-page-entries),
 :global(.PageType-MiniApp .journal-page-entries),
-:global(.PageType-Kanban .journal-page-entries),
-:global(.PageType-VersatileCalculator .journal-page-entries) {
+:global(.PageType-Kanban .journal-page-entries) {
     margin-top: 0;
     margin-right: 0;
 }

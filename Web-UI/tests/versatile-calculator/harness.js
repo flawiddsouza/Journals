@@ -1,8 +1,8 @@
 // Test-only harness: mounts the real Core.svelte with localStorage persistence,
 // reproducing the original app's seed + legacy-migration behavior so the moved
 // Playwright specs pass unchanged. Not part of the shipped app.
-import Core from './components/PageTypes/VersatileCalculator/Core.svelte'
-import { SEED, normalizeSections } from './components/PageTypes/VersatileCalculator/state.js'
+import Core from '../../src/components/PageTypes/VersatileCalculator/Core.svelte'
+import { SEED, normalizeSections } from '../../src/components/PageTypes/VersatileCalculator/state.js'
 
 const SECTIONS_KEY = 'versatile-calc-sections'
 const LEGACY_KEY = 'versatile-calc'

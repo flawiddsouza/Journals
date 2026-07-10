@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-const appUrl = '/versatile-calc-test.html';
+const appUrl = '/tests/versatile-calculator/harness.html';
 const textOf = (locator) => locator.evaluate((el) => el.textContent);
 
 // Task 9: in-place editing — Enter split, Backspace merge, arrows, paste.

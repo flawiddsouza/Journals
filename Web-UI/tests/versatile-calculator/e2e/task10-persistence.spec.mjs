@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-const appUrl = '/versatile-calc-test.html';
+const appUrl = '/tests/versatile-calculator/harness.html';
 
 // Task 10: localStorage persistence + seed on a fresh start.
 // Each Playwright test gets an isolated browser context (empty storage).

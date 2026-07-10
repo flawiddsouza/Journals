@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-const appUrl = '/versatile-calc-test.html';
+const appUrl = '/tests/versatile-calculator/harness.html';
 
 test('Add section creates a new empty section with the caret in it', async ({ page }) => {
   await page.goto(appUrl);

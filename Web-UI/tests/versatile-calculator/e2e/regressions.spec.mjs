@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const appUrl = '/versatile-calc-test.html';
+const appUrl = '/tests/versatile-calculator/harness.html';
 
 // The harness loads the app's global.css, so these specs catch cascade and
 // positioning bugs that only appear once the component is embedded in Journals.
