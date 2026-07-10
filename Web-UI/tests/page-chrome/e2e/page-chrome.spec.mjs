@@ -17,6 +17,11 @@ import { test, expect } from '@playwright/test';
 // styles, so the whole cascade -- Frame.svelte's global rules included -- is
 // under test.
 
+// This harness imports Frame.svelte, and so the app's entire module graph. Vite's first
+// transform of it is much slower than the calculator harness's, and one run has flaked
+// against the default 30s test timeout. Subsequent tests hit a warm dev server.
+test.describe.configure({ timeout: 60_000 });
+
 const chrome = async (page, type, hideTitle = false) => {
   await page.goto(`/tests/page-chrome/harness.html?type=${type}&hideTitle=${hideTitle ? 1 : 0}`);
   const main = page.locator('main.journal-page');

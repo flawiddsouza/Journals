@@ -1,3 +1,17 @@
+// A number with optional digit grouping, in either of the two groupings we emit: Indian
+// (2,41,421 -- a 3-digit tail, then pairs) or Western (241,421). Only fully formed
+// groupings count, so `eggs 1,2` still reads as 1 rather than 12, and the trailing
+// (?!\d) stops `10,2023` from being read as the group `10,202`. Non-capturing throughout:
+// parseMoney relies on its own group numbering.
+const NUMBER = String.raw`(?:\d{1,2}(?:,\d{2})+,\d{3}|\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?!\d)`;
+
+// Just the comma-bearing alternatives, for rewriting a grouped operand back to bare
+// digits before it reaches evalMath.
+const GROUPED_RE = new RegExp(String.raw`(?<![\w.])(?:\d{1,2}(?:,\d{2})+,\d{3}|\d{1,3}(?:,\d{3})+)(?!\d)`, 'g');
+function ungroup(text) {
+  return text.replace(GROUPED_RE, (m) => m.replace(/,/g, ''));
+}
+
 function formatMinutes(min) {
   min = Math.round(min);
   const sign = min < 0 ? '-' : '';
@@ -14,10 +28,12 @@ function parseTime(text) {
   let minutes = 0;
   let found = false;
 
-  const unit = /(?<![\w.])(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|minutes?|mins?|m)(?![\w])/gi;
+  // The ',' in the lookbehind matters: without it, `1,000m` starts matching at `000m`
+  // and reads as 0 minutes rather than 1000.
+  const unit = new RegExp(String.raw`(?<![\w.,])(${NUMBER})\s*(hours?|hrs?|h|minutes?|mins?|m)(?![\w])`, 'gi');
   let mt;
   while ((mt = unit.exec(text)) !== null) {
-    const n = parseFloat(mt[1]);
+    const n = parseFloat(mt[1].replace(/,/g, ''));
     const isHour = mt[2][0].toLowerCase() === 'h';
     minutes += isHour ? n * 60 : n;
     spans.push([mt.index, mt.index + mt[0].length]);
@@ -34,12 +50,14 @@ function parseTime(text) {
   return found ? { minutes, spans } : null;
 }
 
+const MONEY_RE = new RegExp(`([$€£₹])\\s*(${NUMBER})|(${NUMBER})\\s*([$€£₹])`, 'g');
+
 function parseMoney(text) {
   const spans = [];
   let amount = 0, currency = null, found = false;
-  const re = /([$€£₹])\s*(\d+(?:,\d{3})*(?:\.\d+)?)|(\d+(?:,\d{3})*(?:\.\d+)?)\s*([$€£₹])/g;
+  MONEY_RE.lastIndex = 0;   // shared /g regex: the loop drains it, but don't depend on that
   let m;
-  while ((m = re.exec(text)) !== null) {
+  while ((m = MONEY_RE.exec(text)) !== null) {
     const sym = m[1] || m[4];
     const num = parseFloat((m[2] || m[3]).replace(/,/g, ''));
     amount += num;
@@ -92,7 +110,9 @@ function evalMath(src) {
 }
 
 function parseMath(text) {
-  const t = text.trim();
+  // Rewrite grouped operands (1,000 -> 1000) first. Only well-formed groups are rewritten,
+  // so `1,2+3` keeps its comma, fails the character class below, and is not read as 12+3.
+  const t = ungroup(text.trim());
   if (t === '' || !/^[\d.+\-*/() ]+$/.test(t)) return null;
   if (!/[+\-*/]/.test(t.replace(/^\s*[+-]/, ''))) return null;   // need an operator (not just a leading unary sign)
   try {
@@ -104,11 +124,12 @@ function parseMath(text) {
   }
 }
 
+const NUMBER_RE = new RegExp(String.raw`(?<![\w.])[-+]?${NUMBER}(?![\w])`);
+
 function parseNumber(text) {
-  const re = /(?<![\w.])[-+]?\d+(?:\.\d+)?(?![\w])/;
-  const m = re.exec(text);
+  const m = NUMBER_RE.exec(text);
   if (!m) return null;
-  return { value: parseFloat(m[0]), spans: [[m.index, m.index + m[0].length]] };
+  return { value: parseFloat(m[0].replace(/,/g, '')), spans: [[m.index, m.index + m[0].length]] };
 }
 
 function stripSpans(text, spans) {
@@ -119,42 +140,106 @@ function stripSpans(text, spans) {
   return out.replace(/\s+/g, ' ').trim();
 }
 
-function formatMoney(amount, currency) {
-  return currency + amount.toFixed(2);
+// Digit grouping follows the locale -- an Indian locale gets lakh/crore grouping
+// (2,41,421), everyone else gets thousands (241,421). The separators themselves stay
+// ',' and '.' regardless: a locale like de-DE would print 241.421, which parseNumber
+// would then read back as a decimal. Badges have to survive being copied into a line.
+//
+// Both caches below memoize: parseLine runs for every line on every keystroke, and
+// Intl.Locale / Intl.NumberFormat are costly to construct.
+const groupings = new Map();
+function isIndian(tag) {
+  try {
+    const parsed = new Intl.Locale(tag);
+    return (parsed.region || parsed.maximize().region) === 'IN';
+  } catch {
+    return false;
+  }
 }
 
-function formatNumber(v) {
-  return String(Math.round(v * 1e6) / 1e6);
+// 'Asia/Calcutta' is the legacy identifier; Chromium still reports it.
+const INDIAN_TIME_ZONES = new Set(['Asia/Kolkata', 'Asia/Calcutta']);
+
+// Language alone is not enough to spot an Indian reader: an en-US browser is
+// commonplace in India, and it carries no region at all. Fall back to the clock, which
+// is the one signal that does place the machine.
+let runtimeGrouping;
+function resolveRuntimeGrouping() {
+  if (runtimeGrouping) return runtimeGrouping;
+  // Off the browser (the parser's unit tests) there is no reader to detect, and picking up
+  // the host's time zone would make those tests depend on where they run.
+  if (typeof window === 'undefined') return (runtimeGrouping = 'en-US');
+  const tags = (typeof navigator !== 'undefined' && (navigator.languages || [navigator.language])) || [];
+  let zone;
+  try {
+    zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    zone = undefined;
+  }
+  runtimeGrouping = tags.some(isIndian) || INDIAN_TIME_ZONES.has(zone) ? 'en-IN' : 'en-US';
+  return runtimeGrouping;
 }
 
-function parseLine(raw) {
+function resolveGrouping(locale) {
+  // An explicit tag is a caller's decision -- honour it and ignore the environment.
+  if (!locale) return resolveRuntimeGrouping();
+  let grouping = groupings.get(locale);
+  if (grouping === undefined) {
+    grouping = isIndian(locale) ? 'en-IN' : 'en-US';
+    groupings.set(locale, grouping);
+  }
+  return grouping;
+}
+
+const formatters = new Map();
+function formatter(locale, minFraction, maxFraction) {
+  const grouping = resolveGrouping(locale);
+  const key = `${grouping}|${minFraction}|${maxFraction}`;
+  let f = formatters.get(key);
+  if (!f) {
+    f = new Intl.NumberFormat(grouping, { minimumFractionDigits: minFraction, maximumFractionDigits: maxFraction });
+    formatters.set(key, f);
+  }
+  return f;
+}
+
+function formatMoney(amount, currency, locale) {
+  return currency + formatter(locale, 2, 2).format(amount);
+}
+
+function formatNumber(v, locale) {
+  // Intl renders -0 as '-0'; the old String(Math.round(...)) rendered it as '0'.
+  return formatter(locale, 0, 6).format(Object.is(v, -0) ? 0 : v);
+}
+
+function parseLine(raw, locale) {
   if (raw.trim() === '') return { type: 'text', raw, label: '', value: 0, display: '' };
   let r;
-  if ((r = parseMoney(raw)))  return { type: 'money',  raw, label: stripSpans(raw, r.spans), value: r.amount,  display: formatMoney(r.amount, r.currency), currency: r.currency };
+  if ((r = parseMoney(raw)))  return { type: 'money',  raw, label: stripSpans(raw, r.spans), value: r.amount,  display: formatMoney(r.amount, r.currency, locale), currency: r.currency };
   if ((r = parseTime(raw)))   return { type: 'time',   raw, label: stripSpans(raw, r.spans), value: r.minutes, display: formatMinutes(r.minutes) };
-  if ((r = parseMath(raw)))   return { type: 'number', raw, label: stripSpans(raw, r.spans), value: r.value,   display: formatNumber(r.value) };
-  if ((r = parseNumber(raw))) return { type: 'number', raw, label: stripSpans(raw, r.spans), value: r.value,   display: formatNumber(r.value) };
+  if ((r = parseMath(raw)))   return { type: 'number', raw, label: stripSpans(raw, r.spans), value: r.value,   display: formatNumber(r.value, locale) };
+  if ((r = parseNumber(raw))) return { type: 'number', raw, label: stripSpans(raw, r.spans), value: r.value,   display: formatNumber(r.value, locale) };
   return { type: 'text', raw, label: raw.trim(), value: 0, display: '' };
 }
 
-function computeTotals(lines) {
+function computeTotals(lines, locale) {
   let timeMin = 0, hasTime = false;
   let numberSum = 0, hasNumber = false;
   const money = new Map();
   let count = 0;
   for (const raw of lines) {
-    const p = parseLine(raw);
+    const p = parseLine(raw, locale);
     if (p.type === 'text') continue;
     count++;
     if (p.type === 'time') { timeMin += p.value; hasTime = true; }
     else if (p.type === 'number') { numberSum += p.value; hasNumber = true; }
     else if (p.type === 'money') { money.set(p.currency, (money.get(p.currency) || 0) + p.value); }
   }
-  const moneyStr = money.size ? [...money].map(([c, a]) => formatMoney(a, c)).join(' ') : null;
+  const moneyStr = money.size ? [...money].map(([c, a]) => formatMoney(a, c, locale)).join(' ') : null;
   return {
     time: hasTime ? formatMinutes(timeMin) : null,
     money: moneyStr,
-    numbers: hasNumber ? formatNumber(numberSum) : null,
+    numbers: hasNumber ? formatNumber(numberSum, locale) : null,
     count,
   };
 }
