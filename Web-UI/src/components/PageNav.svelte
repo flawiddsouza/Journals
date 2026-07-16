@@ -15,7 +15,8 @@ let tableStatsEditMode = false
 let tableConfigureMode = false
 import Modal from './Modal.svelte'
 import Portal from './Portal.svelte'
-import FlatPage from './PageTypes/FlatPage.svelte'
+import FlatPageHistoryPreview from './FlatPageHistoryPreview.svelte'
+import { createPageHistoryContentLoader } from '../helpers/pageHistoryContentLoader.js'
 import FlatPageV2 from './PageTypes/FlatPageV2.svelte'
 import Table from './PageTypes/Table.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
@@ -36,6 +37,9 @@ let pageStyles = {}
 
 let activePageHistoryItem = null
 let pageHistoryItemViewPageContent = null
+let pageHistoryItemViewPageContentOlder = ''
+let pageHistoryItemViewLoading = false
+let pageHistoryItemViewError = false
 let lastActivePageId = null
 
 const unsubEventStore = eventStore.subscribe((event) => {
@@ -44,6 +48,11 @@ const unsubEventStore = eventStore.subscribe((event) => {
     }
 })
 onDestroy(unsubEventStore)
+
+const pageHistoryContentLoader = createPageHistoryContentLoader((id) =>
+    fetchPlus.get(`/page-history/content/${id}`),
+)
+onDestroy(() => pageHistoryContentLoader.cancel())
 
 $: if (showPageHistoryModal && activePage) {
     fetchPlus.get(`/page-history/${activePage.id}`).then((response) => {
@@ -61,13 +70,28 @@ $: if (showPageUploadsModal && activePage) {
     fetchPageUploads(activePage)
 }
 
-function viewPageHistoryItem(pageHistoryItem) {
+async function viewPageHistoryItem(pageHistoryItem) {
     activePageHistoryItem = pageHistoryItem
-    fetchPlus
-        .get(`/page-history/content/${pageHistoryItem.id}`)
-        .then((response) => {
-            pageHistoryItemViewPageContent = response.content
-        })
+    pageHistoryItemViewPageContent = null
+    pageHistoryItemViewPageContentOlder = ''
+    pageHistoryItemViewLoading = true
+    pageHistoryItemViewError = false
+
+    try {
+        const result = await pageHistoryContentLoader.load(
+            pageHistory,
+            pageHistoryItem,
+            activePage.type === 'FlatPage',
+        )
+        if (!result) return
+
+        pageHistoryItemViewPageContent = result.pageContent
+        pageHistoryItemViewPageContentOlder = result.pageContentOlder
+        pageHistoryItemViewLoading = false
+    } catch {
+        pageHistoryItemViewError = true
+        pageHistoryItemViewLoading = false
+    }
 }
 
 function restorePageHistoryItem(pageHistoryItemId) {
@@ -397,11 +421,24 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                 {#if activePageHistoryItem}
                     <div class="page-history-content oy-a">
                         {#if activePage.type === 'FlatPage'}
-                            <FlatPage
-                                bind:pageContentOverride={
-                                    pageHistoryItemViewPageContent
-                                }
-                            ></FlatPage>
+                            {#if pageHistoryItemViewLoading}
+                                <div class="page-history-message">
+                                    Loading history...
+                                </div>
+                            {:else if pageHistoryItemViewError}
+                                <div class="page-history-message">
+                                    Could not load this history item.
+                                </div>
+                            {:else}
+                                <FlatPageHistoryPreview
+                                    pageContent={pageHistoryItemViewPageContent}
+                                    pageContentOlder={pageHistoryItemViewPageContentOlder}
+                                    style="font-size: {activePage.font_size ||
+                                        '14'}{activePage.font_size_unit ||
+                                        'px'}; font-family: {activePage.font ||
+                                        'Ubuntu'}"
+                                />
+                            {/if}
                         {/if}
                         {#if activePage.type === 'FlatPageV2'}
                             <FlatPageV2
@@ -643,8 +680,6 @@ a.special {
 
     .page-history-container .page-history-sidebar {
         height: 85vh;
-        min-width: 400px;
-        max-width: 500px;
     }
 
     .page-history-content {

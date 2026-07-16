@@ -8,7 +8,7 @@ def update_page_content_with_history(db, page_id : Int64, auth_id : Int64, new_c
   if existing_content && existing_content != new_content
     db.exec "INSERT INTO page_history(page_id, user_id, content, pinned) VALUES(?, ?, ?, 0)", page_id, auth_id, existing_content
     # Prune only non-pinned entries while preserving pinned history
-    db.exec "DELETE FROM page_history WHERE page_id = ? AND user_id = ? AND pinned = 0 AND id NOT IN (\n      SELECT id FROM page_history WHERE page_id = ? AND user_id = ? AND pinned = 0\n      ORDER BY created_at DESC\n      LIMIT 100\n    )", page_id, auth_id, page_id, auth_id
+    db.exec "DELETE FROM page_history WHERE page_id = ? AND user_id = ? AND pinned = 0 AND id NOT IN (\n      SELECT id FROM page_history WHERE page_id = ? AND user_id = ? AND pinned = 0\n      ORDER BY #{PAGE_HISTORY_ORDER_NEWEST_FIRST}\n      LIMIT 100\n    )", page_id, auth_id, page_id, auth_id
   end
   db.exec "UPDATE pages SET content=?, updated_at=CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?", new_content, page_id, auth_id
 end

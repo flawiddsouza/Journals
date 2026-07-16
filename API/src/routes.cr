@@ -600,7 +600,7 @@ put "/pages/:page_id" do |env|
   # Keep pinned entries regardless of age; only prune non-pinned entries to keep latest 100 non-pinned
   db.exec "DELETE FROM page_history WHERE page_id = ? AND user_id = ? AND pinned = 0 AND id NOT IN (
     SELECT id FROM page_history WHERE page_id = ? AND user_id = ? AND pinned = 0
-    ORDER BY created_at DESC
+    ORDER BY #{PAGE_HISTORY_ORDER_NEWEST_FIRST}
     LIMIT 100
   )", page_id, env.auth_id, page_id, env.auth_id
   # end of save page history
@@ -942,7 +942,7 @@ end
 get "/page-history/:page_id" do |env|
   page_id = env.params.url["page_id"]
 
-  page_history = db.query_all("SELECT id, created_at, pinned FROM page_history WHERE page_id = ? AND user_id = ? ORDER BY created_at DESC", page_id, env.auth_id, as: {
+  page_history = db.query_all("SELECT id, created_at, pinned FROM page_history WHERE page_id = ? AND user_id = ? ORDER BY #{PAGE_HISTORY_ORDER_NEWEST_FIRST}", page_id, env.auth_id, as: {
     id:   Int64,
     created_at: String,
     pinned: Int64 | Nil

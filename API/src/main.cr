@@ -52,6 +52,9 @@ add_handler AuthHandler.new
 # cache helpers
 require "./cache_helpers"
 
+# shared page-history ordering
+require "./page_history_order"
+
 # routes
 require "./routes"
 

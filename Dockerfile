@@ -13,7 +13,7 @@ COPY API ./
 RUN crystal build --static --release src/main.cr -o journalsApp
 
 
-FROM node:18-slim as ui-build
+FROM node:24-slim as ui-build
 WORKDIR /app
 
 # Project dependencies Web-UI

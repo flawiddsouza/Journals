@@ -13,7 +13,7 @@ $: if (pageContentOverride !== undefined) {
 $: fetchPage(pageId)
 
 import fetchPlus from '../../helpers/fetchPlus.js'
-let pageContainer
+export let pageContainer = null
 
 import { tick } from 'svelte'
 
@@ -324,7 +324,9 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
         ></div>
     {/if}
 {:else}
-    <div class="page-container view-only" {style}>{@html pageContent}</div>
+    <div class="page-container view-only" bind:this={pageContainer} {style}>
+        {@html pageContent}
+    </div>
 {/if}
 
 {#if showInsertFileModal}

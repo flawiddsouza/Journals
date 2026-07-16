@@ -1,0 +1,1 @@
+PAGE_HISTORY_ORDER_NEWEST_FIRST = "created_at DESC, id DESC"

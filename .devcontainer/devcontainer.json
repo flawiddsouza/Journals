@@ -6,7 +6,7 @@
         "dockerfile": "Dockerfile",
         "args": {
             "CRYSTAL_IMAGE_TAG": "1.9",
-            "NODE_IMAGE_TAG": "18-slim"
+			"NODE_IMAGE_TAG": "24-slim"
         }
     },
     "remoteUser": "vscode",
