@@ -17,7 +17,6 @@ import Modal from './Modal.svelte'
 import Portal from './Portal.svelte'
 import FlatPageHistoryPreview from './FlatPageHistoryPreview.svelte'
 import { createPageHistoryContentLoader } from '../helpers/pageHistoryContentLoader.js'
-import FlatPageV2 from './PageTypes/FlatPageV2.svelte'
 import Table from './PageTypes/Table.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
@@ -81,7 +80,8 @@ async function viewPageHistoryItem(pageHistoryItem) {
         const result = await pageHistoryContentLoader.load(
             pageHistory,
             pageHistoryItem,
-            activePage.type === 'FlatPage',
+            activePage.type === 'FlatPage' ||
+                activePage.type === 'FlatPageV2',
         )
         if (!result) return
 
@@ -420,7 +420,7 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                 </div>
                 {#if activePageHistoryItem}
                     <div class="page-history-content oy-a">
-                        {#if activePage.type === 'FlatPage'}
+                        {#if activePage.type === 'FlatPage' || activePage.type === 'FlatPageV2'}
                             {#if pageHistoryItemViewLoading}
                                 <div class="page-history-message">
                                     Loading history...
@@ -433,18 +433,13 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                                 <FlatPageHistoryPreview
                                     pageContent={pageHistoryItemViewPageContent}
                                     pageContentOlder={pageHistoryItemViewPageContentOlder}
+                                    pageType={activePage.type}
                                     style="font-size: {activePage.font_size ||
                                         '14'}{activePage.font_size_unit ||
                                         'px'}; font-family: {activePage.font ||
                                         'Ubuntu'}"
                                 />
                             {/if}
-                        {/if}
-                        {#if activePage.type === 'FlatPageV2'}
-                            <FlatPageV2
-                                viewOnly={true}
-                                pageContentOverride={pageHistoryItemViewPageContent ? JSON.parse(pageHistoryItemViewPageContent) : undefined}
-                            ></FlatPageV2>
                         {/if}
                         {#if activePage.type === 'Table'}
                             <Table

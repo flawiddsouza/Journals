@@ -13,7 +13,7 @@ $: if (pageContentOverride !== undefined) {
 $: fetchPage(pageId)
 
 import fetchPlus from '../../helpers/fetchPlus.js'
-let pageContainer
+export let pageContainer = null
 
 let loaded = false
 
@@ -470,7 +470,7 @@ import { DOMSerializer, Fragment, Node, Slice } from '@tiptap/pm/model'
         ></div>
     {/if}
 {:else}
-    <div class="page-container view-only" {style}>
+    <div class="page-container view-only" bind:this={pageContainer} {style}>
         {@html pageContentParsed}
     </div>
 {/if}

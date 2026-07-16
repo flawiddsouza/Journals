@@ -1,13 +1,23 @@
 <script>
 import { tick } from 'svelte'
 import FlatPage from './PageTypes/FlatPage.svelte'
+import FlatPageV2 from './PageTypes/FlatPageV2.svelte'
 import { decorateFlatPageHistoryPreview } from '../helpers/flatPageHistoryPreview.js'
 
 export let pageContent = ''
 export let pageContentOlder = ''
+export let pageType = 'FlatPage'
 export let style = ''
 
 let pageContainer = null
+let pageContainerOlder = null
+
+$: pageContentV2 =
+    pageType === 'FlatPageV2' && pageContent ? JSON.parse(pageContent) : null
+$: pageContentOlderV2 =
+    pageType === 'FlatPageV2' && pageContentOlder
+        ? JSON.parse(pageContentOlder)
+        : null
 
 function focusFirstChange(pageContainerCurrent) {
     const changeMarker = pageContainerCurrent.querySelector(
@@ -16,11 +26,24 @@ function focusFirstChange(pageContainerCurrent) {
     changeMarker?.scrollIntoView({ block: 'center', inline: 'nearest' })
 }
 
-$: if (pageContainer) {
+$: if (
+    pageContainer &&
+    (pageType !== 'FlatPageV2' || pageContainerOlder)
+) {
     const pageContainerCurrent = pageContainer
-    const pageContentOlderCurrent = pageContentOlder ?? ''
+    const pageContainerOlderCurrent = pageContainerOlder
     tick().then(() => {
         if (pageContainer !== pageContainerCurrent) return
+        if (
+            pageType === 'FlatPageV2' &&
+            pageContainerOlder !== pageContainerOlderCurrent
+        ) {
+            return
+        }
+        const pageContentOlderCurrent =
+            pageType === 'FlatPageV2'
+                ? pageContainerOlderCurrent.innerHTML
+                : (pageContentOlder ?? '')
         decorateFlatPageHistoryPreview(
             pageContainerCurrent,
             pageContentOlderCurrent,
@@ -34,13 +57,30 @@ $: if (pageContainer) {
 </script>
 
 <div class="flat-page-history-preview">
-    {#key `${pageContent ?? ''}\u0000${pageContentOlder ?? ''}`}
-        <FlatPage
-            viewOnly={true}
-            pageContentOverride={pageContent ?? ''}
-            bind:pageContainer
-            {style}
-        />
+    {#key `${pageType}\u0000${pageContent ?? ''}\u0000${pageContentOlder ?? ''}`}
+        {#if pageType === 'FlatPageV2'}
+            <div class="flat-page-history-preview-older" aria-hidden="true">
+                <FlatPageV2
+                    viewOnly={true}
+                    pageContentOverride={pageContentOlderV2}
+                    bind:pageContainer={pageContainerOlder}
+                    {style}
+                />
+            </div>
+            <FlatPageV2
+                viewOnly={true}
+                pageContentOverride={pageContentV2}
+                bind:pageContainer
+                {style}
+            />
+        {:else}
+            <FlatPage
+                viewOnly={true}
+                pageContentOverride={pageContent ?? ''}
+                bind:pageContainer
+                {style}
+            />
+        {/if}
     {/key}
 </div>
 
@@ -48,6 +88,10 @@ $: if (pageContainer) {
 .flat-page-history-preview {
     height: 100%;
     word-break: break-word;
+}
+
+.flat-page-history-preview-older {
+    display: none;
 }
 
 :global(.flat-page-history-added-text) {

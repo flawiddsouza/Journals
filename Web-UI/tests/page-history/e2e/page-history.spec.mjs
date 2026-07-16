@@ -120,17 +120,57 @@ test('ignores a late response from an earlier selection', async ({ page }) => {
     await expect(preview).not.toContainText('newest')
 })
 
-test('FlatPage v2 keeps its existing full-snapshot preview', async ({
+test('FlatPage v2 highlights changes against the older snapshot', async ({
     page,
 }) => {
     await openHistory(page, '?type=FlatPageV2')
     await page.getByRole('button', { name: 'View' }).nth(0).click()
 
-    await expect(page.locator('.page-container.view-only')).toContainText(
-        'Snapshot newest',
+    const preview = page.locator('.flat-page-history-preview')
+    await expect(preview.locator('.flat-page-history-added-text')).toHaveText(
+        'newest',
     )
-    await expect(page.locator('.flat-page-history-preview')).toHaveCount(0)
+    await expect(preview.locator('.flat-page-history-removed-text')).toHaveText(
+        'middle',
+    )
+    expect(await page.evaluate(() => window.pageHistoryRequests)).toEqual(
+        expect.arrayContaining([
+            '/page-history/content/3',
+            '/page-history/content/2',
+        ]),
+    )
+})
+
+test('FlatPage v2 renders its oldest snapshot as new', async ({ page }) => {
+    await openHistory(page, '?type=FlatPageV2')
+    await page.getByRole('button', { name: 'View' }).nth(2).click()
+
+    const preview = page.locator('.flat-page-history-preview')
+    await expect(preview.locator('.flat-page-history-added-text')).toHaveText(
+        'Snapshot oldest',
+    )
     const requests = await page.evaluate(() => window.pageHistoryRequests)
-    expect(requests).toContain('/page-history/content/3')
-    expect(requests).not.toContain('/page-history/content/2')
+    expect(requests).toContain('/page-history/content/1')
+    expect(requests).not.toContain('/page-history/content/0')
+})
+
+test('FlatPage v2 ignores a late response from an earlier selection', async ({
+    page,
+}) => {
+    await openHistory(page, '?type=FlatPageV2')
+    await page.evaluate(() => {
+        window.pageHistoryContentDelays[3] = 200
+    })
+    await page.getByRole('button', { name: 'View' }).nth(0).click()
+    await page.getByRole('button', { name: 'View' }).nth(1).click()
+
+    const preview = page.locator('.flat-page-history-preview')
+    await expect(preview.locator('.flat-page-history-added-text')).toHaveText(
+        'middle',
+    )
+    await expect(preview.locator('.flat-page-history-removed-text')).toHaveText(
+        'oldest',
+    )
+    await page.waitForTimeout(250)
+    await expect(preview).not.toContainText('newest')
 })
