@@ -10,6 +10,7 @@ import Favorites from './PageTypes/Favorites.svelte'
 import Kanban from './PageTypes/Kanban.svelte'
 import MiniApp from './PageTypes/MiniApp.svelte'
 import VersatileCalculator from './PageTypes/VersatileCalculator.svelte'
+import TaskList from './PageTypes/TaskList.svelte'
 import { format } from 'date-fns'
 import defaultKeydownHandlerForContentEditableArea from '../helpers/defaultKeydownHandlerForContentEditableArea.js'
 
@@ -163,6 +164,15 @@ function makeContentEditableSingleLine(e) {
                         'px'}; font-family: {activePage.font || 'Ubuntu'}"
                     bind:viewOnly={viewOnlyComputed}
                 ></VersatileCalculator>
+            {/if}
+            {#if activePage.type === 'TaskList'}
+                <TaskList
+                    bind:pageId={activePage.id}
+                    style="font-size: {activePage.font_size ||
+                        '14'}{activePage.font_size_unit ||
+                        'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                    bind:viewOnly={viewOnlyComputed}
+                ></TaskList>
             {/if}
         </div>
     {/if}

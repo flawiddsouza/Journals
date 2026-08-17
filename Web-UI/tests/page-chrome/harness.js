@@ -14,6 +14,12 @@ import '../../src/components/Frame.svelte'
 const params = new URLSearchParams(location.search)
 const type = params.get('type') || 'FlatPage'
 const hideTitle = params.get('hideTitle') === '1'
+const theme = params.get('theme')
+const fontSize = params.get('fontSize')
+
+if (theme) {
+    document.documentElement.setAttribute('data-theme', theme)
+}
 
 // Serve every request an empty page body. Page types differ in how they parse it,
 // but all of them settle into a rendered (if empty) state, which is all the chrome
@@ -38,6 +44,8 @@ new Page({
             locked: false,
             view_only: false,
             hide_title: hideTitle,
+            font_size: fontSize,
+            font_size_unit: fontSize ? 'px' : undefined,
         },
     },
 })

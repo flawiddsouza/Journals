@@ -22,6 +22,7 @@ import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
 import MiniApp from './PageTypes/MiniApp.svelte'
 import VersatileCalculator from './PageTypes/VersatileCalculator.svelte'
+import TaskList from './PageTypes/TaskList.svelte'
 import { format } from 'date-fns'
 import { eventStore } from '../stores.js'
 import { onDestroy } from 'svelte'
@@ -80,8 +81,7 @@ async function viewPageHistoryItem(pageHistoryItem) {
         const result = await pageHistoryContentLoader.load(
             pageHistory,
             pageHistoryItem,
-            activePage.type === 'FlatPage' ||
-                activePage.type === 'FlatPageV2',
+            activePage.type === 'FlatPage' || activePage.type === 'FlatPageV2',
         )
         if (!result) return
 
@@ -191,6 +191,19 @@ async function exportPage() {
         html = document.querySelector('.editable-table').outerHTML
     }
 
+    if (activePage.type === 'TaskList') {
+        const taskList = document.querySelector(
+            '.task-list-editor .ProseMirror',
+        )
+        const taskListCopy = taskList.cloneNode(true)
+
+        taskListCopy.querySelectorAll('.task-list-item').forEach((item) => {
+            const checkbox = item.querySelector('input[type="checkbox"]')
+            checkbox.toggleAttribute('checked', item.dataset.checked === 'true')
+        })
+        html = taskListCopy.innerHTML
+    }
+
     let parsedHtml = htmlParser.parseFromString(html, 'text/html')
 
     // convert all img url srcs to base64 srcs
@@ -239,6 +252,41 @@ async function exportPage() {
                 padding-left: 1rem;
                 margin: 0;
             }
+
+            .task-list-items {
+                padding-left: 0;
+                list-style: none;
+            }
+
+            .task-list-items .task-list-items {
+                margin-left: 0;
+                padding-left: 0.6rem;
+                border-left: 1px solid #ccc;
+            }
+
+            .task-list-item {
+                display: grid;
+                grid-template-columns: 1.65rem minmax(0, 1fr);
+                align-items: start;
+                padding: 0.2rem 0.28rem;
+            }
+
+            .task-list-item > label {
+                display: grid;
+                height: 1.55rem;
+                place-items: center;
+            }
+
+            .task-list-item p {
+                min-height: 1.55rem;
+                margin: 0;
+                line-height: 1.55;
+            }
+
+            .task-list-item[data-checked='true'] > div > p {
+                color: #777;
+                text-decoration: line-through;
+            }
             </style>
         </head>
         <body>
@@ -281,12 +329,18 @@ function toggleTableStats() {
         tableStatsEditMode = false
         eventStore.set({ event: 'tableStatsEditMode', data: { active: false } })
     }
-    eventStore.set({ event: 'tableStatsView', data: { active: tableStatsView } })
+    eventStore.set({
+        event: 'tableStatsView',
+        data: { active: tableStatsView },
+    })
 }
 
 function toggleTableStatsEdit() {
     tableStatsEditMode = !tableStatsEditMode
-    eventStore.set({ event: 'tableStatsEditMode', data: { active: tableStatsEditMode } })
+    eventStore.set({
+        event: 'tableStatsEditMode',
+        data: { active: tableStatsEditMode },
+    })
 }
 
 function configureMiniApp() {
@@ -342,7 +396,11 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
         {#if type === 'link'}
             <a {href} {target} class="special" class:active>{text}</a>
         {:else}
-            <a {href} on:click|preventDefault|stopPropagation={onClick} class:active>{text}</a>
+            <a
+                {href}
+                on:click|preventDefault|stopPropagation={onClick}
+                class:active>{text}</a
+            >
         {/if}
     {/each}
 </span>
@@ -478,6 +536,14 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                                 }
                             ></VersatileCalculator>
                         {/if}
+                        {#if activePage.type === 'TaskList'}
+                            <TaskList
+                                bind:pageContentOverride={
+                                    pageHistoryItemViewPageContent
+                                }
+                                viewOnly={true}
+                            ></TaskList>
+                        {/if}
                     </div>
                 {/if}
             </div>
@@ -497,7 +563,10 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                                     'DD-MM-YYYY hh:mm:ss A',
                                 )}
                                 {#if !pageUploadsItem.used}
-                                    <span style="margin-left: 0.5em; padding: 1px 5px; background: #f59e0b; color: white; border-radius: 3px; font-size: 0.75em;">Not Used</span>
+                                    <span
+                                        style="margin-left: 0.5em; padding: 1px 5px; background: #f59e0b; color: white; border-radius: 3px; font-size: 0.75em;"
+                                        >Not Used</span
+                                    >
                                 {/if}
                             </td>
                             <!-- show view if image, show download if file -->
