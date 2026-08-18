@@ -5,6 +5,7 @@ import FlatPageV2 from './PageTypes/FlatPageV2.svelte'
 import RichText from './PageTypes/RichText.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
+import Excalidraw from './PageTypes/Excalidraw.svelte'
 import PageGroup from './PageTypes/PageGroup.svelte'
 import Favorites from './PageTypes/Favorites.svelte'
 import Kanban from './PageTypes/Kanban.svelte'
@@ -127,6 +128,14 @@ function makeContentEditableSingleLine(e) {
                     bind:viewOnly={viewOnlyComputed}
                 ></DrawIO>
             {/if}
+            {#if activePage.type === 'Excalidraw'}
+                {#key activePage.id}
+                    <Excalidraw
+                        bind:pageId={activePage.id}
+                        bind:viewOnly={viewOnlyComputed}
+                    ></Excalidraw>
+                {/key}
+            {/if}
             {#if activePage.type === 'PageGroup'}
                 <PageGroup
                     {notebooks}
@@ -199,6 +208,7 @@ h1.journal-page-title {
 
 :global(.PageType-Spreadsheet) .page-title-wrapper,
 :global(.PageType-DrawIO) .page-title-wrapper,
+:global(.PageType-Excalidraw) .page-title-wrapper,
 :global(.PageType-MiniApp) .page-title-wrapper,
 :global(.PageType-Kanban) .page-title-wrapper {
     padding: 0.5rem;
@@ -206,6 +216,7 @@ h1.journal-page-title {
 
 :global(.PageType-Spreadsheet .journal-page-entries),
 :global(.PageType-DrawIO .journal-page-entries),
+:global(.PageType-Excalidraw .journal-page-entries),
 :global(.PageType-MiniApp .journal-page-entries),
 :global(.PageType-Kanban .journal-page-entries) {
     margin-top: 0;

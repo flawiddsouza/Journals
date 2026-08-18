@@ -1478,19 +1478,20 @@ function handleRecycleBinRestored() {
 
 :global(
     .journal-left-sidebar.open
-        + .journal-page:not(.PageType-RichText):not(.PageType-Spreadsheet):not(.PageType-DrawIO):not(.PageType-MiniApp):not(.PageType-Kanban)
+        + .journal-page:not(.PageType-RichText):not(.PageType-Spreadsheet):not(.PageType-DrawIO):not(.PageType-Excalidraw):not(.PageType-MiniApp):not(.PageType-Kanban)
 ) {
     padding-left: 2em;
 }
 
 :global(
-    .journal-left-sidebar:not(.open) + .journal-page:not(.PageType-RichText):not(.PageType-Spreadsheet):not(.PageType-DrawIO):not(.PageType-MiniApp):not(.PageType-Kanban)
+    .journal-left-sidebar:not(.open) + .journal-page:not(.PageType-RichText):not(.PageType-Spreadsheet):not(.PageType-DrawIO):not(.PageType-Excalidraw):not(.PageType-MiniApp):not(.PageType-Kanban)
 ) {
     padding-left: 2rem;
 }
 
 :global(.journal-page-container.PageType-Spreadsheet),
 :global(.journal-page-container.PageType-DrawIO),
+:global(.journal-page-container.PageType-Excalidraw),
 :global(.journal-page-container.PageType-MiniApp),
 :global(.journal-page-container.PageType-Kanban) {
     padding-top: 0;

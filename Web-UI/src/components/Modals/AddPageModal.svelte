@@ -90,6 +90,13 @@ const pageTypeGroups = [
                 description: 'Sketch diagrams, flows, maps, and visual ideas.',
             },
             {
+                value: 'Excalidraw',
+                name: 'Excalidraw',
+                icon: '✎',
+                description:
+                    'Sketch free-form diagrams on a hand-drawn canvas.',
+            },
+            {
                 value: 'MiniApp',
                 name: 'Mini App',
                 icon: '</>',
@@ -157,9 +164,13 @@ async function handleAddPage() {
         password_exists: false,
         locked: false,
         created_at: response.createdAt,
-        hide_title: ['DrawIO', 'Spreadsheet', 'MiniApp', 'Kanban'].includes(
-            pageType,
-        ),
+        hide_title: [
+            'DrawIO',
+            'Excalidraw',
+            'Spreadsheet',
+            'MiniApp',
+            'Kanban',
+        ].includes(pageType),
     }
 
     if (addPageSettings.parentId) {

@@ -32,6 +32,10 @@ export default defineConfig({
                     dest: 'libs/vue@3.x',
                     rename: 'vue.esm-browser.prod.js',
                 },
+                {
+                    src: 'node_modules/@excalidraw/excalidraw/dist/prod/fonts',
+                    dest: 'excalidraw',
+                },
             ],
         }),
     ],

@@ -115,7 +115,11 @@ class AuthHandler < Kemal::Handler
     # for some reason before_all is not called here :/
     CORSUtils.apply(env)
 
-    token = env.params.json["token"]?
+    token = begin
+      env.params.json["token"]?
+    rescue JSON::ParseException
+      nil
+    end
 
     if !token
       token = env.request.headers["Token"]?

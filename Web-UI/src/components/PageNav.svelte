@@ -20,6 +20,7 @@ import { createPageHistoryContentLoader } from '../helpers/pageHistoryContentLoa
 import Table from './PageTypes/Table.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
+import Excalidraw from './PageTypes/Excalidraw.svelte'
 import MiniApp from './PageTypes/MiniApp.svelte'
 import VersatileCalculator from './PageTypes/VersatileCalculator.svelte'
 import TaskList from './PageTypes/TaskList.svelte'
@@ -520,6 +521,16 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                                         pageHistoryItemViewPageContent
                                     }
                                 ></DrawIO>
+                            {/key}
+                        {/if}
+                        {#if activePage.type === 'Excalidraw'}
+                            {#key pageHistoryItemViewPageContent}
+                                <Excalidraw
+                                    bind:pageContentOverride={
+                                        pageHistoryItemViewPageContent
+                                    }
+                                    viewOnly={true}
+                                ></Excalidraw>
                             {/key}
                         {/if}
                         {#if activePage.type === 'MiniApp'}

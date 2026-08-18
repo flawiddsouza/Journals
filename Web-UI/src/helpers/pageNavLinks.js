@@ -29,7 +29,11 @@ export function generatePageLinks(activePage, {
         onClick: handlers.toggleBacklinks,
     })
 
-    if (activePage.type !== 'Spreadsheet' && activePage.type !== 'DrawIO') {
+    if (
+        activePage.type !== 'Spreadsheet' &&
+        activePage.type !== 'DrawIO' &&
+        activePage.type !== 'Excalidraw'
+    ) {
         links.push({
             href: '#view-page-styles',
             text: 'Styles',

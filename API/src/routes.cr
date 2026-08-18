@@ -2,6 +2,10 @@ get "/" do
   "Journals API"
 end
 
+def valid_user_setting_key?(setting_key : String) : Bool
+  setting_key.bytesize <= 100 && !!(setting_key =~ /\A[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*\z/)
+end
+
 get "/install" do
   db.exec "
     CREATE TABLE IF NOT EXISTS users (
@@ -371,6 +375,21 @@ get "/install" do
     user_version = 17
   end
 
+  if user_version == 17
+    db.exec "
+      CREATE TABLE IF NOT EXISTS user_settings (
+          user_id INTEGER NOT NULL,
+          setting_key TEXT NOT NULL,
+          setting_value TEXT NOT NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY(user_id, setting_key),
+          FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    "
+    db.exec "PRAGMA user_version = 18"
+    user_version = 18
+  end
+
   "Installation Complete!"
 end
 
@@ -439,7 +458,7 @@ post "/pages" do |env|
   page_name = env.params.json["pageName"].as(String)
   page_parent_id = env.params.json["pageParentId"].as(Int64 | Nil)
 
-  hide_title = ["DrawIO", "Spreadsheet", "MiniApp", "Kanban"].includes?(page_type) ? 1 : 0
+  hide_title = ["DrawIO", "Excalidraw", "Spreadsheet", "MiniApp", "Kanban"].includes?(page_type) ? 1 : 0
   result = db.exec "INSERT INTO pages(section_id, type, name, parent_id, user_id, hide_title) VALUES(?, ?, ?, ?, ?, ?)", section_id, page_type, page_name, page_parent_id, env.auth_id, hide_title
   log_activity(env.auth_id, "created_page")
 
@@ -729,6 +748,72 @@ get "/pages/content/:page_id" do |env|
 
   env.response.content_type = "application/json"
   page.to_json
+end
+
+get "/user-settings/:setting_key" do |env|
+  setting_key = env.params.url["setting_key"]
+  unless valid_user_setting_key?(setting_key)
+    env.response.content_type = "application/json"
+    env.response.status_code = 400
+    env.response << {error: "Invalid setting key"}.to_json
+    next
+  end
+
+  setting = db.query_one?(
+    "SELECT setting_value FROM user_settings WHERE user_id = ? AND setting_key = ?",
+    env.auth_id,
+    setting_key,
+    as: {setting_value: String}
+  )
+
+  env.response.content_type = "application/json"
+  setting ? setting["setting_value"] : "null"
+end
+
+put "/user-settings/:setting_key" do |env|
+  setting_key = env.params.url["setting_key"]
+  unless valid_user_setting_key?(setting_key)
+    env.response.content_type = "application/json"
+    env.response.status_code = 400
+    env.response << {error: "Invalid setting key"}.to_json
+    next
+  end
+
+  begin
+    setting_value = env.params.json["settingValue"]?
+    raise "Missing setting value" if setting_value.nil?
+  rescue
+    env.response.content_type = "application/json"
+    env.response.status_code = 400
+    env.response << {error: "Invalid setting value"}.to_json
+    next
+  end
+
+  db.exec "
+    INSERT INTO user_settings(user_id, setting_key, setting_value)
+    VALUES(?, ?, ?)
+    ON CONFLICT(user_id, setting_key) DO UPDATE SET
+      setting_value = excluded.setting_value,
+      updated_at = CURRENT_TIMESTAMP
+  ", env.auth_id, setting_key, setting_value.to_json
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
+end
+
+delete "/user-settings/:setting_key" do |env|
+  setting_key = env.params.url["setting_key"]
+  unless valid_user_setting_key?(setting_key)
+    env.response.content_type = "application/json"
+    env.response.status_code = 400
+    env.response << {error: "Invalid setting key"}.to_json
+    next
+  end
+
+  db.exec "DELETE FROM user_settings WHERE user_id = ? AND setting_key = ?", env.auth_id, setting_key
+
+  env.response.content_type = "application/json"
+  {success: true}.to_json
 end
 
 put "/pages/name/:page_id" do |env|

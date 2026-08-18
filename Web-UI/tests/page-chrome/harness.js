@@ -16,19 +16,102 @@ const type = params.get('type') || 'FlatPage'
 const hideTitle = params.get('hideTitle') === '1'
 const theme = params.get('theme')
 const fontSize = params.get('fontSize')
+const storageEnabled = params.get('storage') === '1'
+const storageKey = 'page-chrome-excalidraw-storage'
 
 if (theme) {
     document.documentElement.setAttribute('data-theme', theme)
 }
 
-// Serve every request an empty page body. Page types differ in how they parse it,
-// but all of them settle into a rendered (if empty) state, which is all the chrome
-// assertions need -- and it keeps the suite independent of a running API.
-window.fetch = async () =>
-    new Response(JSON.stringify({ content: '' }), {
+const jsonResponse = (value) =>
+    new Response(JSON.stringify(value), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
     })
+
+const nativeFetch = window.fetch.bind(window)
+
+function readStorage() {
+    return JSON.parse(sessionStorage.getItem(storageKey) || '{}')
+}
+
+function writeStorage(storage) {
+    sessionStorage.setItem(storageKey, JSON.stringify(storage))
+}
+
+window.getExcalidrawStorage = readStorage
+
+// Serve every request an empty page body by default. Storage mode exercises the
+// Excalidraw upload and retrieval contract without requiring a running API.
+window.fetch = async (input, options = {}) => {
+    const url = typeof input === 'string' ? input : input.url
+    if (url.startsWith('data:') || url.startsWith('blob:')) {
+        return nativeFetch(input, options)
+    }
+
+    if (url.startsWith('https://libraries.excalidraw.com/')) {
+        return nativeFetch(input, options)
+    }
+
+    const method = (options.method || 'GET').toUpperCase()
+    const storage = readStorage()
+
+    if (url.includes('/user-settings/excalidraw.library')) {
+        if (method === 'GET') {
+            return jsonResponse(
+                storageEnabled
+                    ? storage.libraryData || { libraryItems: [] }
+                    : { libraryItems: [] },
+            )
+        }
+
+        if (method === 'PUT') {
+            if (storageEnabled) {
+                storage.libraryData = JSON.parse(options.body).settingValue
+                storage.librarySaveCount = (storage.librarySaveCount || 0) + 1
+                writeStorage(storage)
+            }
+            return jsonResponse({ success: true })
+        }
+    }
+
+    if (!storageEnabled) return jsonResponse({ content: '' })
+
+    if (method === 'GET' && url.includes('/pages/content/')) {
+        return jsonResponse({ content: storage.pageContent || '' })
+    }
+
+    if (method === 'POST' && url.includes('/upload-image/')) {
+        const image = options.body.get('image')
+        storage.imageDataURL = await new Promise((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result)
+            reader.onerror = () => reject(reader.error)
+            reader.readAsDataURL(image)
+        })
+        storage.filename = 'stored-image.png'
+        storage.uploadCount = (storage.uploadCount || 0) + 1
+        writeStorage(storage)
+        return jsonResponse({
+            filename: storage.filename,
+            imageUrl: `uploads/images/${storage.filename}`,
+        })
+    }
+
+    if (method === 'PUT' && url.includes('/pages/')) {
+        storage.pageContent = JSON.parse(options.body).pageContent
+        writeStorage(storage)
+        return jsonResponse({ success: true })
+    }
+
+    if (method === 'GET' && url.includes('/uploads/images/')) {
+        storage.imageLoadCount = (storage.imageLoadCount || 0) + 1
+        writeStorage(storage)
+        return nativeFetch(storage.imageDataURL)
+    }
+
+    return jsonResponse({ content: '' })
+}
 
 new Page({
     target: document.getElementById('frame'),
