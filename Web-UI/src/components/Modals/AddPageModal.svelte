@@ -66,11 +66,11 @@ const pageTypeGroups = [
                     'Store structured records with columns, filters, and totals.',
             },
             {
-                value: 'Spreadsheet',
+                value: 'SpreadsheetV2',
                 name: 'Spreadsheet',
-                icon: '▤',
+                icon: '▦',
                 description:
-                    'Work in a familiar cell grid with spreadsheet controls.',
+                    'Build rich workbooks with formulas, formatting, and multiple sheets.',
             },
             {
                 value: 'Kanban',
@@ -168,6 +168,7 @@ async function handleAddPage() {
             'DrawIO',
             'Excalidraw',
             'Spreadsheet',
+            'SpreadsheetV2',
             'MiniApp',
             'Kanban',
         ].includes(pageType),

@@ -19,6 +19,7 @@ import FlatPageHistoryPreview from './FlatPageHistoryPreview.svelte'
 import { createPageHistoryContentLoader } from '../helpers/pageHistoryContentLoader.js'
 import Table from './PageTypes/Table.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
+import SpreadsheetV2 from './PageTypes/SpreadsheetV2.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
 import Excalidraw from './PageTypes/Excalidraw.svelte'
 import MiniApp from './PageTypes/MiniApp.svelte'
@@ -513,6 +514,16 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                                     pageHistoryItemViewPageContent
                                 }
                             ></Spreadsheet>
+                        {/if}
+                        {#if activePage.type === 'SpreadsheetV2'}
+                            {#key pageHistoryItemViewPageContent}
+                                <SpreadsheetV2
+                                    bind:pageContentOverride={
+                                        pageHistoryItemViewPageContent
+                                    }
+                                    viewOnly={true}
+                                ></SpreadsheetV2>
+                            {/key}
                         {/if}
                         {#if activePage.type === 'DrawIO'}
                             {#key pageHistoryItemViewPageContent}

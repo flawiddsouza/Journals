@@ -31,6 +31,7 @@ export function generatePageLinks(activePage, {
 
     if (
         activePage.type !== 'Spreadsheet' &&
+        activePage.type !== 'SpreadsheetV2' &&
         activePage.type !== 'DrawIO' &&
         activePage.type !== 'Excalidraw'
     ) {

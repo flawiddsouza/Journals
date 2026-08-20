@@ -4,6 +4,7 @@ import FlatPage from './PageTypes/FlatPage.svelte'
 import FlatPageV2 from './PageTypes/FlatPageV2.svelte'
 import RichText from './PageTypes/RichText.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
+import SpreadsheetV2 from './PageTypes/SpreadsheetV2.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
 import Excalidraw from './PageTypes/Excalidraw.svelte'
 import PageGroup from './PageTypes/PageGroup.svelte'
@@ -122,6 +123,14 @@ function makeContentEditableSingleLine(e) {
                     ></Spreadsheet>
                 {/key}
             {/if}
+            {#if activePage.type === 'SpreadsheetV2'}
+                {#key `${activePage.id}:${viewOnlyComputed}`}
+                    <SpreadsheetV2
+                        bind:pageId={activePage.id}
+                        bind:viewOnly={viewOnlyComputed}
+                    ></SpreadsheetV2>
+                {/key}
+            {/if}
             {#if activePage.type === 'DrawIO'}
                 <DrawIO
                     bind:pageId={activePage.id}
@@ -207,6 +216,7 @@ h1.journal-page-title {
 }
 
 :global(.PageType-Spreadsheet) .page-title-wrapper,
+:global(.PageType-SpreadsheetV2) .page-title-wrapper,
 :global(.PageType-DrawIO) .page-title-wrapper,
 :global(.PageType-Excalidraw) .page-title-wrapper,
 :global(.PageType-MiniApp) .page-title-wrapper,
@@ -215,6 +225,7 @@ h1.journal-page-title {
 }
 
 :global(.PageType-Spreadsheet .journal-page-entries),
+:global(.PageType-SpreadsheetV2 .journal-page-entries),
 :global(.PageType-DrawIO .journal-page-entries),
 :global(.PageType-Excalidraw .journal-page-entries),
 :global(.PageType-MiniApp .journal-page-entries),

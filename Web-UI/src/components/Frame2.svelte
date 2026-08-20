@@ -113,6 +113,7 @@ function setTheme(value) {
 }
 
 :global(.journal-page-container.PageType-Spreadsheet),
+:global(.journal-page-container.PageType-SpreadsheetV2),
 :global(.journal-page-container.PageType-DrawIO),
 :global(.journal-page-container.PageType-Excalidraw),
 :global(.journal-page-container.PageType-MiniApp),

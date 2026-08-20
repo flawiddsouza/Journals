@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 //
 //   * content pages (FlatPage, Table, ...) sit inside the app's chrome -- an
 //     editable title bar, and padding between the sidebar and the content.
-//   * embedded apps (Spreadsheet, DrawIO, Excalidraw, MiniApp, Kanban) run edge to edge:
+//   * embedded apps (Spreadsheet, SpreadsheetV2, DrawIO, Excalidraw, MiniApp, Kanban) run edge to edge:
 //     Page.svelte and Frame.svelte each keep a hardcoded list of them and zero
 //     out the surrounding padding/margins.
 //
@@ -68,7 +68,9 @@ test('VersatileCalculator wears the same chrome as the other content page types'
 test('embedded page types opt out of that chrome', async ({ page }) => {
   const kanban = await chrome(page, 'Kanban');
   const excalidraw = await chrome(page, 'Excalidraw');
+  const spreadsheetV2 = await chrome(page, 'SpreadsheetV2');
   expect(excalidraw).toEqual(kanban);
+  expect(spreadsheetV2).toEqual(kanban);
   expect(kanban).toEqual({
     titleRendered: true,
     titlePadding: '8px', // 0.5rem
@@ -78,6 +80,14 @@ test('embedded page types opt out of that chrome', async ({ page }) => {
     pagePaddingLeft: '0px',
     gridTracks: 2,
   });
+});
+
+test('Spreadsheet v2 mounts the Univer workbook interface', async ({ page }) => {
+  await page.goto('/tests/page-chrome/harness.html?type=SpreadsheetV2&hideTitle=1');
+
+  await expect(page.getByRole('tab', { name: 'Sheet1' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Start' })).toBeVisible();
+  await expect(page.locator('.spreadsheet-v2-error')).toHaveCount(0);
 });
 
 test('Excalidraw mounts inside its page canvas', async ({ page }) => {

@@ -458,7 +458,7 @@ post "/pages" do |env|
   page_name = env.params.json["pageName"].as(String)
   page_parent_id = env.params.json["pageParentId"].as(Int64 | Nil)
 
-  hide_title = ["DrawIO", "Excalidraw", "Spreadsheet", "MiniApp", "Kanban"].includes?(page_type) ? 1 : 0
+  hide_title = ["DrawIO", "Excalidraw", "Spreadsheet", "SpreadsheetV2", "MiniApp", "Kanban"].includes?(page_type) ? 1 : 0
   result = db.exec "INSERT INTO pages(section_id, type, name, parent_id, user_id, hide_title) VALUES(?, ?, ?, ?, ?, ?)", section_id, page_type, page_name, page_parent_id, env.auth_id, hide_title
   log_activity(env.auth_id, "created_page")
 
