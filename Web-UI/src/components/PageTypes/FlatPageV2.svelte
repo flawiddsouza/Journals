@@ -250,7 +250,17 @@ function pageContainerMounted(element) {
 
                 if (event.key === 'Tab') {
                     event.preventDefault()
-                    editor.commands.insertContent('    ')
+
+                    if (editor.isActive('listItem')) {
+                        if (event.shiftKey) {
+                            editor.commands.liftListItem('listItem')
+                        } else {
+                            editor.commands.sinkListItem('listItem')
+                        }
+                    } else {
+                        editor.commands.insertContent('    ')
+                    }
+
                     return true
                 }
 
@@ -511,7 +521,7 @@ import { DOMSerializer, Fragment, Node, Slice } from '@tiptap/pm/model'
     overflow: auto;
 }
 
-.page-container > :global(.ProseMirror :where(ul, ol)) {
+.page-container :global(:where(ul, ol)) {
     padding-left: 1rem;
     margin: 0;
 }

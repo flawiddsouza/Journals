@@ -1,13 +1,14 @@
 import { resolve } from 'path'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin, type UserConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { viteStaticCopy } from 'vite-plugin-static-copy'
+import type { TestUserConfig } from 'vitest/config'
 
-const pagePathRewriteMiddleware = {
+const pagePathRewriteMiddleware: Plugin = {
     name: 'rewrite-middleware',
     configureServer(serve) {
         serve.middlewares.use((req, res, next) => {
-            if (req.url.startsWith('/page/')) {
+            if (req.url?.startsWith('/page/')) {
                 req.url = '/page/'
             }
             next()
@@ -16,7 +17,7 @@ const pagePathRewriteMiddleware = {
 }
 
 // https://vitejs.dev/config/
-export default defineConfig({
+const config = {
     test: {
         environment: 'node',
         include: ['src/**/*.{test,spec}.{js,mjs,ts}'],
@@ -49,4 +50,6 @@ export default defineConfig({
         },
         outDir: 'public',
     },
-})
+} satisfies UserConfig & { test: TestUserConfig }
+
+export default defineConfig(config)
