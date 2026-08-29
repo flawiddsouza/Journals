@@ -9,6 +9,14 @@ async function createBulletItems(page) {
     return editor
 }
 
+async function createChecklistItem(page, text = 'First task') {
+    const editor = page.locator('.page-container .ProseMirror')
+    await editor.click()
+    await editor.type(text)
+    await editor.press('Control+Enter')
+    return editor
+}
+
 test('Tab nests bullet items and Shift+Tab outdents them', async ({ page }) => {
     await page.goto('/tests/flat-page-v2/harness.html')
     const editor = await createBulletItems(page)
@@ -68,4 +76,136 @@ test('view-only pages render nested bullets', async ({ page }) => {
     await expect(
         page.locator('.page-container.view-only ul ul > li'),
     ).toHaveText('Child')
+})
+
+test('Ctrl+Enter creates and toggles a checklist item', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html')
+    const editor = await createChecklistItem(page)
+    const taskItem = page.locator('.ProseMirror .task-list-item')
+    const checkbox = taskItem.locator('input[type="checkbox"]')
+
+    await expect(taskItem).toHaveText('First task')
+    await expect(checkbox).not.toBeChecked()
+
+    await editor.press('Control+Enter')
+    await expect(checkbox).toBeChecked()
+
+    await editor.press('Control+Enter')
+    await expect(checkbox).not.toBeChecked()
+})
+
+test('typing empty brackets starts a checklist item', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html')
+    const editor = page.locator('.page-container .ProseMirror')
+    await editor.click()
+
+    await editor.type('[] First task')
+
+    await expect(page.locator('.ProseMirror .task-list-item')).toHaveText(
+        'First task',
+    )
+})
+
+test('checklist items continue and nest with Enter and Tab', async ({
+    page,
+}) => {
+    await page.goto('/tests/flat-page-v2/harness.html')
+    const editor = await createChecklistItem(page, 'Parent task')
+
+    await editor.press('Enter')
+    await editor.type('Child task')
+    await editor.press('Tab')
+
+    const nestedItems = page.locator(
+        '.ProseMirror .task-list-items .task-list-items > .task-list-item',
+    )
+    await expect(nestedItems).toHaveText('Child task')
+
+    await editor.press('Shift+Tab')
+    await expect(nestedItems).toHaveCount(0)
+    await expect(
+        page.locator('.ProseMirror > .task-list-items > li'),
+    ).toHaveCount(2)
+})
+
+test('Tab nests across adjacent checklist blocks', async ({ page }) => {
+    await page.goto(
+        '/tests/flat-page-v2/harness.html?content=split-checklist',
+    )
+
+    const laterTask = page.getByText('Later task', { exact: true })
+    await laterTask.evaluate((element) => {
+        const editor = element.closest('[contenteditable="true"]')
+        const selection = window.getSelection()
+        const range = document.createRange()
+
+        editor.focus()
+        range.selectNodeContents(element)
+        range.collapse(false)
+        selection.removeAllRanges()
+        selection.addRange(range)
+    })
+    await page.keyboard.press('Tab')
+
+    const nestedItem = page.locator(
+        '.ProseMirror > .task-list-items .task-list-items > .task-list-item',
+    )
+    await expect(nestedItem).toHaveText('Later task')
+    await expect(
+        page.locator('.ProseMirror > .task-list-items'),
+    ).toHaveCount(1)
+})
+
+test('clicking a checkbox saves its checked state', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html')
+    await createChecklistItem(page)
+
+    await page.locator('.task-list-item input[type="checkbox"]').click()
+
+    await expect
+        .poll(async () => {
+            const pageContentSaved = await page.evaluate(() =>
+                window.flatPageV2Harness.getPageContentSaved(),
+            )
+            return pageContentSaved
+                ? JSON.parse(pageContentSaved).content[0].content[0].attrs
+                      .checked
+                : null
+        })
+        .toBe(true)
+})
+
+test('Enter on an empty checklist item returns to a paragraph', async ({
+    page,
+}) => {
+    await page.goto('/tests/flat-page-v2/harness.html')
+    const editor = await createChecklistItem(page)
+
+    await editor.press('Enter')
+    await editor.press('Enter')
+    await editor.type('Normal text')
+
+    await expect(
+        page.locator('.ProseMirror > .task-list-items > li'),
+    ).toHaveCount(1)
+    await expect(page.locator('.ProseMirror > div').last()).toHaveText(
+        'Normal text',
+    )
+})
+
+test('view-only checklist items keep their state and cannot be toggled', async ({
+    page,
+}) => {
+    await page.goto(
+        '/tests/flat-page-v2/harness.html?viewOnly=1&content=checklist',
+    )
+    const checkbox = page.locator(
+        '.page-container.view-only .task-list-item input[type="checkbox"]',
+    )
+
+    await expect(
+        page.getByText('Completed task', { exact: true }),
+    ).toBeVisible()
+    await expect(checkbox).toBeChecked()
+    await expect(checkbox).toBeDisabled()
 })

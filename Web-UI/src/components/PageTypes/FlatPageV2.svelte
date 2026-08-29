@@ -54,6 +54,8 @@ import { Editor, Node as TiptapNode, getSchema } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Paragraph from '@tiptap/extension-paragraph'
 import Image from '@tiptap/extension-image'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
 import { mergeAttributes } from '@tiptap/core'
 import PageLinkDropdown from '../PageLinkDropdown.svelte'
 
@@ -133,6 +135,11 @@ const extensions = [
     PageLink,
     ExternalLink,
     Image.configure({ inline: true, HTMLAttributes: { style: 'max-width: 100%' } }).extend({ atom: true, selectable: false }),
+    TaskList.configure({ HTMLAttributes: { class: 'task-list-items' } }),
+    TaskItem.configure({
+        nested: true,
+        HTMLAttributes: { class: 'task-list-item' },
+    }),
 ]
 
 const tiptapSchema = getSchema(extensions)
@@ -171,6 +178,24 @@ function insertPageLink(page) {
 
 let editor
 $: editorDom = editor?.view.dom
+
+function joinPreviousAdjacentTaskList() {
+    const { state, view } = editor
+    const { $from } = state.selection
+
+    for (let depth = $from.depth; depth > 0; depth -= 1) {
+        if ($from.node(depth).type.name !== 'taskList') continue
+        if ($from.index(depth) !== 0) return false
+
+        const joinPosition = $from.before(depth)
+        if (!canJoin(state.doc, joinPosition)) return false
+
+        view.dispatch(state.tr.join(joinPosition))
+        return true
+    }
+
+    return false
+}
 
 function pageContainerMounted(element) {
     pageContainer = element
@@ -248,14 +273,50 @@ function pageContainerMounted(element) {
                     return true
                 }
 
+                if (
+                    (event.ctrlKey || event.metaKey) &&
+                    !event.shiftKey &&
+                    !event.altKey &&
+                    event.key === 'Enter'
+                ) {
+                    event.preventDefault()
+
+                    if (editor.isActive('taskItem')) {
+                        const checked = editor.getAttributes('taskItem').checked
+                        editor.commands.updateAttributes('taskItem', {
+                            checked: !checked,
+                        })
+                    } else {
+                        editor.commands.toggleTaskList()
+                    }
+
+                    return true
+                }
+
                 if (event.key === 'Tab') {
                     event.preventDefault()
 
-                    if (editor.isActive('listItem')) {
+                    const listItemTypeActive = editor.isActive('taskItem')
+                        ? 'taskItem'
+                        : editor.isActive('listItem')
+                          ? 'listItem'
+                          : null
+
+                    if (listItemTypeActive) {
                         if (event.shiftKey) {
-                            editor.commands.liftListItem('listItem')
+                            editor.commands.liftListItem(listItemTypeActive)
                         } else {
-                            editor.commands.sinkListItem('listItem')
+                            const itemNested = editor.commands.sinkListItem(
+                                listItemTypeActive,
+                            )
+
+                            if (
+                                !itemNested &&
+                                listItemTypeActive === 'taskItem' &&
+                                joinPreviousAdjacentTaskList()
+                            ) {
+                                editor.commands.sinkListItem(listItemTypeActive)
+                            }
                         }
                     } else {
                         editor.commands.insertContent('    ')
@@ -453,7 +514,11 @@ function getPageContentHTML() {
 
     globalThis.generatedHTML = generatedHTML
 
-    return generatedHTML
+    container
+        .querySelectorAll('ul[data-type="taskList"] input[type="checkbox"]')
+        .forEach((checkbox) => checkbox.setAttribute('disabled', ''))
+
+    return container.innerHTML
 }
 
 $: pageContentParsed = pageContent ? getPageContentHTML() : ''
@@ -466,6 +531,7 @@ onDestroy(() => {
 
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
 import { DOMSerializer, Fragment, Node, Slice } from '@tiptap/pm/model'
+import { canJoin } from '@tiptap/pm/transform'
 </script>
 
 {#if pageContentOverride === undefined && viewOnly === false}
@@ -507,6 +573,14 @@ import { DOMSerializer, Fragment, Node, Slice } from '@tiptap/pm/model'
 
 <style>
 .page-container {
+    --task-accent: var(--color-pa-btn);
+    --task-control-column: 1.65em;
+    --task-control-center: 0.65em;
+    --task-control-width: 1.3em;
+    --task-guide-offset: calc(
+        var(--task-control-center) - var(--task-control-column)
+    );
+    --task-nesting-indent: 0.6em;
     height: 100%;
 }
 
@@ -524,6 +598,78 @@ import { DOMSerializer, Fragment, Node, Slice } from '@tiptap/pm/model'
 .page-container :global(:where(ul, ol)) {
     padding-left: 1rem;
     margin: 0;
+}
+
+.page-container :global(.task-list-items) {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.page-container :global(.task-list-items .task-list-items) {
+    position: relative;
+    margin-left: 0;
+    padding-left: var(--task-nesting-indent);
+}
+
+.page-container :global(.task-list-items .task-list-items::before) {
+    position: absolute;
+    top: 0.15em;
+    bottom: 0.2em;
+    left: var(--task-guide-offset);
+    width: 1px;
+    background: var(--border-topbar);
+    content: '';
+}
+
+.page-container :global(.task-list-item) {
+    display: grid;
+    grid-template-columns: var(--task-control-column) minmax(0, 1fr);
+    align-items: start;
+    margin: 0.06em 0;
+    padding: 0.2em 0.28em;
+    border-radius: 4px;
+}
+
+.page-container :global(.task-list-item:focus-within) {
+    background: var(--bg-pa-hover);
+}
+
+.page-container :global(.task-list-item > label) {
+    display: grid;
+    width: var(--task-control-width);
+    height: 1.55em;
+    place-items: center;
+}
+
+.page-container :global(.task-list-item > label input) {
+    width: 0.95em;
+    height: 0.95em;
+    margin: 0;
+    transform: translateY(0.0625em);
+    accent-color: var(--task-accent);
+    font: inherit;
+    cursor: pointer;
+}
+
+.page-container :global(.task-list-item > div) {
+    min-width: 0;
+}
+
+.page-container :global(.task-list-item > div > div:first-child) {
+    min-height: 1.55em;
+    line-height: 1.55;
+}
+
+.page-container
+    :global(.task-list-item[data-checked='true'] > div > div:first-child) {
+    color: var(--color-utility);
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+}
+
+.page-container.view-only :global(.task-list-item > label input) {
+    cursor: default;
 }
 
 :global(.page-link) {
