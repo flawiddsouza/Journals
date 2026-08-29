@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+    focusSpreadsheetV2CellEditor,
+    focusSpreadsheetV2Workbook,
     installUniverScrollRepaint,
     parseSpreadsheetV2ActiveSheetId,
     parseSpreadsheetV2Content,
@@ -9,6 +11,59 @@ import {
 } from './spreadsheetV2.js'
 
 describe('Spreadsheet v2 content', () => {
+    it('redraws the caret range after focusing a populated cell editor', () => {
+        const calls = []
+        const cellEditorRanges = [{ startOffset: 5, endOffset: 5 }]
+        const focused = focusSpreadsheetV2CellEditor({
+            cellEditorActivatedContextKey: 'editor-activated',
+            cellEditorUnitId: 'cell-editor',
+            univerContextService: {
+                getContextValue: (key) => key === 'editor-activated',
+            },
+            univerEditorService: {
+                getEditor: (unitId) => {
+                    calls.push(['getEditor', unitId])
+                    return {
+                        getSelectionRanges: () => cellEditorRanges,
+                        setSelectionRanges: (ranges) =>
+                            calls.push(['setSelectionRanges', ranges]),
+                    }
+                },
+            },
+            univerInstanceService: {
+                setCurrentUnitForType: (unitId) =>
+                    calls.push(['setCurrentUnitForType', unitId]),
+                focusUnit: (unitId) => calls.push(['focusUnit', unitId]),
+            },
+        })
+
+        expect(focused).toBe(true)
+        expect(calls).toEqual([
+            ['setCurrentUnitForType', 'cell-editor'],
+            ['focusUnit', 'cell-editor'],
+            ['getEditor', 'cell-editor'],
+            ['setSelectionRanges', cellEditorRanges],
+        ])
+    })
+
+    it('returns keyboard focus to the workbook after cell editing ends', () => {
+        const calls = []
+        const focused = focusSpreadsheetV2Workbook({
+            workbookUnitId: 'workbook-1',
+            univerInstanceService: {
+                setCurrentUnitForType: (unitId) =>
+                    calls.push(['setCurrentUnitForType', unitId]),
+                focusUnit: (unitId) => calls.push(['focusUnit', unitId]),
+            },
+        })
+
+        expect(focused).toBe(true)
+        expect(calls).toEqual([
+            ['setCurrentUnitForType', 'workbook-1'],
+            ['focusUnit', 'workbook-1'],
+        ])
+    })
+
     it('repaints after large scrollbar and wheel movement', async () => {
         let scrollHandler
         let frameId = 0

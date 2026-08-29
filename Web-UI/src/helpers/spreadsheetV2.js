@@ -1,5 +1,45 @@
 export const SPREADSHEET_V2_SCHEMA_VERSION = 1
 
+export function focusSpreadsheetV2CellEditor({
+    cellEditorActivatedContextKey,
+    cellEditorUnitId,
+    univerContextService,
+    univerEditorService,
+    univerInstanceService,
+}) {
+    if (
+        !univerContextService?.getContextValue(
+            cellEditorActivatedContextKey,
+        ) ||
+        !univerInstanceService ||
+        !cellEditorUnitId
+    )
+        return false
+
+    univerInstanceService.setCurrentUnitForType(cellEditorUnitId)
+    univerInstanceService.focusUnit(cellEditorUnitId)
+
+    const cellEditor = univerEditorService?.getEditor(cellEditorUnitId)
+    const cellEditorRanges = cellEditor?.getSelectionRanges()
+    if (cellEditorRanges?.length) {
+        cellEditor.setSelectionRanges(cellEditorRanges)
+    }
+
+    return true
+}
+
+export function focusSpreadsheetV2Workbook({
+    workbookUnitId,
+    univerInstanceService,
+}) {
+    if (!workbookUnitId || !univerInstanceService) return false
+
+    univerInstanceService.setCurrentUnitForType(workbookUnitId)
+    univerInstanceService.focusUnit(workbookUnitId)
+
+    return true
+}
+
 function disposeUniverListener(listener) {
     if (typeof listener?.dispose === 'function') listener.dispose()
     else listener?.unsubscribe?.()

@@ -90,6 +90,62 @@ test('Spreadsheet v2 mounts the Univer workbook interface', async ({ page }) => 
   await expect(page.locator('.spreadsheet-v2-error')).toHaveCount(0);
 });
 
+test('Spreadsheet v2 inserts a line break after reopening a populated cell', async ({ page }) => {
+  await page.goto(
+    '/tests/page-chrome/harness.html?type=SpreadsheetV2&hideTitle=1&storage=1',
+  );
+
+  await expect(page.getByRole('tab', { name: 'Sheet1' })).toBeVisible();
+
+  const sheetCanvas = page.locator(
+    '.spreadsheet-v2-editor canvas[id^="univer-sheet-main-canvas_"]',
+  );
+  await sheetCanvas.dblclick({ position: { x: 90, y: 80 } });
+  await page.keyboard.type('first');
+  await page.keyboard.press('Enter');
+
+  await expect
+    .poll(async () => {
+      const storage = await page.evaluate(() => window.getExcalidrawStorage());
+      if (!storage.pageContent) return null;
+
+      const content = JSON.parse(storage.pageContent);
+      const sheet = Object.values(content.workbook.sheets)[0];
+      return sheet.cellData?.[2]?.[0]?.v || null;
+    })
+    .toBe('first');
+
+  await sheetCanvas.dblclick({ position: { x: 90, y: 80 } });
+  await page.keyboard.press('Shift+Enter');
+  await page.keyboard.type('second');
+  await page.keyboard.press('Enter');
+
+  await expect
+    .poll(async () => {
+      const storage = await page.evaluate(() => window.getExcalidrawStorage());
+      if (!storage.pageContent) return null;
+
+      const content = JSON.parse(storage.pageContent);
+      const sheet = Object.values(content.workbook.sheets)[0];
+      return sheet.cellData?.[2]?.[0]?.p?.body?.dataStream || null;
+    })
+    .toBe('first\rsecond\r\n');
+
+  await page.keyboard.type('third');
+  await page.keyboard.press('Enter');
+
+  await expect
+    .poll(async () => {
+      const storage = await page.evaluate(() => window.getExcalidrawStorage());
+      if (!storage.pageContent) return null;
+
+      const content = JSON.parse(storage.pageContent);
+      const sheet = Object.values(content.workbook.sheets)[0];
+      return sheet.cellData?.[3]?.[0]?.v || null;
+    })
+    .toBe('third');
+});
+
 test('Excalidraw mounts inside its page canvas', async ({ page }) => {
   await page.goto('/tests/page-chrome/harness.html?type=Excalidraw&hideTitle=1');
   await expect(page.locator('.excalidraw-page .excalidraw')).toBeVisible();

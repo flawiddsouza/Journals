@@ -2,6 +2,8 @@
 import { onDestroy, onMount } from 'svelte'
 import fetchPlus from '../../helpers/fetchPlus.js'
 import {
+    focusSpreadsheetV2CellEditor,
+    focusSpreadsheetV2Workbook,
     installUniverScrollRepaint,
     parseSpreadsheetV2ActiveSheetId,
     parseSpreadsheetV2Content,
@@ -16,11 +18,16 @@ export let pageContentOverride = undefined
 let editorContainer
 let univer
 let univerAPI
+let univerContextService
+let univerEditorService
+let univerInstanceService
 let workbook
 let commandListener
 let viewStateListeners = []
 let scrollRepaintListener
 let themeObserver
+let cellEditorActivatedContextKey
+let cellEditorUnitId
 let saveTimer
 let saveQueue = Promise.resolve()
 let lastQueuedContent = ''
@@ -43,6 +50,28 @@ function applyTheme(themes) {
     const themeName =
         document.documentElement.getAttribute('data-theme') || 'golden'
     univerAPI?.setTheme(themes[themeMap[themeName]] || themes.greenTheme)
+}
+
+function focusCellEditorAfterDoubleClick(event) {
+    if (
+        viewOnly ||
+        pageContentOverride !== undefined ||
+        !(event.target instanceof HTMLCanvasElement) ||
+        !event.target.closest('[data-range-selector="true"]')
+    )
+        return
+
+    queueMicrotask(() => {
+        if (destroyed) return
+
+        focusSpreadsheetV2CellEditor({
+            cellEditorActivatedContextKey,
+            cellEditorUnitId,
+            univerContextService,
+            univerEditorService,
+            univerInstanceService,
+        })
+    })
 }
 
 function getSnapshotContent() {
@@ -251,8 +280,16 @@ async function startEditor() {
 
         if (destroyed) return
 
-        const { createUniver, LocaleType, mergeLocales } = presets
-        const { UniverSheetsCorePreset } = sheetsCore
+        const {
+            createUniver,
+            DOCS_NORMAL_EDITOR_UNIT_ID_KEY,
+            EDITOR_ACTIVATED,
+            IContextService,
+            IUniverInstanceService,
+            LocaleType,
+            mergeLocales,
+        } = presets
+        const { IEditorService, UniverSheetsCorePreset } = sheetsCore
 
         ;({ univer, univerAPI } = createUniver({
             locale: LocaleType.EN_US,
@@ -266,6 +303,12 @@ async function startEditor() {
                 }),
             ],
         }))
+        const univerInjector = univer.__getInjector()
+        univerContextService = univerInjector.get(IContextService)
+        univerEditorService = univerInjector.get(IEditorService)
+        univerInstanceService = univerInjector.get(IUniverInstanceService)
+        cellEditorActivatedContextKey = EDITOR_ACTIVATED
+        cellEditorUnitId = DOCS_NORMAL_EDITOR_UNIT_ID_KEY
 
         workbook = univerAPI.createWorkbook(
             workbookData || { name: 'Spreadsheet' },
@@ -318,6 +361,12 @@ async function startEditor() {
                     univerAPI.Event.SheetZoomChanged,
                     handleViewStateChange,
                 ),
+                univerAPI.addEvent(univerAPI.Event.SheetEditEnded, () => {
+                    focusSpreadsheetV2Workbook({
+                        workbookUnitId: workbook.getId(),
+                        univerInstanceService,
+                    })
+                }),
             ]
         }
 
@@ -349,6 +398,9 @@ function retryLoad() {
     themeObserver = undefined
     univer = undefined
     univerAPI = undefined
+    univerContextService = undefined
+    univerEditorService = undefined
+    univerInstanceService = undefined
     workbook = undefined
     loadState = 'loading'
     loadError = ''
@@ -378,7 +430,11 @@ onDestroy(() => {
     class:is-loading={loadState === 'loading'}
     aria-busy={loadState === 'loading'}
 >
-    <div class="spreadsheet-v2-editor" bind:this={editorContainer}></div>
+    <div
+        class="spreadsheet-v2-editor"
+        bind:this={editorContainer}
+        on:dblclick={focusCellEditorAfterDoubleClick}
+    ></div>
 
     {#if loadState === 'loading'}
         <div class="spreadsheet-v2-state" role="status">
