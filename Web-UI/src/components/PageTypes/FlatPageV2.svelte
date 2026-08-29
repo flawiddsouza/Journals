@@ -56,6 +56,12 @@ import Paragraph from '@tiptap/extension-paragraph'
 import Image from '@tiptap/extension-image'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
+import Table from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableHeader from '@tiptap/extension-table-header'
+import TableCell from '@tiptap/extension-table-cell'
+import BubbleMenu from '@tiptap/extension-bubble-menu'
+import 'tippy.js/dist/tippy.css'
 import { mergeAttributes } from '@tiptap/core'
 import PageLinkDropdown from '../PageLinkDropdown.svelte'
 
@@ -140,6 +146,12 @@ const extensions = [
         nested: true,
         HTMLAttributes: { class: 'task-list-item' },
     }),
+    Table.configure({
+        HTMLAttributes: { class: 'flat-page-table' },
+    }),
+    TableRow,
+    TableHeader,
+    TableCell,
 ]
 
 const tiptapSchema = getSchema(extensions)
@@ -177,7 +189,80 @@ function insertPageLink(page) {
 }
 
 let editor
+let tableMenu
+let tableControlsExpanded = false
 $: editorDom = editor?.view.dom
+
+function tableMenuMounted(element) {
+    tableMenu = element
+}
+
+function getActiveTableRect() {
+    const domNode = editor.view.domAtPos(editor.state.selection.from).node
+    const domElement =
+        domNode.nodeType === 1 ? domNode : domNode.parentElement
+
+    return (
+        domElement.closest('table')?.getBoundingClientRect() ??
+        editor.view.dom.getBoundingClientRect()
+    )
+}
+
+function insertTableFromSlashCommand() {
+    const { $from } = editor.state.selection
+
+    if (
+        !editor.state.selection.empty ||
+        $from.parent.type.name !== 'paragraph' ||
+        $from.parent.textContent !== '/table'
+    ) {
+        return false
+    }
+
+    return editor
+        .chain()
+        .deleteRange({ from: $from.start(), to: $from.end() })
+        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+        .run()
+}
+
+function addTableRowAndFocus(insertBefore) {
+    const { $from } = editor.state.selection
+    let tableDepth = null
+
+    for (let depth = $from.depth; depth > 0; depth -= 1) {
+        if ($from.node(depth).type.name === 'table') {
+            tableDepth = depth
+            break
+        }
+    }
+
+    if (tableDepth === null) return false
+
+    const tablePosition = $from.before(tableDepth)
+    const rowIndex = $from.index(tableDepth)
+    const rowIndexAdded = insertBefore ? rowIndex : rowIndex + 1
+    const rowAdded = insertBefore
+        ? editor.commands.addRowBefore()
+        : editor.commands.addRowAfter()
+
+    if (!rowAdded) return false
+
+    const tableNode = editor.state.doc.nodeAt(tablePosition)
+    let rowPosition = tablePosition + 1
+
+    for (let index = 0; index < rowIndexAdded; index += 1) {
+        rowPosition += tableNode.child(index).nodeSize
+    }
+
+    editor
+        .chain()
+        .setTextSelection(rowPosition + 3)
+        .focus()
+        .run()
+
+    return true
+}
 
 function joinPreviousAdjacentTaskList() {
     const { state, view } = editor
@@ -202,7 +287,20 @@ function pageContainerMounted(element) {
 
     editor = new Editor({
         element: element,
-        extensions,
+        extensions: [
+            ...extensions,
+            BubbleMenu.configure({
+                element: tableMenu,
+                shouldShow: ({ editor }) => editor.isActive('table'),
+                tippyOptions: {
+                    placement: 'bottom-end',
+                    arrow: false,
+                    theme: 'flat-page-table',
+                    maxWidth: 'none',
+                    getReferenceClientRect: getActiveTableRect,
+                },
+            }),
+        ],
         content: pageContent,
         onTransaction() {
             // force re-render so `editor.isActive` works as expected
@@ -274,14 +372,28 @@ function pageContainerMounted(element) {
                 }
 
                 if (
-                    (event.ctrlKey || event.metaKey) &&
+                    event.key === 'Enter' &&
+                    !event.ctrlKey &&
+                    !event.metaKey &&
                     !event.shiftKey &&
                     !event.altKey &&
-                    event.key === 'Enter'
+                    insertTableFromSlashCommand()
+                ) {
+                    event.preventDefault()
+                    return true
+                }
+
+                if (
+                    (event.ctrlKey || event.metaKey) &&
+                    !event.altKey &&
+                    event.key === 'Enter' &&
+                    (editor.isActive('table') || !event.shiftKey)
                 ) {
                     event.preventDefault()
 
-                    if (editor.isActive('taskItem')) {
+                    if (editor.isActive('table')) {
+                        addTableRowAndFocus(event.shiftKey)
+                    } else if (editor.isActive('taskItem')) {
                         const checked = editor.getAttributes('taskItem').checked
                         editor.commands.updateAttributes('taskItem', {
                             checked: !checked,
@@ -293,7 +405,19 @@ function pageContainerMounted(element) {
                     return true
                 }
 
+                if (
+                    (event.ctrlKey || event.metaKey) &&
+                    event.key === 'Delete' &&
+                    editor.isActive('table')
+                ) {
+                    event.preventDefault()
+                    editor.commands.deleteRow()
+                    return true
+                }
+
                 if (event.key === 'Tab') {
+                    if (editor.isActive('table')) return false
+
                     event.preventDefault()
 
                     const listItemTypeActive = editor.isActive('taskItem')
@@ -438,7 +562,9 @@ function pageContainerMounted(element) {
         scrollContainer = scrollContainerParent
     }
 
-    scrollContainer.scrollTop = scrollContainer.scrollHeight
+    if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight
+    }
 }
 
 /*
@@ -538,6 +664,100 @@ import { canJoin } from '@tiptap/pm/transform'
     {#if loaded === false}
         <div class="page-container" {style}>Loading...</div>
     {:else}
+        <div
+            class="flat-table-menu"
+            class:expanded={tableControlsExpanded}
+            use:tableMenuMounted
+            style="visibility: hidden"
+        >
+            {#if tableControlsExpanded}
+                <button
+                    class="row-before"
+                    type="button"
+                    aria-label="Add row before"
+                    title="Add row above"
+                    on:mousedown|preventDefault
+                    on:click={() => addTableRowAndFocus(true)}
+                    >Row ↑</button
+                >
+                <button
+                    class="row-after"
+                    type="button"
+                    aria-label="Add row after"
+                    title="Add row below"
+                    on:mousedown|preventDefault
+                    on:click={() => addTableRowAndFocus(false)}
+                    >Row ↓</button
+                >
+                <button
+                    class="delete-row"
+                    type="button"
+                    aria-label="Delete row"
+                    title="Delete row"
+                    on:mousedown|preventDefault
+                    on:click={() => editor.chain().focus().deleteRow().run()}
+                    >- Row</button
+                >
+                <button
+                    class="column-before"
+                    type="button"
+                    aria-label="Add column before"
+                    title="Add column to the left"
+                    on:mousedown|preventDefault
+                    on:click={() =>
+                        editor.chain().focus().addColumnBefore().run()}
+                    >Col ←</button
+                >
+                <button
+                    class="column-after"
+                    type="button"
+                    aria-label="Add column after"
+                    title="Add column to the right"
+                    on:mousedown|preventDefault
+                    on:click={() =>
+                        editor.chain().focus().addColumnAfter().run()}
+                    >Col →</button
+                >
+                <button
+                    class="delete-column"
+                    type="button"
+                    aria-label="Delete column"
+                    title="Delete column"
+                    on:mousedown|preventDefault
+                    on:click={() =>
+                        editor.chain().focus().deleteColumn().run()}
+                    >- Col</button
+                >
+                <button
+                    class="delete-table"
+                    type="button"
+                    aria-label="Delete table"
+                    title="Delete table"
+                    on:mousedown|preventDefault
+                    on:click={() => editor.chain().focus().deleteTable().run()}
+                    >Delete</button
+                >
+                <button
+                    class="table-controls-done"
+                    type="button"
+                    aria-label="Hide table controls"
+                    title="Hide table controls"
+                    on:mousedown|preventDefault
+                    on:click={() => (tableControlsExpanded = false)}
+                    >Done</button
+                >
+            {:else}
+                <button
+                    class="table-menu-toggle"
+                    type="button"
+                    aria-label="Table options"
+                    title="Table options"
+                    on:mousedown|preventDefault
+                    on:click={() => (tableControlsExpanded = true)}
+                    >⋯</button
+                >
+            {/if}
+        </div>
         <div
             class="page-container"
             spellcheck="false"
@@ -670,6 +890,146 @@ import { canJoin } from '@tiptap/pm/transform'
 
 .page-container.view-only :global(.task-list-item > label input) {
     cursor: default;
+}
+
+.page-container :global(.flat-page-table) {
+    width: auto;
+    max-width: 100%;
+    margin: 0.55em 0;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.page-container :global(.flat-page-table th),
+.page-container :global(.flat-page-table td) {
+    min-width: 7em;
+    padding: 0.3em 0.45em;
+    border: 1px solid var(--border-table);
+    vertical-align: top;
+}
+
+.page-container :global(.flat-page-table th) {
+    background: var(--bg-pa-hover);
+    font-weight: bold;
+    text-align: left;
+}
+
+.page-container :global(.flat-page-table .selectedCell) {
+    background: var(--bg-pa-hover);
+}
+
+.page-container :global(.flat-page-table .selectedCell::after) {
+    display: none;
+}
+
+.page-container :global(.flat-page-table :where(div, p)) {
+    min-height: 1.45em;
+    margin: 0;
+    outline: none;
+}
+
+.flat-table-menu {
+    display: flex;
+    overflow: hidden;
+    border: 1px solid var(--border-table);
+    border-radius: 4px;
+    background: var(--bg-center);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 14%);
+}
+
+.flat-table-menu:not(.expanded) {
+    opacity: 0.48;
+}
+
+.flat-table-menu:not(.expanded):hover,
+.flat-table-menu:not(.expanded):focus-within {
+    opacity: 1;
+}
+
+.flat-table-menu.expanded {
+    display: grid;
+    grid-template-areas:
+        'row-before row-after delete-row delete-table'
+        'column-before column-after delete-column done';
+}
+
+.flat-table-menu.expanded .row-before {
+    grid-area: row-before;
+}
+
+.flat-table-menu.expanded .row-after {
+    grid-area: row-after;
+}
+
+.flat-table-menu.expanded .delete-row {
+    grid-area: delete-row;
+}
+
+.flat-table-menu.expanded .column-before {
+    grid-area: column-before;
+}
+
+.flat-table-menu.expanded .column-after {
+    grid-area: column-after;
+}
+
+.flat-table-menu.expanded .delete-column {
+    grid-area: delete-column;
+}
+
+.flat-table-menu.expanded .delete-table {
+    grid-area: delete-table;
+}
+
+.flat-table-menu.expanded .table-controls-done {
+    grid-area: done;
+}
+
+.flat-table-menu button {
+    padding: 0.28em 0.45em;
+    border: 0;
+    border-right: 1px solid var(--border-table);
+    background: transparent;
+    color: var(--color-pa-btn);
+    font: inherit;
+    cursor: pointer;
+}
+
+.flat-table-menu button:last-child {
+    border-right: 0;
+}
+
+.flat-table-menu.expanded :where(.row-before, .row-after, .delete-row, .delete-table) {
+    border-bottom: 1px solid var(--border-table);
+}
+
+.flat-table-menu.expanded .delete-table {
+    border-right: 0;
+}
+
+.flat-table-menu button:hover {
+    background: var(--bg-pa-hover);
+}
+
+.flat-table-menu .table-menu-toggle {
+    min-width: 2em;
+    padding-inline: 0.4em;
+    border-right: 0;
+    font-weight: bold;
+}
+
+.flat-table-menu .delete-table {
+    color: var(--color-delete, #b42318);
+}
+
+:global(.tippy-box[data-theme~='flat-page-table']) {
+    border: 0;
+    background: transparent;
+    color: inherit;
+}
+
+:global(.tippy-box[data-theme~='flat-page-table'] .tippy-content) {
+    padding: 0;
 }
 
 :global(.page-link) {

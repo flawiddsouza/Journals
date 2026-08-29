@@ -6,6 +6,7 @@ import { focus } from '../actions/focus.js'
 import { isTouchPrimary, isMobileViewport, mobileViewportMql } from '../actions/touchGuard.js'
 import { clickOutside } from '../actions/clickOutside.js'
 import { getTheme, setTheme as persistTheme, initTheme } from '../helpers/theme.js'
+import { shouldShowPageNav } from '../helpers/pageCapabilities.js'
 
 let pages = []
 let pagesFilter = ''
@@ -750,7 +751,7 @@ function handleRecycleBinRestored() {
         </div>
         <span class="tb-sep-v"></span>
         <div class="tb-page-actions">
-            {#if activePage.locked === false && activePage.type !== 'PageGroup'}
+            {#if shouldShowPageNav(activePage)}
                 <PageNav bind:activePage {activeSection} bind:showBacklinks></PageNav>
             {/if}
         </div>

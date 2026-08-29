@@ -1,14 +1,31 @@
-export function generatePageLinks(activePage, {
-    miniAppConfigMode,
-    tableStatsView,
-    tableStatsEditMode,
-    tableConfigureMode,
-    handlers,
-}) {
+import { getPageCapabilities } from './pageCapabilities.js'
+
+export function generatePageLinks(
+    activePage,
+    {
+        miniAppConfigMode,
+        tableStatsView,
+        tableStatsEditMode,
+        tableConfigureMode,
+        handlers,
+    },
+) {
     const links = []
 
     if (!activePage?.id) {
         return links
+    }
+
+    const capabilities = getPageCapabilities(activePage.type)
+
+    if (!capabilities.pageTools) {
+        return [
+            {
+                href: '#page-help',
+                text: 'Help',
+                onClick: handlers.openHelp,
+            },
+        ]
     }
 
     links.push({
@@ -29,76 +46,79 @@ export function generatePageLinks(activePage, {
         onClick: handlers.toggleBacklinks,
     })
 
-    if (
-        activePage.type !== 'Spreadsheet' &&
-        activePage.type !== 'SpreadsheetV2' &&
-        activePage.type !== 'DrawIO' &&
-        activePage.type !== 'Excalidraw'
-    ) {
+    if (capabilities.styles) {
         links.push({
             href: '#view-page-styles',
             text: 'Styles',
             onClick: handlers.openStyles,
         })
+    }
 
-        if (activePage.type === 'Table' && activePage.view_only === false) {
-            if (!tableStatsView) {
-                if (!tableConfigureMode) {
-                    links.push({
-                        href: '#configure-table',
-                        text: 'Configure Table',
-                        mobileHide: true,
-                        onClick: handlers.configureTable,
-                    })
-                } else {
-                    links.push({
-                        href: '#exit-configure-table',
-                        text: 'Exit Configuration',
-                        active: true,
-                        onClick: handlers.exitConfigureTable,
-                    })
-                }
-            }
+    if (activePage.type === 'Table' && activePage.view_only === false) {
+        if (!tableStatsView) {
             if (!tableConfigureMode) {
                 links.push({
-                    href: '#stats',
-                    text: 'Stats',
-                    active: tableStatsView,
-                    onClick: handlers.toggleTableStats,
-                })
-                if (tableStatsView) {
-                    links.push({
-                        href: '#edit-stats',
-                        text: 'Edit Stats',
-                        active: tableStatsEditMode,
-                        onClick: handlers.toggleTableStatsEdit,
-                    })
-                }
-            }
-        }
-
-        if (activePage.type === 'MiniApp' && activePage.view_only === false) {
-            if (!miniAppConfigMode) {
-                links.push({
-                    href: '#configure-mini-app',
-                    text: 'Configure Mini App',
-                    onClick: handlers.configureMiniApp,
+                    href: '#configure-table',
+                    text: 'Configure Table',
+                    mobileHide: true,
+                    onClick: handlers.configureTable,
                 })
             } else {
                 links.push({
-                    href: '#exit-configure-mini-app',
+                    href: '#exit-configure-table',
                     text: 'Exit Configuration',
-                    onClick: handlers.exitConfigureMiniApp,
+                    active: true,
+                    onClick: handlers.exitConfigureTable,
                 })
             }
         }
+        if (!tableConfigureMode) {
+            links.push({
+                href: '#stats',
+                text: 'Stats',
+                active: tableStatsView,
+                onClick: handlers.toggleTableStats,
+            })
+            if (tableStatsView) {
+                links.push({
+                    href: '#edit-stats',
+                    text: 'Edit Stats',
+                    active: tableStatsEditMode,
+                    onClick: handlers.toggleTableStatsEdit,
+                })
+            }
+        }
+    }
 
+    if (activePage.type === 'MiniApp' && activePage.view_only === false) {
+        if (!miniAppConfigMode) {
+            links.push({
+                href: '#configure-mini-app',
+                text: 'Configure Mini App',
+                onClick: handlers.configureMiniApp,
+            })
+        } else {
+            links.push({
+                href: '#exit-configure-mini-app',
+                text: 'Exit Configuration',
+                onClick: handlers.exitConfigureMiniApp,
+            })
+        }
+    }
+
+    if (capabilities.export) {
         links.push({
             href: '#export',
             text: 'Export',
             onClick: handlers.exportPage,
         })
     }
+
+    links.push({
+        href: '#page-help',
+        text: 'Help',
+        onClick: handlers.openHelp,
+    })
 
     if (activePage.parent_id !== undefined && activePage.parent_id !== null) {
         links.push({

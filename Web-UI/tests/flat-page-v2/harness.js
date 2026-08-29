@@ -77,9 +77,7 @@ const splitChecklistDocument = {
                     content: [
                         {
                             type: 'paragraph',
-                            content: [
-                                { type: 'text', text: 'Previous task' },
-                            ],
+                            content: [{ type: 'text', text: 'Previous task' }],
                         },
                     ],
                 },
@@ -94,9 +92,7 @@ const splitChecklistDocument = {
                     content: [
                         {
                             type: 'paragraph',
-                            content: [
-                                { type: 'text', text: 'Later task' },
-                            ],
+                            content: [{ type: 'text', text: 'Later task' }],
                         },
                     ],
                 },
@@ -109,9 +105,75 @@ const splitChecklistDocument = {
         },
     ],
 }
+const tableDocument = {
+    type: 'doc',
+    content: [
+        {
+            type: 'table',
+            content: [
+                {
+                    type: 'tableRow',
+                    content: [
+                        {
+                            type: 'tableHeader',
+                            attrs: { colspan: 1, rowspan: 1, colwidth: null },
+                            content: [
+                                {
+                                    type: 'paragraph',
+                                    content: [{ type: 'text', text: 'Name' }],
+                                },
+                            ],
+                        },
+                        {
+                            type: 'tableHeader',
+                            attrs: { colspan: 1, rowspan: 1, colwidth: null },
+                            content: [
+                                {
+                                    type: 'paragraph',
+                                    content: [{ type: 'text', text: 'Status' }],
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    type: 'tableRow',
+                    content: [
+                        {
+                            type: 'tableCell',
+                            attrs: { colspan: 1, rowspan: 1, colwidth: null },
+                            content: [
+                                {
+                                    type: 'paragraph',
+                                    content: [
+                                        { type: 'text', text: 'First item' },
+                                    ],
+                                },
+                            ],
+                        },
+                        {
+                            type: 'tableCell',
+                            attrs: { colspan: 1, rowspan: 1, colwidth: null },
+                            content: [
+                                {
+                                    type: 'paragraph',
+                                    content: [{ type: 'text', text: 'Open' }],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+}
 
 const initialDocument =
-    contentType === 'split-checklist' ? splitChecklistDocument : emptyDocument
+    contentType === 'split-checklist'
+        ? splitChecklistDocument
+        : contentType === 'table'
+          ? tableDocument
+          : emptyDocument
 
 let pageContentSaved = null
 
@@ -138,7 +200,9 @@ new FlatPageV2({
         pageContentOverride: viewOnly
             ? contentType === 'checklist'
                 ? checklistDocument
-                : nestedDocument
+                : contentType === 'table'
+                  ? tableDocument
+                  : nestedDocument
             : undefined,
     },
 })

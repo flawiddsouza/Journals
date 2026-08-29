@@ -17,6 +17,14 @@ async function createChecklistItem(page, text = 'First task') {
     return editor
 }
 
+async function createEmbeddedTable(page) {
+    const editor = page.locator('.page-container .ProseMirror')
+    await editor.click()
+    await editor.type('/table')
+    await editor.press('Enter')
+    return editor
+}
+
 test('Tab nests bullet items and Shift+Tab outdents them', async ({ page }) => {
     await page.goto('/tests/flat-page-v2/harness.html')
     const editor = await createBulletItems(page)
@@ -129,9 +137,7 @@ test('checklist items continue and nest with Enter and Tab', async ({
 })
 
 test('Tab nests across adjacent checklist blocks', async ({ page }) => {
-    await page.goto(
-        '/tests/flat-page-v2/harness.html?content=split-checklist',
-    )
+    await page.goto('/tests/flat-page-v2/harness.html?content=split-checklist')
 
     const laterTask = page.getByText('Later task', { exact: true })
     await laterTask.evaluate((element) => {
@@ -151,9 +157,7 @@ test('Tab nests across adjacent checklist blocks', async ({ page }) => {
         '.ProseMirror > .task-list-items .task-list-items > .task-list-item',
     )
     await expect(nestedItem).toHaveText('Later task')
-    await expect(
-        page.locator('.ProseMirror > .task-list-items'),
-    ).toHaveCount(1)
+    await expect(page.locator('.ProseMirror > .task-list-items')).toHaveCount(1)
 })
 
 test('clicking a checkbox saves its checked state', async ({ page }) => {
@@ -208,4 +212,97 @@ test('view-only checklist items keep their state and cannot be toggled', async (
     ).toBeVisible()
     await expect(checkbox).toBeChecked()
     await expect(checkbox).toBeDisabled()
+})
+
+test('/table creates a three-column table and saves it', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html')
+    await createEmbeddedTable(page)
+
+    await expect(page.locator('.ProseMirror table')).toHaveCount(1)
+    await expect(page.locator('.ProseMirror table tr')).toHaveCount(3)
+    await expect(page.locator('.ProseMirror table th')).toHaveCount(3)
+
+    await expect
+        .poll(async () => {
+            const pageContentSaved = await page.evaluate(() =>
+                window.flatPageV2Harness.getPageContentSaved(),
+            )
+            return pageContentSaved
+                ? JSON.parse(pageContentSaved).content[0].type
+                : null
+        })
+        .toBe('table')
+})
+
+test('Tab from the final table cell adds a row', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html')
+    await createEmbeddedTable(page)
+
+    for (let cellIndex = 1; cellIndex < 10; cellIndex += 1) {
+        await page.keyboard.press('Tab')
+    }
+
+    await expect(page.locator('.ProseMirror table tr')).toHaveCount(4)
+})
+
+test('table controls add columns and remove rows', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html')
+    await createEmbeddedTable(page)
+
+    const tableMenu = page.locator('.flat-table-menu')
+    await expect(tableMenu).toBeVisible()
+    await expect(
+        tableMenu.getByRole('button', { name: 'Add column after' }),
+    ).toHaveCount(0)
+
+    await tableMenu.getByRole('button', { name: 'Table options' }).click()
+
+    await tableMenu.getByRole('button', { name: 'Add column before' }).click()
+    await expect(page.locator('.ProseMirror table th')).toHaveCount(4)
+
+    await tableMenu.getByRole('button', { name: 'Add column after' }).click()
+    await expect(page.locator('.ProseMirror table th')).toHaveCount(5)
+
+    await tableMenu.getByRole('button', { name: 'Add row before' }).click()
+    await expect(page.locator('.ProseMirror table tr')).toHaveCount(4)
+
+    await tableMenu.getByRole('button', { name: 'Add row after' }).click()
+    await expect(page.locator('.ProseMirror table tr')).toHaveCount(5)
+
+    await tableMenu.getByRole('button', { name: 'Delete row' }).click()
+    await expect(page.locator('.ProseMirror table tr')).toHaveCount(4)
+})
+
+test('Ctrl+Enter and Ctrl+Shift+Enter add and focus rows below and above', async ({
+    page,
+}) => {
+    await page.goto('/tests/flat-page-v2/harness.html')
+    const editor = await createEmbeddedTable(page)
+
+    await editor.press('Control+Enter')
+    await editor.type('Below row')
+
+    await expect(page.locator('.ProseMirror table tr')).toHaveCount(4)
+    await expect(
+        page.locator('.ProseMirror table tr').nth(1).locator('th, td').first(),
+    ).toHaveText('Below row')
+
+    await editor.press('Control+Shift+Enter')
+    await editor.type('Above row')
+
+    await expect(page.locator('.ProseMirror table tr')).toHaveCount(5)
+    await expect(
+        page.locator('.ProseMirror table tr').nth(1).locator('th, td').first(),
+    ).toHaveText('Above row')
+    await expect(
+        page.locator('.ProseMirror table tr').nth(2).locator('th, td').first(),
+    ).toHaveText('Below row')
+})
+
+test('view-only pages render embedded tables', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html?viewOnly=1&content=table')
+
+    const table = page.locator('.page-container.view-only table')
+    await expect(table.locator('th')).toHaveText(['Name', 'Status'])
+    await expect(table.locator('td')).toHaveText(['First item', 'Open'])
 })

@@ -7,6 +7,7 @@ export let compact = false
 import fetchPlus from '../helpers/fetchPlus.js'
 import { slugify } from '../helpers/string.js'
 import { generatePageLinks } from '../helpers/pageNavLinks.js'
+import { getPageHelp } from '../helpers/pageHelp.js'
 import MobilePageNavMenu from './MobilePageNavMenu.svelte'
 
 let miniAppConfigMode = false
@@ -32,6 +33,9 @@ import { onDestroy } from 'svelte'
 let showPageHistoryModal = false
 let showPageUploadsModal = false
 let showPageStylesModal = false
+let showPageHelpModal = false
+
+$: pageHelp = getPageHelp(activePage)
 
 let pageHistory = []
 let pageUploads = []
@@ -366,6 +370,7 @@ const linkHandlers = {
     openUploads: () => (showPageUploadsModal = true),
     toggleBacklinks: () => (showBacklinks = !showBacklinks),
     openStyles: () => startShowPageStylesModal(),
+    openHelp: () => (showPageHelpModal = true),
     configureTable,
     exitConfigureTable,
     toggleTableStats,
@@ -390,6 +395,7 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
     if (tableStatsView) tableStatsView = false
     if (tableStatsEditMode) tableStatsEditMode = false
     if (tableConfigureMode) tableConfigureMode = false
+    if (showPageHelpModal) showPageHelpModal = false
 }
 </script>
 
@@ -410,6 +416,50 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
 <MobilePageNavMenu links={pageLinks} />
 
 <Portal>
+    {#if showPageHelpModal}
+        <Modal
+            width={pageHelp.groups.length === 1
+                ? 'min(720px, calc(100vw - 32px))'
+                : 'min(960px, calc(100vw - 32px))'}
+            on:close-modal={() => (showPageHelpModal = false)}
+        >
+            <div class="page-help-header">
+                <div>
+                    <h2 class="heading">{pageHelp.title} Help</h2>
+                    <p>{pageHelp.description}</p>
+                </div>
+                <button
+                    type="button"
+                    aria-label="Close help"
+                    on:click={() => (showPageHelpModal = false)}>Close</button
+                >
+            </div>
+            <div
+                class="page-help-groups"
+                class:single={pageHelp.groups.length === 1}
+            >
+                {#each pageHelp.groups as group}
+                    <section class="page-help-group">
+                        <h3>{group.title}</h3>
+                        <div class="page-help-items">
+                            {#each group.items as item}
+                                <div class="page-help-item">
+                                    <div class="page-help-copy">
+                                        <strong>{item.name}</strong>
+                                        <span>{item.description}</span>
+                                    </div>
+                                    {#if item.shortcut}
+                                        <kbd>{item.shortcut}</kbd>
+                                    {/if}
+                                </div>
+                            {/each}
+                        </div>
+                    </section>
+                {/each}
+            </div>
+        </Modal>
+    {/if}
+
     {#if showPageHistoryModal}
         <Modal on:close-modal={() => (showPageHistoryModal = false)}>
             <h2 class="heading">Page History</h2>
@@ -726,6 +776,114 @@ a.special {
 
 .oy-a {
     overflow-y: auto;
+}
+
+.page-help-header {
+    display: flex;
+    gap: 1rem;
+    align-items: start;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.page-help-header .heading {
+    margin-bottom: 0.25rem;
+}
+
+.page-help-header p {
+    margin: 0;
+    color: var(--color-utility);
+    line-height: 1.45;
+}
+
+.page-help-header button {
+    padding: 0.28rem 0.55rem;
+    border: 1px solid var(--border-select);
+    border-radius: 4px;
+    background: var(--bg-select);
+    color: var(--color-section);
+    cursor: pointer;
+}
+
+.page-help-groups {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: start;
+}
+
+.page-help-groups.single {
+    grid-template-columns: 1fr;
+}
+
+.page-help-group h3 {
+    margin: 0 0 0.4rem;
+    color: var(--color-section);
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.page-help-items {
+    overflow: hidden;
+    border: 1px solid var(--border-topbar);
+    border-radius: 6px;
+}
+
+.page-help-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.65rem 0.75rem;
+    border-bottom: 1px solid var(--border-topbar);
+}
+
+.page-help-item:last-child {
+    border-bottom: 0;
+}
+
+.page-help-copy {
+    display: grid;
+    gap: 0.15rem;
+}
+
+.page-help-copy strong {
+    color: var(--color-section);
+}
+
+.page-help-copy span {
+    color: var(--color-utility);
+    line-height: 1.35;
+}
+
+.page-help-item kbd {
+    max-width: 14rem;
+    padding: 0.22rem 0.45rem;
+    border: 1px solid var(--border-select);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--bg-select);
+    color: var(--color-section);
+    font: inherit;
+    font-size: 0.82rem;
+    text-align: center;
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+    .page-help-groups {
+        grid-template-columns: 1fr;
+    }
+
+    .page-help-item {
+        grid-template-columns: 1fr;
+        gap: 0.45rem;
+    }
+
+    .page-help-item kbd {
+        width: fit-content;
+    }
 }
 
 .page-history-container {

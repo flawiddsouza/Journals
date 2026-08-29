@@ -5,6 +5,7 @@ import BacklinksPanel from './BacklinksPanel.svelte'
 import debounce from '../helpers/debounce.js'
 import fetchPlus from '../helpers/fetchPlus.js'
 import { getTheme, setTheme as persistTheme, initTheme } from '../helpers/theme.js'
+import { shouldShowPageNav } from '../helpers/pageCapabilities.js'
 
 let notebooks = []
 let activePageId = document.location.pathname.split('/').slice(-1)[0]
@@ -21,11 +22,7 @@ async function getPageInfo() {
 
     try {
         activePage = await fetchPlus.get(`/pages/info/${activePageId}`)
-        if (
-            activePage.locked === false &&
-            activePage.type !== 'PageGroup' &&
-            activePage.type !== 'Favorites'
-        ) {
+        if (shouldShowPageNav(activePage)) {
             gridTemplateRowsMainDiv = `grid-template-rows: auto 1fr`
         } else {
             gridTemplateRowsMainDiv = `grid-template-rows: 1fr`
@@ -68,7 +65,7 @@ function setTheme(value) {
     </div>
 {:else}
     <div style="display: grid; height: 100svh; {gridTemplateRowsMainDiv}">
-        {#if activePage.locked === false && activePage.type !== 'PageGroup' && activePage.type !== 'Favorites'}
+        {#if shouldShowPageNav(activePage)}
             <div class="page-header">
                 <PageNav bind:activePage bind:showBacklinks></PageNav>
                 <div class="page-header-right">
