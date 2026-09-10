@@ -216,6 +216,12 @@ const pageTypeHelp = {
                 title: 'Editing',
                 items: [
                     {
+                        name: 'Undo and redo',
+                        shortcut: 'Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z',
+                        description:
+                            'Undoes cell edits and row changes in order, restoring the caret or selection. Typing is grouped by words; a single space belongs to the following word. Ctrl+Y also redoes. History resets on page loads, column additions, removals, renames or type changes, and configuration imports.',
+                    },
+                    {
                         name: 'Add row below',
                         shortcut: 'Ctrl+Enter',
                         description: 'Adds a row below the current row.',

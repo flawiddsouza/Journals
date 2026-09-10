@@ -50,7 +50,7 @@ let autocompleteData = {
     show: false,
     suggestions: [],
     position: { top: 0, left: 0 },
-    itemIndex: null,
+    item: null,
     columnName: null,
 }
 
@@ -82,6 +82,8 @@ $: { engine.setCustomFunctions(customFunctions); evalFnCache.clear(); rowStyleCa
 $: { rowStyle; rowStyleCache.clear() }
 $: if (pageContentOverride) {
     let parsedPage = JSON.parse(pageContentOverride)
+    resetTableHistory()
+    dontTriggerSave = true
     loaded = false
     activeFilters = {}
     filterDropdown = { show: false, columnName: null, position: { top: 0, left: 0 } }
@@ -115,11 +117,17 @@ $: if (pageContentOverride) {
 $: fetchPage(pageId)
 
 import fetchPlus from '../../helpers/fetchPlus.js'
+import { fetchTablePageContent, saveTablePageContent } from '../../helpers/tablePagePersistence.js'
 
 let editableTable = null
 
-function fetchPage(pageId) {
-    if (pageId === null) {
+let fetchRequestId = 0
+
+function fetchPage(pageIdRequested) {
+    const requestId = ++fetchRequestId
+    flushPageContent()
+    resetTableHistory()
+    if (pageIdRequested === null || pageContentOverride !== undefined) {
         return
     }
     loaded = false
@@ -129,13 +137,13 @@ function fetchPage(pageId) {
     statsEditMode = false
     showAddColumn = false
     cancelEditColumn()
-    undoStackForRemoveRow = [] // reset undo stack
     activeFilters = {}
     filterDropdown = { show: false, columnName: null, position: { top: 0, left: 0 } }
     overflowCount = 0
     pageScrollPositions.clear()
     // end of reset variables on page change
-    fetchPlus.get(`/pages/content/${pageId}`).then((response) => {
+    fetchTablePageContent(pageIdRequested).then((response) => {
+        if (requestId !== fetchRequestId || pageIdRequested !== pageId || pageContentOverride !== undefined) return
         let parsedResponse = response.content
             ? JSON.parse(response.content)
             : {
@@ -191,8 +199,11 @@ function fetchPage(pageId) {
 
         // set focus to the last cell in the table (both paginated and non-paginated)
         setTimeout(() => {
-            focusLastEditableCell()
+            if (requestId !== fetchRequestId) return
             loaded = true
+            tick().then(() => {
+                if (requestId === fetchRequestId) focusLastEditableCell()
+            })
         }, 0)
 
         // External content change -> refresh editors
@@ -200,14 +211,33 @@ function fetchPage(pageId) {
     })
 }
 
-import debounce from '../../helpers/debounce.js'
+let pageSavePending = null
+let pageSaveTimer = null
 
-const savePageContent = debounce(function () {
-    if (pageId === null) {
-        return
-    }
-    fetchPlus.put(`/pages/${pageId}`, {
-        pageContent: JSON.stringify({
+function flushPageContent() {
+    clearTimeout(pageSaveTimer)
+    if (!pageSavePending) return
+    const { pageId: pageIdSaved, content } = pageSavePending
+    pageSavePending = null
+    saveTablePageContent(pageIdSaved, JSON.stringify(content)).catch((error) => {
+        console.error('Table save failed', error)
+    })
+}
+onDestroy(() => {
+    loaded = false
+    fetchRequestId++
+    historyFocusRequest++
+    flushPageContent()
+})
+
+function queueSavePageContent() {
+    if (pageId === null || viewOnly || pageContentOverride !== undefined) return
+    if (pageSavePending && pageSavePending.pageId !== pageId) flushPageContent()
+    // Keep the owner and its data together, and serialize after the debounce
+    // so a large table is not copied on every keystroke.
+    pageSavePending = {
+        pageId,
+        content: {
             columns,
             items,
             totals,
@@ -217,9 +247,11 @@ const savePageContent = debounce(function () {
             customFunctions,
             note,
             stats,
-        }),
-    })
-}, 500)
+        },
+    }
+    clearTimeout(pageSaveTimer)
+    pageSaveTimer = setTimeout(flushPageContent, 500)
+}
 
 let dontTriggerSave = true
 
@@ -256,7 +288,7 @@ $: if (items) {
     note = note
 
     if (!dontTriggerSave) {
-        savePageContent()
+        queueSavePageContent()
     }
 
     dontTriggerSave = false
@@ -264,6 +296,7 @@ $: if (items) {
 
 // Apply active filters to produce filteredItems
 // empty Set = all unchecked = no filter for that column (same as all checked)
+$: itemIndexes = new Map((items || []).map((item, index) => [item, index]))
 $: filteredItems = (items || []).filter((item) =>
     Object.entries(activeFilters).every(([colName, allowedSet]) => {
         if (allowedSet.size === 0) return true
@@ -440,7 +473,92 @@ function evalulateJS(source, jsString, rowIndex = null, columnName = null, enric
     }
 }
 
-let undoStackForRemoveRow = []
+import { createTableHistory, captureCellSelection, restoreCellSelection } from '../../helpers/tableHistory.js'
+import { createTableCellEditor } from '../../helpers/tableCellEditor.js'
+
+const tableHistory = createTableHistory()
+const cellEditors = new Map()
+let historyFocusRequest = 0
+
+function canEditTable(row) {
+    return loaded && !viewOnly && pageContentOverride === undefined
+        && (!row || items.includes(row))
+}
+
+const tableCellEditor = createTableCellEditor({
+    history: tableHistory,
+    editors: cellEditors,
+    editable: canEditTable,
+    onChange: (event, row, columnName) => handleInputInTD(event, items.indexOf(row), columnName),
+    onHistory: applyTableHistory,
+})
+
+function resetTableHistory() {
+    tableHistory.clear()
+    historyFocusRequest++
+}
+
+function captureTableFocus(fallbackRow) {
+    for (const [row, editors] of cellEditors) {
+        for (const [columnName, { node }] of editors) {
+            const selection = captureCellSelection(node)
+            if (node === document.activeElement || selection) {
+                return { row, columnName, selection }
+            }
+        }
+    }
+    return { row: fallbackRow, columnName: columns.find((column) => column.type !== 'Computed')?.name }
+}
+
+async function restoreTableFocus(focus) {
+    const request = ++historyFocusRequest
+    await tick()
+    if (request !== historyFocusRequest || !canEditTable()) return
+    const index = filteredItems.indexOf(focus?.row)
+    if (index >= 0 && !visibleItems.includes(focus.row)) {
+        goToPage(Math.floor(index / PAGE_SIZE) + 1)
+        await tick()
+    }
+    if (request !== historyFocusRequest) return
+    const node = cellEditors.get(focus?.row)?.get(focus?.columnName)?.node
+    if (node) {
+        node.focus({ preventScroll: true })
+        restoreCellSelection(node, focus.selection)
+        node.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    } else {
+        // Keep shortcuts in the table when a filter hides the changed row.
+        editableTable?.focus({ preventScroll: true })
+    }
+}
+
+function refreshTableStructure() {
+    engine.onStructuralChange()
+    rowStyleCache.clear()
+    colStyleCache.clear()
+    items = items
+}
+
+function applyTableHistory(redo = false) {
+    if (!canEditTable()) return
+    for (const editors of cellEditors.values()) {
+        if ([...editors.values()].some((editor) => editor.composing)) return
+    }
+    const result = redo ? tableHistory.redo(items) : tableHistory.undo(items)
+    if (result.status === 'conflict') {
+        alert('Undo is no longer available because the table changed outside its edit history.')
+        return
+    }
+    if (result.status !== 'applied') return
+    autocompleteData.show = false
+    closeTablePageLinkDropdown()
+    if (result.change.type === 'rows') {
+        const view = redo ? result.change.afterView : result.change.beforeView
+        currentPage = view.currentPage
+        overflowCount = view.overflowCount
+    }
+    refreshTableStructure()
+    restoreTableFocus(result.focus)
+}
 
 // Consolidated logging for evalulateJS calls
 let evalStats = { rowStyle: 0, columnStyle: 0, computedColumn: 0, total: 0 }
@@ -486,85 +604,63 @@ function getSelectionTextInfo(el) {
     return { atStart: atStart, atEnd: atEnd }
 }
 
+function emptyRow() {
+    return Object.fromEntries(columns.map((column) => [column.name, '']))
+}
+
 function insertRow(rowIndex, insertAbove) {
-    let insertObj = {}
-    columns.forEach((column) => {
-        insertObj[column.name] = ''
+    if (!canEditTable(items[rowIndex]) || !items[rowIndex] || hasActiveFilters) return
+    const row = emptyRow()
+    const index = rowIndex + (insertAbove ? 0 : 1)
+    const beforeFocus = captureTableFocus(items[rowIndex])
+    const afterFocus = insertAbove ? beforeFocus : {
+        row, columnName: columns.find((column) => column.type !== 'Computed')?.name,
+    }
+    tableHistory.recordRows({
+        index, before: [], after: [row],
+        previousRow: items[index - 1], nextRow: items[index],
+        beforeFocus, afterFocus,
+        beforeView: { currentPage, overflowCount },
+        afterView: { currentPage, overflowCount: overflowCount + 1 },
     })
-
-    if (!insertAbove) {
-        items.splice(rowIndex + 1, 0, insertObj)
-    } else {
-        // insert row above if ctrl + shift + enter
-        items.splice(rowIndex, 0, insertObj)
-    }
-    engine.onStructuralChange()
-    rowStyleCache.clear()
-    colStyleCache.clear()
+    items.splice(index, 0, row)
     overflowCount++
-    items = items
-
-    // move focus to the first focusable cell of the inserted row, if shift key is not pressed
-    if (!insertAbove) {
-        setTimeout(() => {
-            const newRowIndex = rowIndex + 1
-            const localIndex = newRowIndex - visibleStartIndex
-            const rows =
-                document
-                    .querySelector('.editable-table tbody')
-                    ?.querySelectorAll('tr') || []
-            const bottomRow = rows[localIndex]
-            if (typeof bottomRow !== 'undefined') {
-                const bottomCell = bottomRow.querySelector(
-                    'div[contenteditable]',
-                )
-                bottomCell?.focus()
-            }
-        }, 0)
-    }
+    refreshTableStructure()
+    restoreTableFocus(afterFocus)
 }
 
 function deleteRow(rowIndex) {
-    if (items.length === 1) {
-        undoStackForRemoveRow.push({
-            index: 0,
-            item: JSON.parse(JSON.stringify(items[0])),
-        }) // save undo
-
-        columns.forEach((column) => {
-            items[0][column.name] = ''
-        })
-
-        // styles and computed columns are now computed on the fly
-        // styles and computed columns are now computed on the fly
+    const row = items[rowIndex]
+    if (!row || !canEditTable(row) || hasActiveFilters) return
+    const beforeFocus = captureTableFocus(row)
+    // Keep one editable row, and record its replacement as exactly one action.
+    const after = items.length === 1 ? [emptyRow()] : []
+    const afterFocus = {
+        row: after[0] ?? items[rowIndex - 1] ?? items[rowIndex + 1],
+        columnName: beforeFocus.columnName,
     }
-
-    undoStackForRemoveRow.push({ index: rowIndex, item: items[rowIndex] }) // save undo
-
-    items.splice(rowIndex, 1)
-    engine.onStructuralChange()
-    rowStyleCache.clear()
-    colStyleCache.clear()
-    items = items
-
-    // move focus to the first focusable cell of the row before the removed row
-    let tbody = document.querySelector('.editable-table tbody')
-    if (!tbody) {
-        return
-    }
-    let rows = tbody.querySelectorAll('tr')
-    // convert global index to local visible index
-    const localIndex = rowIndex - visibleStartIndex
-    let bottomRow = rows[localIndex - 1]
-    if (typeof bottomRow !== 'undefined') {
-        let bottomCell = bottomRow.querySelector('div[contenteditable]')
-        bottomCell.focus()
-    }
-
-    // styles and computed columns are now computed on the fly
+    const overflowCountAfter = Math.max(0, overflowCount + after.length - 1)
+    const totalPagesAfter = Math.max(1, Math.ceil(
+        (items.length - 1 + after.length - overflowCountAfter) / PAGE_SIZE,
+    ))
+    tableHistory.recordRows({
+        index: rowIndex, before: [row], after,
+        previousRow: items[rowIndex - 1], nextRow: items[rowIndex + 1],
+        beforeFocus, afterFocus,
+        beforeView: { currentPage, overflowCount },
+        afterView: {
+            currentPage: Math.min(currentPage, totalPagesAfter),
+            overflowCount: overflowCountAfter,
+        },
+    })
+    items.splice(rowIndex, 1, ...after)
+    overflowCount = overflowCountAfter
+    refreshTableStructure()
+    restoreTableFocus(afterFocus)
 }
 
 function handleKeysInTD(e, itemIndex, itemColumn) {
+    if (e.isComposing) return
     // [[ page link dropdown: must run first to prevent cell-navigation keys from firing
     if (pageLinkAnchorRect) {
         if (pageLinkDropdown) {
@@ -590,6 +686,7 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
 
     // insert row (disabled while filters active — row index would be wrong)
     if (e.ctrlKey && e.key === 'Enter' && !hasActiveFilters) {
+        e.preventDefault()
         if (e.shiftKey) {
             insertRow(itemIndex, true)
         } else {
@@ -694,7 +791,7 @@ function handleKeysInTD(e, itemIndex, itemColumn) {
     }
 }
 
-function handleBlur(event) {
+function handleBlur() {
     // Check if the new focus is within the suggestions list
     setTimeout(() => {
         const activeElement = document.activeElement
@@ -703,48 +800,17 @@ function handleBlur(event) {
         }
         autocompleteData.show = false
     }, 0)
-
-    normalizeEditableDiv(event.target)
 }
 
-// Normalize a contenteditable div on blur: remove stray <br>
-function normalizeEditableDiv(el) {
-    const text = el.textContent
-    if (text === '' && el.innerHTML !== '') {
-        el.innerHTML = ''
-        const inputEvent = new Event('input')
-        el.dispatchEvent(inputEvent)
-    }
-}
-
-function handleUndoStacks(e) {
-    if (e.ctrlKey && e.key.toLowerCase() === 'z') {
-        if (undoStackForRemoveRow.length > 0) {
-            e.preventDefault()
-            let undo = undoStackForRemoveRow.pop()
-            if (items.length === 1) {
-                let emptyKeysCount = 0
-                let keys = Object.keys(items[0])
-                let keysCount = keys.length
-                keys.forEach((itemKey) => {
-                    if (items[0][itemKey] === '') {
-                        emptyKeysCount++
-                    }
-                })
-                if (emptyKeysCount === keysCount) {
-                    items.splice(undo.index, 1, undo.item)
-                } else {
-                    items.splice(undo.index, 0, undo.item)
-                }
-            } else if (items.length > 1) {
-                items.splice(undo.index, 0, undo.item)
-            }
-            engine.onStructuralChange()
-            rowStyleCache.clear()
-            colStyleCache.clear()
-            items = items
-        }
-    }
+function handleTableHistoryKeydown(event) {
+    if (event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) return
+    const key = event.key.toLowerCase()
+    if (key !== 'z' && !(key === 'y' && !event.shiftKey)) return
+    // Never fall through to the browser's stale DOM history, even when our
+    // stack is empty. Other editors, including the note, own their shortcuts.
+    event.preventDefault()
+    event.stopPropagation()
+    applyTableHistory(key === 'y' || event.shiftKey)
 }
 
 let configuration = false
@@ -783,6 +849,7 @@ function addColumn() {
         column.label = column.name
     }
 
+    resetTableHistory()
     columns.push(column)
     columns = columns
     if (items.length === 0) {
@@ -855,6 +922,10 @@ function updateColumn() {
         alert("You can't use an existing column name")
         return
     }
+    if (columnToEditReference.name !== columnToEditCopy.name
+        || columnToEditReference.type !== columnToEditCopy.type) {
+        resetTableHistory()
+    }
     if (columnToEditReference.name !== columnToEditCopy.name) {
         // column name changed, rename column name in items
         items.forEach((item) => {
@@ -885,6 +956,7 @@ function deleteColumn(columnName) {
             'Deleting a column, will also delete all the items under it. Are you sure you want to delete this column?',
         )
     ) {
+        resetTableHistory()
         columns = columns.filter((column) => column.name !== columnName)
         items.forEach((item) => {
             Object.keys(item).forEach((itemColumName) => {
@@ -917,7 +989,8 @@ function handlePaste(e) {
 }
 
 function saveCursorPosition() {
-    savedCursorPosition = window.getSelection().getRangeAt(0)
+    const selection = window.getSelection()
+    savedCursorPosition = selection.rangeCount ? selection.getRangeAt(0) : null
 }
 
 function handleKeysInNote(e) {
@@ -1031,6 +1104,7 @@ async function pasteConfiguration() {
     }
     try {
         let parsedClipboardText = JSON.parse(clipboardText)
+        resetTableHistory()
         columns = parsedClipboardText.columns
         activeFilters = {}
         closeFilterDropdown()
@@ -1051,24 +1125,17 @@ async function pasteConfiguration() {
     }
 }
 
-$: columnSuggestions = {}
-$: {
-    columns.forEach((col) => {
-        if (col.autocomplete === 'Yes') {
-            columnSuggestions[col.name] = [
-                ...new Set(
-                    items
-                        .map((item) => item[col.name])
-                        .filter((v) => v)
-                        .map((item) => {
-                            const tempDiv = document.createElement('div')
-                            tempDiv.innerHTML = item.trim()
-                            return tempDiv.textContent || ''
-                        }),
-                ),
-            ].filter((item) => item !== '')
-        }
-    })
+function getColumnSuggestions(columnName) {
+    // The cell action updates the row before this handler runs. Read that
+    // current value instead of a reactive cache still holding the last input.
+    return [...new Set(items
+        .map((item) => item[columnName])
+        .filter((value) => value)
+        .map((value) => {
+            const tempDiv = document.createElement('div')
+            tempDiv.innerHTML = value.trim()
+            return tempDiv.textContent || ''
+        }))].filter((value) => value !== '')
 }
 
 // Prefer prefix matches, then word-boundary hits, finally other substrings for autocomplete.
@@ -1105,7 +1172,7 @@ function handleInputInTD(e, itemIndex, columnName) {
         const value = e.target.textContent
         const query = value.trim()
         const lowerQuery = query.toLowerCase()
-        const allSuggestions = columnSuggestions[columnName] || []
+        const allSuggestions = getColumnSuggestions(columnName)
         const filteredSuggestions = allSuggestions
             .filter((suggestion) => {
                 const lowerSuggestion = suggestion.toLowerCase()
@@ -1130,7 +1197,7 @@ function handleInputInTD(e, itemIndex, columnName) {
             autocompleteData.show = true
             autocompleteData.suggestions = filteredSuggestions
             autocompleteData.position = getSuggestionPosition(e.target)
-            autocompleteData.itemIndex = itemIndex // global index for data update
+            autocompleteData.item = items[itemIndex]
             autocompleteData.columnName = columnName
         } else {
             autocompleteData.show = false
@@ -1144,6 +1211,18 @@ function handleInputInTD(e, itemIndex, columnName) {
         colStyleCache.delete(row)
     }
     items = items // re-evaluate row/column styles for affected rows
+    if (document.activeElement === e.target) {
+        const request = historyFocusRequest
+        tick().then(() => {
+            // Editing a filter value may remove this cell from the view. Keep
+            // undo reachable without clearing the user's filter or stealing
+            // focus from a control they have since chosen.
+            if (!e.target.isConnected && document.activeElement === document.body
+                && request === historyFocusRequest && canEditTable()) {
+                editableTable?.focus({ preventScroll: true })
+            }
+        })
+    }
 }
 
 function getSuggestionPosition(element) {
@@ -1155,30 +1234,10 @@ function getSuggestionPosition(element) {
 }
 
 function handleSelectSuggestion(event) {
-    const suggestion = event.detail.suggestion
-    const { itemIndex, columnName } = autocompleteData
-    if (itemIndex !== null && columnName) {
-        items[itemIndex][columnName] = suggestion
-        for (const row of engine.onRawCellChanged(itemIndex, columnName)) {
-            rowStyleCache.delete(row)
-            colStyleCache.delete(row)
-        }
-        items = items // Trigger reactivity
-
-        autocompleteData.show = false
-
-        // Update the cell content and focus
-        const localIndex = itemIndex - visibleStartIndex
-        const cell = editableTable.querySelector(
-            `tbody tr:nth-child(${localIndex + 1}) td:nth-child(${columns.findIndex((col) => col.name === columnName) + 1}) div[contenteditable]`,
-        )
-        if (cell) {
-            cell.textContent = suggestion
-            cell.focus()
-            // Place cursor at the end
-            document.getSelection().collapse(cell, 1)
-        }
-    }
+    const { item, columnName } = autocompleteData
+    if (!canEditTable(item)) return
+    cellEditors.get(item)?.get(columnName)?.replaceText(event.detail.suggestion)
+    autocompleteData.show = false
 }
 
 function getColumnValue(type, value) {
@@ -1507,7 +1566,8 @@ onDestroy(unsubEventStore)
         <div class="table-scroll">
         <table
             on:paste={handlePaste}
-            on:keydown={(e) => handleUndoStacks(e)}
+            on:keydown={handleTableHistoryKeydown}
+            tabindex="-1"
             class="editable-table {note && note.trim() ? 'has-note' : ''}"
             bind:this={editableTable}
             {style}
@@ -1535,11 +1595,11 @@ onDestroy(unsubEventStore)
                 </tr>
             </thead>
             <tbody>
-                {#each visibleItems as item, localRowIndex (visibleStartIndex + localRowIndex)}
-                    {@const rowIdx = visibleStartIndex + localRowIndex}
+                {#each visibleItems as item (item)}
+                    {@const rowIdx = itemIndexes.get(item)}
                     {@const rowStyleStr = computeRowStyle(rowIdx)}
                     <tr>
-                        {#each columns as column, columnIndex}
+                        {#each columns as column, columnIndex (column.name)}
                             <td
                                 style="min-width: {widths[
                                     column.name
@@ -1555,24 +1615,16 @@ onDestroy(unsubEventStore)
                                     column.name,
                                 )}"
                             >
-                                {#if pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
+                                {#if loaded && pageContentOverride === undefined && viewOnly === false && column.type !== 'Computed'}
                                     {#if column.type === '' || column.type === undefined}
                                         <div
                                             contenteditable
                                             spellcheck="false"
-                                            bind:innerHTML={item[column.name]}
+                                            use:tableCellEditor={{ row: item, columnName: column.name }}
                                             on:keydown={(e) =>
                                                 handleKeysInTD(
                                                     e,
-                                                    visibleStartIndex +
-                                                        localRowIndex,
-                                                    column.name,
-                                                )}
-                                            on:input={(e) =>
-                                                handleInputInTD(
-                                                    e,
-                                                    visibleStartIndex +
-                                                        localRowIndex,
+                                                    rowIdx,
                                                     column.name,
                                                 )}
                                             on:blur={handleBlur}
@@ -1581,19 +1633,11 @@ onDestroy(unsubEventStore)
                                         <div
                                             contenteditable="plaintext-only"
                                             spellcheck="false"
-                                            bind:innerHTML={item[column.name]}
+                                            use:tableCellEditor={{ row: item, columnName: column.name }}
                                             on:keydown={(e) =>
                                                 handleKeysInTD(
                                                     e,
-                                                    visibleStartIndex +
-                                                        localRowIndex,
-                                                    column.name,
-                                                )}
-                                            on:input={(e) =>
-                                                handleInputInTD(
-                                                    e,
-                                                    visibleStartIndex +
-                                                        localRowIndex,
+                                                    rowIdx,
                                                     column.name,
                                                 )}
                                             on:blur={handleBlur}
@@ -1619,14 +1663,14 @@ onDestroy(unsubEventStore)
                                 <button
                                     on:click={() =>
                                         insertRow(
-                                            visibleStartIndex + localRowIndex,
+                                            rowIdx,
                                             false,
                                         )}>↓</button
                                 >
                                 <button
                                     on:click={() =>
                                         insertRow(
-                                            visibleStartIndex + localRowIndex,
+                                            rowIdx,
                                             true,
                                         )}>↑</button
                                 >
@@ -1640,7 +1684,7 @@ onDestroy(unsubEventStore)
                                             return
                                         }
                                         deleteRow(
-                                            visibleStartIndex + localRowIndex,
+                                            rowIdx,
                                         )
                                     }}>x</button
                                 >
@@ -1734,7 +1778,7 @@ onDestroy(unsubEventStore)
                 editMode={statsEditMode}
                 on:update-widgets={(e) => {
                     stats = { ...stats, widgets: e.detail }
-                    savePageContent()
+                    queueSavePageContent()
                 }}
             />
         {/if}
