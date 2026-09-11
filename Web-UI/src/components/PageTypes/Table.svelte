@@ -409,6 +409,24 @@ function goToPage(n) {
 
 function focusLastEditableCell() {
     if (!editableTable) return
+    // Touch users should arrive at the latest rows without opening the keyboard
+    // or jumping sideways to the last editable column.
+    if (window.matchMedia('(pointer: coarse)').matches) {
+        if (viewOnly || pageContentOverride !== undefined) return
+        const row = editableTable.querySelector('tbody > tr:last-child')
+        const container = getScrollContainer(editableTable)
+        if (row && container) {
+            const rowBounds = row.getBoundingClientRect()
+            const containerBounds = container.getBoundingClientRect()
+            const headerHeight = editableTable.tHead?.getBoundingClientRect().height ?? 0
+            // Show the beginning of a row that is taller than the viewport.
+            container.scrollTop += Math.max(0, Math.min(
+                rowBounds.top - containerBounds.top - headerHeight,
+                rowBounds.bottom - containerBounds.top - container.clientHeight,
+            ))
+        }
+        return
+    }
     let lastEditableTD = editableTable.querySelectorAll(
         'tbody > tr:last-child > td > div[contenteditable]:empty',
     )
@@ -1563,7 +1581,7 @@ onDestroy(unsubEventStore)
                 ✕ Clear Filters
             </div>
         {/if}
-        <div class="table-scroll">
+        <div class="table-view">
         <table
             on:paste={handlePaste}
             on:keydown={handleTableHistoryKeydown}
@@ -1585,6 +1603,7 @@ onDestroy(unsubEventStore)
                             ></span>
                             {#if column.filterable === 'Yes'}
                                 <button
+                                    aria-label="Filter {column.label || column.name}"
                                     class="filter-btn {activeFilters[column.name]?.size > 0 ? 'filter-btn--active' : ''}"
                                     type="button"
                                     on:click={(e) => openFilterDropdown(e, column.name)}
@@ -1601,6 +1620,7 @@ onDestroy(unsubEventStore)
                     <tr>
                         {#each columns as column, columnIndex (column.name)}
                             <td
+                                class:wrapped={column.wrap !== 'No'}
                                 style="min-width: {widths[
                                     column.name
                                 ]}; max-width: {widths[
@@ -1661,6 +1681,7 @@ onDestroy(unsubEventStore)
                         {#if pageContentOverride === undefined && viewOnly === false && !hasActiveFilters}
                             <td class="table-actions">
                                 <button
+                                    aria-label="Insert row below"
                                     on:click={() =>
                                         insertRow(
                                             rowIdx,
@@ -1668,6 +1689,7 @@ onDestroy(unsubEventStore)
                                         )}>↓</button
                                 >
                                 <button
+                                    aria-label="Insert row above"
                                     on:click={() =>
                                         insertRow(
                                             rowIdx,
@@ -1675,6 +1697,7 @@ onDestroy(unsubEventStore)
                                         )}>↑</button
                                 >
                                 <button
+                                    aria-label="Delete row"
                                     on:click={() => {
                                         if (
                                             !confirm(
@@ -1718,7 +1741,6 @@ onDestroy(unsubEventStore)
                 </tr>
             {/if}
         </table>
-        </div>
         {#if showPagination}
             <div class="pager">
                 <button
@@ -1771,6 +1793,7 @@ onDestroy(unsubEventStore)
                 {@html note}
             </div>
         {/if}
+        </div>
         {:else}
             <TableStats
                 {engine}
@@ -2425,16 +2448,34 @@ table td > div[contenteditable] {
 }
 
 @media (max-width: 768px) {
-    /* Mobile: scope horizontal scroll to the table itself so the sticky-right
-     * actions column stays at the visible table edge instead of the viewport.
-     * Desktop tables continue to use page-level horizontal scroll as before. */
-    .table-scroll {
-        overflow-x: auto;
-        overflow-y: visible;
+    .table-view {
+        min-width: 100%;
+        width: max-content;
+    }
+
+    /* Use the page's scroll container for both axes and sticky headers.
+     * Keep wide tables from squeezing wrapped columns into tall, narrow rows. */
+    .editable-table {
+        width: max-content;
+    }
+
+    .editable-table td.wrapped {
+        max-width: min(24rem, calc(100vw - 3rem));
     }
 
     .pager {
+        left: 0;
         flex-wrap: wrap;
+    }
+
+    .pager,
+    .table-note {
+        width: calc(100vw - 3rem);
+    }
+
+    .pos-r > .filter-clear {
+        position: static;
+        padding: 0.5em 0;
     }
 
     .pager > button {
@@ -2449,14 +2490,6 @@ table td > div[contenteditable] {
         min-height: 36px;
         padding: 4px 8px;
         width: 8ch;
-    }
-
-    td.table-actions {
-        position: sticky;
-        right: 0;
-        background: var(--bg-section-active);
-        border-left: 2px solid var(--border-table);
-        z-index: 1;
     }
 
     td.table-actions button {

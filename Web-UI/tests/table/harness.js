@@ -42,9 +42,45 @@ window.fetch = async (input, options = {}) => {
         { status: 200, headers: { 'Content-Type': 'application/json' } },
     )
 }
-const table = new Table({
+const fullPage = new URLSearchParams(location.search).has('fullPage')
+if (fullPage) {
+    await import('../../src/components/Frame.svelte')
+    const css = document.createElement('link')
+    css.rel = 'stylesheet'
+    css.href = '/global.css'
+    document.head.append(css)
+    const layout = document.createElement('style')
+    layout.textContent = `
+        body { margin: 0; font: 16px/1.5 system-ui; }
+        #app { display: grid; height: 100dvh; grid-template-columns: minmax(0, 1fr); }
+    `
+    document.head.append(layout)
+    const sidebar = document.createElement('div')
+    sidebar.className = 'journal-left-sidebar'
+    sidebar.hidden = true
+    document.getElementById('app').append(sidebar)
+}
+const Component = fullPage
+    ? (await import('../../src/components/Page.svelte')).default
+    : Table
+const table = new Component({
     target: document.getElementById('app'),
-    props: { pageId: 42 },
+    props: fullPage
+        ? {
+              className: 'journal-page-container',
+              updatePageName: () => {},
+              activePage: {
+                  id: 42,
+                  name: 'Job + Salary',
+                  type: 'Table',
+                  created_at: '2021-04-03 22:40:00',
+                  locked: false,
+                  view_only: false,
+                  hide_title: false,
+                  ...window.tablePageProps,
+              },
+          }
+        : { pageId: 42 },
 })
 window.tableHarness = {
     destroy: () => table.$destroy(),

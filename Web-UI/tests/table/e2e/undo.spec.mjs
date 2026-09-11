@@ -710,21 +710,21 @@ test('undo reveals a cell outside the horizontal viewport', async ({
         items: [{ value: 'A', other: 'B' }],
         widths: { value: '140px', other: '140px' },
     })
-    await page.locator('.table-scroll').evaluate((node) => {
+    await page.locator('#app').evaluate((node) => {
         node.style.width = '180px'
         node.style.overflow = 'auto'
     })
     await cells.nth(1).press('End')
     await page.keyboard.type('new')
     await cells.first().focus()
-    await page.locator('.table-scroll').evaluate((node) => {
+    await page.locator('#app').evaluate((node) => {
         node.scrollLeft = 0
     })
     await page.keyboard.press('Control+z')
     await expect(cells.nth(1)).toHaveText('B')
     await expect
         .poll(() =>
-            page.locator('.table-scroll').evaluate((node) => node.scrollLeft),
+            page.locator('#app').evaluate((node) => node.scrollLeft),
         )
         .toBeGreaterThan(0)
 })
