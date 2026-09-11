@@ -1,13 +1,9 @@
 <script>
-import { onMount, onDestroy } from 'svelte'
-import { mobileViewportMql } from '../actions/touchGuard.js'
 import { clickOutside } from '../actions/clickOutside.js'
 
 export let links = []
 
 let open = false
-let isMobile = false
-let mql = null
 
 function toggle() {
     open = !open
@@ -17,31 +13,13 @@ function close() {
     open = false
 }
 
-function handleMqlChange(e) {
-    isMobile = e.matches
-}
-
-onMount(() => {
-    mql = mobileViewportMql()
-    if (mql) {
-        isMobile = mql.matches
-        mql.addEventListener('change', handleMqlChange)
-    }
-})
-
-onDestroy(() => {
-    if (mql) mql.removeEventListener('change', handleMqlChange)
-})
-
-$: visibleLinks = isMobile ? links.filter((l) => !l.mobileHide) : links
-
 function selectItem(link) {
     if (link.onClick) link.onClick()
     close()
 }
 </script>
 
-{#if visibleLinks.length > 0}
+{#if links.length > 0}
     <div class="mobile-pagenav" use:clickOutside={close}>
         <button
             class="trigger"
@@ -52,7 +30,7 @@ function selectItem(link) {
 
         {#if open}
             <div class="menu">
-                {#each visibleLinks as link}
+                {#each links as link}
                     {#if link.type === 'link'}
                         <a
                             class="item"

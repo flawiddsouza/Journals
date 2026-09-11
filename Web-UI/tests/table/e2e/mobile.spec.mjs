@@ -19,7 +19,12 @@ const fixture = {
     rowStyle: "return 'background: azure'",
 }
 
-async function openTable(page, content = fixture, pageProps = {}) {
+async function openTable(
+    page,
+    content = fixture,
+    pageProps = {},
+    pageActions = false,
+) {
     await page.addInitScript(
         ({ content, pageProps }) => {
             window.tableFixture = content
@@ -27,7 +32,9 @@ async function openTable(page, content = fixture, pageProps = {}) {
         },
         { content, pageProps },
     )
-    await page.goto('/tests/table/harness.html?fullPage')
+    await page.goto(
+        `/tests/table/harness.html?fullPage${pageActions ? '&pageActions' : ''}`,
+    )
     await expect(page.locator('.editable-table tbody tr')).toHaveCount(
         content.items.length > 250
             ? content.items.length % 250 || 250
@@ -42,6 +49,82 @@ for (const width of [360, 412, 768]) {
             viewport: { width, height: 820 },
             isMobile: true,
             hasTouch: true,
+        })
+
+        test('opens and exits configuration from page actions', async ({
+            page,
+        }) => {
+            await openTable(page, fixture, {}, true)
+            const actions = page.getByRole('button', {
+                name: 'Page actions',
+                exact: true,
+            })
+            await actions.tap()
+            const configure = page.getByRole('button', {
+                name: 'Configure Table',
+                exact: true,
+            })
+            await expect(configure).toBeInViewport()
+            await configure.tap()
+            await expect(page.locator('.config-table')).toBeVisible()
+            await expect(page.locator('.mobile-pagenav .menu')).toHaveCount(0)
+            const column = page.locator('.config-table tbody tr').first()
+            await column
+                .getByRole('button', { name: 'Edit', exact: true })
+                .tap()
+            await column.locator('input').nth(1).fill('Pay month')
+            await column
+                .getByRole('button', { name: 'Update', exact: true })
+                .tap()
+            await expect
+                .poll(() =>
+                    page.evaluate(
+                        () =>
+                            window.tableSaves.at(-1)?.content.columns[0].label,
+                    ),
+                )
+                .toBe('Pay month')
+            await actions.tap()
+            await expect(
+                page.getByRole('button', { name: 'Stats', exact: true }),
+            ).toHaveCount(0)
+            await page
+                .getByRole('button', {
+                    name: 'Exit Configuration',
+                    exact: true,
+                })
+                .tap()
+            await expect(page.locator('.config-table')).toHaveCount(0)
+            await expect(page.locator('.editable-table')).toBeVisible()
+            await expect(
+                page.locator('.editable-table thead th').first(),
+            ).toHaveText('Pay month')
+            await actions.tap()
+            await expect(configure).toBeInViewport()
+        })
+
+        test('does not offer configuration for a read-only table', async ({
+            page,
+        }) => {
+            await openTable(page, fixture, { view_only: true }, true)
+            await page
+                .getByRole('button', { name: 'Page actions', exact: true })
+                .tap()
+            await expect(
+                page.getByRole('button', { name: 'Help', exact: true }),
+            ).toBeVisible()
+            await expect(
+                page.getByRole('button', {
+                    name: 'Configure Table',
+                    exact: true,
+                }),
+            ).toHaveCount(0)
+            await expect(
+                page.getByRole('button', {
+                    name: 'Exit Configuration',
+                    exact: true,
+                }),
+            ).toHaveCount(0)
         })
 
         test('keeps headers visible, columns readable, and actions beside the data', async ({

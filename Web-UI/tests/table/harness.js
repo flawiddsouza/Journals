@@ -82,6 +82,28 @@ const table = new Component({
           }
         : { pageId: 42 },
 })
+if (fullPage && new URLSearchParams(location.search).has('pageActions')) {
+    const { default: PageNav } =
+        await import('../../src/components/PageNav.svelte')
+    const nav = document.createElement('nav')
+    nav.style.cssText =
+        'display: flex; justify-content: flex-end; padding: 0.5rem; position: relative; z-index: 1'
+    document.body.prepend(nav)
+    document.body.style.cssText =
+        'display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100dvh'
+    document.getElementById('app').style.height = '100%'
+    new PageNav({
+        target: nav,
+        props: {
+            activePage: {
+                id: 42,
+                type: 'Table',
+                view_only: false,
+                ...window.tablePageProps,
+            },
+        },
+    })
+}
 window.tableHarness = {
     destroy: () => table.$destroy(),
     setProps: (props) => table.$set(props),

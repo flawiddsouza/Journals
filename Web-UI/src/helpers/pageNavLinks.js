@@ -60,7 +60,6 @@ export function generatePageLinks(
                 links.push({
                     href: '#configure-table',
                     text: 'Configure Table',
-                    mobileHide: true,
                     onClick: handlers.configureTable,
                 })
             } else {
