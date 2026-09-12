@@ -1541,8 +1541,12 @@ function handleAIApply(event) {
 
 const unsubEventStore = eventStore.subscribe((event) => {
     if (event && event.event === 'configureTable') {
+        const scrollContainer = getScrollContainer(editableTable)
         saveScrollState()
         configuration = true
+        tick().then(() => {
+            if (configuration && scrollContainer) scrollContainer.scrollTop = 0
+        })
     }
     if (event && event.event === 'tableConfigureExit') {
         configuration = false
@@ -1570,7 +1574,7 @@ onDestroy(unsubEventStore)
 
 <svelte:window on:click={handleWindowClick} />
 
-<div class="pos-r">
+<div class="pos-r" class:table-configuration={configuration}>
     {#if !loaded}
         <div>Loading…</div>
     {/if}
@@ -1806,198 +1810,139 @@ onDestroy(unsubEventStore)
             />
         {/if}
     {:else}
-        <div class="config-holder">
-            <div on:click={copyConfiguration}>
-                Copy Configuration
-            </div>
-            <div on:click={pasteConfiguration} style="margin-top: 0.25rem">
-                Paste Configuration
+        <div class="config-toolbar">
+            <div class="config-heading">Columns</div>
+            <div class="config-holder">
+                <button type="button" on:click={copyConfiguration}>
+                    Copy Configuration
+                </button>
+                <button type="button" on:click={pasteConfiguration}>
+                    Paste Configuration
+                </button>
             </div>
         </div>
-
-        <div class="config-heading">Columns</div>
         <form on:submit|preventDefault={addColumn}>
-            <table class="config-table">
+            <table class="config-table" role="table" aria-label="Column configuration">
                 <thead>
                     <tr>
-                        <th>Name</th>
-                        <th>Label</th>
-                        <th>Wrap</th>
-                        <th>Align</th>
-                        <th>Type</th>
-                        <th>Autocomplete</th>
-                        <th>Filter</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Label</th>
+                        <th scope="col">Wrap</th>
+                        <th scope="col">Align</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Autocomplete</th>
+                        <th scope="col">Filter</th>
                     </tr>
                 </thead>
                 <tbody>
                     {#each columns as column, index}
                         {#if columnToEditReference && columnToEditReference.name === column.name}
                             <tr>
-                                <td
-                                    ><input
-                                        class="input"
-                                        type="text"
-                                        bind:value={columnToEditCopy.name}
-                                        use:focus
-                                    /></td
-                                >
-                                <td
-                                    ><input
-                                        class="input"
-                                        type="text"
-                                        bind:value={columnToEditCopy.label}
-                                    /></td
-                                >
-                                <td>
-                                    <select class="input" bind:value={columnToEditCopy.wrap}>
+                                <td data-label="Name">
+                                    <input class="input" type="text" aria-label="Name" bind:value={columnToEditCopy.name} use:focus />
+                                </td>
+                                <td data-label="Label">
+                                    <input class="input" type="text" aria-label="Label" bind:value={columnToEditCopy.label} />
+                                </td>
+                                <td data-label="Wrap">
+                                    <select class="input" aria-label="Wrap" bind:value={columnToEditCopy.wrap}>
                                         <option value="">Yes</option>
                                         <option>No</option>
                                     </select>
                                 </td>
-                                <td>
-                                    <select class="input" bind:value={columnToEditCopy.align}>
+                                <td data-label="Align">
+                                    <select class="input" aria-label="Align" bind:value={columnToEditCopy.align}>
                                         <option value="">Left</option>
                                         <option>Center</option>
                                         <option>Right</option>
                                     </select>
                                 </td>
-                                <td>
-                                    <select class="input" bind:value={columnToEditCopy.type}>
+                                <td data-label="Type">
+                                    <select class="input" aria-label="Type" bind:value={columnToEditCopy.type}>
                                         <option value="">Input</option>
                                         <option>Input (Plain Text)</option>
                                         <option>Computed</option>
                                     </select>
                                 </td>
-                                <td>
-                                    <select
-                                        class="input"
-                                        bind:value={
-                                            columnToEditCopy.autocomplete
-                                        }
-                                    >
+                                <td data-label="Autocomplete">
+                                    <select class="input" aria-label="Autocomplete" bind:value={columnToEditCopy.autocomplete}>
+                                        <option value="">No</option>
+                                        <option>Yes</option>
+                                    </select>
+                                </td>
+                                <td data-label="Filter">
+                                    <select class="input" aria-label="Filter" bind:value={columnToEditCopy.filterable}>
                                         <option value="">No</option>
                                         <option>Yes</option>
                                     </select>
                                 </td>
                                 <td>
-                                    <select
-                                        class="input"
-                                        bind:value={
-                                            columnToEditCopy.filterable
-                                        }
-                                    >
-                                        <option value="">No</option>
-                                        <option>Yes</option>
-                                    </select>
+                                    <button class="btn-sm" type="button" on:click={updateColumn}>Update</button>
                                 </td>
                                 <td>
-                                    <button
-                                        class="btn-sm"
-                                        type="button"
-                                        on:click={updateColumn}>Update</button
-                                    >
-                                </td>
-                                <td>
-                                    <button
-                                        class="btn-sm"
-                                        type="button"
-                                        on:click={cancelEditColumn}
-                                        >Cancel</button
-                                    >
+                                    <button class="btn-sm" type="button" on:click={cancelEditColumn}>Cancel</button>
                                 </td>
                             </tr>
                         {:else}
                             <tr>
-                                <td>{column.name}</td>
-                                <td>{column.label}</td>
-                                <td>{column.wrap || 'Yes'}</td>
-                                <td>{column.align || 'Left'}</td>
-                                <td>{column.type || 'Input'}</td>
-                                <td>{column.autocomplete || 'No'}</td>
-                                <td>{column.filterable || 'No'}</td>
-                                <td
-                                    ><button
-                                        class="btn-sm"
-                                        type="button"
-                                        on:click={() => moveUp(index)}
-                                        >Move Up</button
-                                    ></td
-                                >
-                                <td
-                                    ><button
-                                        class="btn-sm"
-                                        type="button"
-                                        on:click={() => moveDown(index)}
-                                        >Move Down</button
-                                    ></td
-                                >
-                                <td
-                                    ><button
-                                        class="btn-sm"
-                                        type="button"
-                                        on:click={() => startEditColumn(column)}
-                                        >Edit</button
-                                    ></td
-                                >
-                                <td
-                                    ><button
-                                        class="btn-sm"
-                                        type="button"
-                                        on:click={() =>
-                                            deleteColumn(column.name)}
-                                        >Delete</button
-                                    ></td
-                                >
+                                <td data-label="Name"><span>{column.name}</span></td>
+                                <td data-label="Label"><span>{column.label}</span></td>
+                                <td data-label="Wrap"><span>{column.wrap || 'Yes'}</span></td>
+                                <td data-label="Align"><span>{column.align || 'Left'}</span></td>
+                                <td data-label="Type"><span>{column.type || 'Input'}</span></td>
+                                <td data-label="Autocomplete"><span>{column.autocomplete || 'No'}</span></td>
+                                <td data-label="Filter"><span>{column.filterable || 'No'}</span></td>
+                                <td>
+                                    <button class="btn-sm" type="button" on:click={() => moveUp(index)}>Move Up</button>
+                                </td>
+                                <td>
+                                    <button class="btn-sm" type="button" on:click={() => moveDown(index)}>Move Down</button>
+                                </td>
+                                <td>
+                                    <button class="btn-sm" type="button" on:click={() => startEditColumn(column)}>Edit</button>
+                                </td>
+                                <td>
+                                    <button class="btn-sm" type="button" on:click={() => deleteColumn(column.name)}>Delete</button>
+                                </td>
                             </tr>
                         {/if}
                     {/each}
                     {#if showAddColumn}
                         <tr>
-                            <td
-                                ><input
-                                    class="input"
-                                    type="text"
-                                    bind:value={column.name}
-                                    required
-                                    use:focus
-                                /></td
-                            >
-                            <td
-                                ><input
-                                    class="input"
-                                    type="text"
-                                    bind:value={column.label}
-                                    placeholder="Keep blank to be = name"
-                                /></td
-                            >
-                            <td>
-                                <select class="input" bind:value={column.wrap}>
+                            <td data-label="Name">
+                                <input class="input" type="text" aria-label="Name" bind:value={column.name} required use:focus />
+                            </td>
+                            <td data-label="Label">
+                                <input class="input" type="text" aria-label="Label" bind:value={column.label} placeholder="Keep blank to be = name" />
+                            </td>
+                            <td data-label="Wrap">
+                                <select class="input" aria-label="Wrap" bind:value={column.wrap}>
                                     <option value="">Yes</option>
                                     <option>No</option>
                                 </select>
                             </td>
-                            <td>
-                                <select class="input" bind:value={column.align}>
+                            <td data-label="Align">
+                                <select class="input" aria-label="Align" bind:value={column.align}>
                                     <option value="">Left</option>
                                     <option>Center</option>
                                     <option>Right</option>
                                 </select>
                             </td>
-                            <td>
-                                <select class="input" bind:value={column.type}>
+                            <td data-label="Type">
+                                <select class="input" aria-label="Type" bind:value={column.type}>
                                     <option value="">Input</option>
                                     <option>Input (Plain Text)</option>
                                     <option>Computed</option>
                                 </select>
                             </td>
-                            <td>
-                                <select class="input" bind:value={column.autocomplete}>
+                            <td data-label="Autocomplete">
+                                <select class="input" aria-label="Autocomplete" bind:value={column.autocomplete}>
                                     <option value="">No</option>
                                     <option>Yes</option>
                                 </select>
                             </td>
-                            <td>
-                                <select class="input" bind:value={column.filterable}>
+                            <td data-label="Filter">
+                                <select class="input" aria-label="Filter" bind:value={column.filterable}>
                                     <option value="">No</option>
                                     <option>Yes</option>
                                 </select>
@@ -2006,12 +1951,7 @@ onDestroy(unsubEventStore)
                                 <button class="btn-sm">Add</button>
                             </td>
                             <td>
-                                <button
-                                    class="btn-sm ml-0_5em"
-                                    type="button"
-                                    on:click={() => (showAddColumn = false)}
-                                    >Cancel</button
-                                >
+                                <button class="btn-sm" type="button" on:click={() => (showAddColumn = false)}>Cancel</button>
                             </td>
                         </tr>
                     {/if}
@@ -2209,7 +2149,7 @@ onDestroy(unsubEventStore)
                     >Click here to see example code on how to modify the rows in
                     the table on startup</summary
                 >
-                <code style="white-space: pre;"
+                <code style="white-space: pre-wrap;"
                     >{@html `// Modify all rows
 rows.forEach(row => {
     row['Column 1'] = row['Column 1'] + 'foo'
@@ -2343,15 +2283,38 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`}</code
     position: relative;
 }
 
-.config-holder {
-    position: absolute;
-    right: 24px;
-    top: 0;
+.config-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.75rem;
 }
 
-.config-holder > div {
+.config-toolbar .config-heading {
+    margin: 0;
+}
+
+.config-holder {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.config-holder > button {
     cursor: pointer;
+    font: inherit;
+    font-size: 13px;
     color: var(--color-pa-btn);
+    background: transparent;
+    border: 1px solid var(--border-select);
+    border-radius: 0.3rem;
+    padding: calc(0.3em - 1px) 0.8em;
+}
+
+.config-holder > button:hover {
+    background: var(--bg-pa-hover);
 }
 
 .config-heading {
@@ -2448,6 +2411,106 @@ table td > div[contenteditable] {
 }
 
 @media (max-width: 768px) {
+    .table-configuration {
+        width: 100%;
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .config-holder {
+        width: 100%;
+    }
+
+    .config-holder > button {
+        flex: 1 1 9rem;
+        min-height: 2.75rem;
+        font-size: inherit;
+        padding: 0.5rem 0.75rem;
+    }
+
+    table.config-table,
+    table.config-table > tbody {
+        display: block;
+        width: 100%;
+    }
+
+    /* Keep table headers available to assistive technology when rows become cards. */
+    table.config-table > thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    table.config-table > tbody > tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem;
+        padding: 0.75rem;
+        border: 1px solid var(--border-table);
+        border-radius: 0.4rem;
+    }
+
+    table.config-table > tbody > tr + tr {
+        margin-top: 0.75rem;
+    }
+
+    table.config-table > tbody td {
+        min-width: 0;
+        padding: 0;
+        border: 0;
+    }
+
+    table.config-table td[data-label] {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+        align-items: center;
+        gap: 0.5rem;
+        min-height: 2rem;
+    }
+
+    table.config-table td[data-label]::before {
+        content: attr(data-label);
+        color: var(--color-utility);
+        font-size: 0.875rem;
+    }
+
+    table.config-table td > input,
+    table.config-table td > select,
+    table.config-table td > button {
+        width: 100%;
+        min-width: 0;
+        min-height: 2.75rem;
+        box-sizing: border-box;
+    }
+
+    .config-area-font-size,
+    .config-area-font-size input,
+    .config-area-note code,
+    .table-configuration code-mirror {
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .table-configuration code-mirror {
+        display: block;
+        width: 100%;
+    }
+
+    .editor-row {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .editor-row > span {
+        flex: 1 1 8rem;
+        min-width: 0;
+    }
+
     .table-view {
         min-width: 100%;
         width: max-content;
