@@ -116,7 +116,7 @@ const tableDocument = {
                     content: [
                         {
                             type: 'tableHeader',
-                            attrs: { colspan: 1, rowspan: 1, colwidth: null },
+                            attrs: { colspan: 1, rowspan: 1, colwidth: [180] },
                             content: [
                                 {
                                     type: 'paragraph',
@@ -126,7 +126,13 @@ const tableDocument = {
                         },
                         {
                             type: 'tableHeader',
-                            attrs: { colspan: 1, rowspan: 1, colwidth: null },
+                            attrs: {
+                                colspan: 1,
+                                rowspan: 1,
+                                colwidth: [120],
+                                align: 'right',
+                                nowrap: true,
+                            },
                             content: [
                                 {
                                     type: 'paragraph',
@@ -141,7 +147,7 @@ const tableDocument = {
                     content: [
                         {
                             type: 'tableCell',
-                            attrs: { colspan: 1, rowspan: 1, colwidth: null },
+                            attrs: { colspan: 1, rowspan: 1, colwidth: [180] },
                             content: [
                                 {
                                     type: 'paragraph',
@@ -153,7 +159,13 @@ const tableDocument = {
                         },
                         {
                             type: 'tableCell',
-                            attrs: { colspan: 1, rowspan: 1, colwidth: null },
+                            attrs: {
+                                colspan: 1,
+                                rowspan: 1,
+                                colwidth: [120],
+                                align: 'right',
+                                nowrap: true,
+                            },
                             content: [
                                 {
                                     type: 'paragraph',

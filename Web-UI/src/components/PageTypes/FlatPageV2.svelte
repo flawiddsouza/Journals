@@ -56,7 +56,7 @@ import Paragraph from '@tiptap/extension-paragraph'
 import Image from '@tiptap/extension-image'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
-import Table from '@tiptap/extension-table'
+import Table, { TableView } from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableHeader from '@tiptap/extension-table-header'
 import TableCell from '@tiptap/extension-table-cell'
@@ -119,6 +119,57 @@ const ExternalLink = TiptapNode.create({
     },
 })
 
+const tableCellMinWidth = 70
+
+// tiptap's resizable table view drops HTMLAttributes, so re-add the class
+// that the table styles and view-only rendering rely on.
+class FlatPageTableView extends TableView {
+    constructor(node, cellMinWidth, view) {
+        super(node, cellMinWidth, view)
+        this.table.classList.add('flat-page-table')
+    }
+
+    update(node) {
+        // tiptap only ever sets a column's width and never removes it, so a
+        // column reset to auto would keep its old width. Clear the widths
+        // first and let tiptap re-apply the ones the node still has.
+        for (const column of this.colgroup.children) {
+            column.style.width = ''
+        }
+
+        return super.update(node)
+    }
+}
+
+// Alignment and wrapping are set per column, stored on every cell of
+// the column the way tiptap stores colwidth.
+const columnCellAttributes = {
+    align: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-align'),
+        renderHTML: (attributes) =>
+            attributes.align ? { 'data-align': attributes.align } : {},
+    },
+    nowrap: {
+        default: false,
+        parseHTML: (element) => element.getAttribute('data-nowrap') === 'true',
+        renderHTML: (attributes) =>
+            attributes.nowrap ? { 'data-nowrap': 'true' } : {},
+    },
+}
+
+const FlatPageTableHeader = TableHeader.extend({
+    addAttributes() {
+        return { ...this.parent?.(), ...columnCellAttributes }
+    },
+})
+
+const FlatPageTableCell = TableCell.extend({
+    addAttributes() {
+        return { ...this.parent?.(), ...columnCellAttributes }
+    },
+})
+
 const extensions = [
     StarterKit.configure({
         paragraph: false,
@@ -148,10 +199,14 @@ const extensions = [
     }),
     Table.configure({
         HTMLAttributes: { class: 'flat-page-table' },
+        resizable: true,
+        renderWrapper: true,
+        cellMinWidth: tableCellMinWidth,
+        View: FlatPageTableView,
     }),
     TableRow,
-    TableHeader,
-    TableCell,
+    FlatPageTableHeader,
+    FlatPageTableCell,
 ]
 
 const tiptapSchema = getSchema(extensions)
@@ -260,6 +315,192 @@ function addTableRowAndFocus(insertBefore) {
         .setTextSelection(rowPosition + 3)
         .focus()
         .run()
+
+    return true
+}
+
+function findTableCellDepth($pos) {
+    for (let depth = $pos.depth; depth > 0; depth -= 1) {
+        const tableRole = $pos.node(depth).type.spec.tableRole
+
+        if (tableRole === 'cell' || tableRole === 'header_cell') {
+            return depth
+        }
+    }
+
+    return null
+}
+
+function copyTableCellFromAbove() {
+    const { state } = editor
+    const { $from } = state.selection
+    const cellDepth = findTableCellDepth($from)
+
+    if (cellDepth === null) return false
+
+    const tableStart = $from.start(cellDepth - 2)
+    const tableMap = TableMap.get($from.node(cellDepth - 2))
+    const cellPosition = $from.before(cellDepth)
+    const cellRect = tableMap.findCell(cellPosition - tableStart)
+
+    if (cellRect.top === 0) return false
+
+    const cellAbovePosition =
+        tableStart +
+        tableMap.map[(cellRect.top - 1) * tableMap.width + cellRect.left]
+    const cellAboveContent = state.doc.nodeAt(cellAbovePosition).content
+    const cell = $from.node(cellDepth)
+    const transaction = state.tr.replaceWith(
+        cellPosition + 1,
+        cellPosition + cell.nodeSize - 1,
+        cellAboveContent,
+    )
+
+    transaction.setSelection(
+        TextSelection.near(
+            transaction.doc.resolve(cellPosition + 1 + cellAboveContent.size),
+            -1,
+        ),
+    )
+    editor.view.dispatch(transaction.scrollIntoView())
+
+    return true
+}
+
+// Applies updateAttributes to every cell of one column. It receives the
+// cell's attributes and the column's offset inside a spanning cell, and
+// returns the new attributes or null to leave the cell alone. Defaults to
+// the caret's column; pass the position before a cell to use its column.
+function updateTableColumn(updateAttributes, cellPosition = null) {
+    const { state } = editor
+    const $cell =
+        cellPosition === null
+            ? state.selection.$from
+            : state.doc.resolve(cellPosition + 1)
+    const cellDepth = findTableCellDepth($cell)
+
+    if (cellDepth === null) return false
+
+    const table = $cell.node(cellDepth - 2)
+    const tableStart = $cell.start(cellDepth - 2)
+    const tableMap = TableMap.get(table)
+    const columnToUpdate =
+        tableMap.colCount($cell.before(cellDepth) - tableStart) +
+        $cell.node(cellDepth).attrs.colspan -
+        1
+    const transaction = state.tr
+    const cellsSeen = new Set()
+
+    tableMap.map.forEach((position, index) => {
+        if (cellsSeen.has(position)) return
+        cellsSeen.add(position)
+
+        const cell = table.nodeAt(position)
+        const offset = columnToUpdate - (index % tableMap.width)
+        if (offset < 0 || offset >= cell.attrs.colspan) return
+
+        const attributes = updateAttributes(cell.attrs, offset)
+        if (!attributes) return
+
+        transaction.setNodeMarkup(tableStart + position, null, attributes)
+    })
+
+    if (!transaction.docChanged) return false
+
+    editor.view.dispatch(transaction)
+
+    return true
+}
+
+function resetTableColumnWidth(cellPosition = null) {
+    return updateTableColumn((attributes, offset) => {
+        if (!attributes.colwidth) return null
+
+        let colwidth = attributes.colwidth.slice()
+        colwidth[offset] = 0
+        if (colwidth.every((width) => !width)) colwidth = null
+
+        return { ...attributes, colwidth }
+    }, cellPosition)
+}
+
+function setTableColumnAlign(align) {
+    return updateTableColumn((attributes) =>
+        attributes.align === align ? null : { ...attributes, align },
+    )
+}
+
+function toggleTableColumnWrap() {
+    const nowrap = !currentTableCellAttributes.nowrap
+
+    return updateTableColumn((attributes) =>
+        attributes.nowrap === nowrap ? null : { ...attributes, nowrap },
+    )
+}
+
+// Only one of the two cell types is active at the caret, so merging both
+// gives the current cell's attributes.
+$: currentTableCellAttributes = editor
+    ? {
+          ...editor.getAttributes('tableHeader'),
+          ...editor.getAttributes('tableCell'),
+      }
+    : {}
+
+// A text selection over the whole content of the table cell around $pos,
+// or null outside a table.
+function getTableCellTextSelection($pos) {
+    const cellDepth = findTableCellDepth($pos)
+
+    if (cellDepth === null) return null
+
+    return TextSelection.between(
+        $pos.doc.resolve($pos.start(cellDepth)),
+        $pos.doc.resolve($pos.end(cellDepth)),
+    )
+}
+
+// Ctrl+A inside a table selects the current cell's text first. A second
+// press falls through to tiptap's select all.
+// Ctrl+A steps outward: the cell's text, then every cell of the table,
+// then the whole page. Returns false once the page is next, so tiptap's
+// select all takes over.
+function selectTableCellContent() {
+    const { state } = editor
+    const { selection } = state
+    const inCellSelection = selection instanceof CellSelection
+    const $pos = inCellSelection
+        ? state.doc.resolve(selection.$anchorCell.pos + 1)
+        : selection.$from
+    const cellDepth = findTableCellDepth($pos)
+
+    if (cellDepth === null) return false
+
+    const tableStart = $pos.start(cellDepth - 2)
+    const tableMap = TableMap.get($pos.node(cellDepth - 2))
+    const firstCell = tableStart + tableMap.map[0]
+    const lastCell = tableStart + tableMap.map[tableMap.map.length - 1]
+
+    if (inCellSelection) {
+        const cells = [selection.$anchorCell.pos, selection.$headCell.pos]
+
+        if (cells.includes(firstCell) && cells.includes(lastCell)) {
+            return false
+        }
+    } else {
+        const cellText = getTableCellTextSelection($pos)
+        const cellTextSelected =
+            selection.from === cellText.from && selection.to === cellText.to
+
+        if (!cellText.empty && !cellTextSelected) {
+            editor.view.dispatch(state.tr.setSelection(cellText))
+            return true
+        }
+    }
+
+    editor.view.dispatch(
+        state.tr.setSelection(CellSelection.create(state.doc, firstCell, lastCell)),
+    )
 
     return true
 }
@@ -415,6 +656,28 @@ function pageContainerMounted(element) {
                     return true
                 }
 
+                if (
+                    (event.ctrlKey || event.metaKey) &&
+                    event.key === ';' &&
+                    editor.isActive('table')
+                ) {
+                    event.preventDefault()
+                    copyTableCellFromAbove()
+                    return true
+                }
+
+                if (
+                    (event.ctrlKey || event.metaKey) &&
+                    !event.shiftKey &&
+                    !event.altKey &&
+                    event.key.toLowerCase() === 'a' &&
+                    editor.isActive('table') &&
+                    selectTableCellContent()
+                ) {
+                    event.preventDefault()
+                    return true
+                }
+
                 if (event.key === 'Tab') {
                     if (editor.isActive('table')) return false
 
@@ -526,6 +789,33 @@ function pageContainerMounted(element) {
                 }
 
                 return false
+            },
+            // The table plugin turns a triple-click into a block selection of
+            // the cell. Select the cell's text instead, like Ctrl+A does.
+            handleTripleClick(view, position) {
+                const cellSelection = getTableCellTextSelection(
+                    view.state.doc.resolve(position),
+                )
+
+                if (!cellSelection) return false
+
+                view.dispatch(view.state.tr.setSelection(cellSelection))
+                return true
+            },
+            handleDOMEvents: {
+                // Double-clicking a column border resets that column to auto.
+                // The resize plugin draws a handle inside the hovered column's
+                // cells, which is the only place its hover state is exposed.
+                dblclick(view) {
+                    const cellDom = view.dom
+                        .querySelector('.column-resize-handle')
+                        ?.closest('td, th')
+
+                    if (!cellDom) return false
+
+                    resetTableColumnWidth(view.posAtDOM(cellDom, 0) - 1)
+                    return true
+                },
             },
             // From: https://github.com/bluesky-social/social-app/pull/6658/files
             clipboardTextParser(text, context) {
@@ -657,6 +947,8 @@ onDestroy(() => {
 
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
 import { DOMSerializer, Fragment, Node, Slice } from '@tiptap/pm/model'
+import { TextSelection } from '@tiptap/pm/state'
+import { CellSelection, TableMap } from '@tiptap/pm/tables'
 import { canJoin } from '@tiptap/pm/transform'
 </script>
 
@@ -736,6 +1028,56 @@ import { canJoin } from '@tiptap/pm/transform'
                     on:mousedown|preventDefault
                     on:click={() => editor.chain().focus().deleteTable().run()}
                     >Delete</button
+                >
+                <button
+                    class="auto-widths"
+                    type="button"
+                    aria-label="Auto column width"
+                    title="Reset this column to automatic width"
+                    on:mousedown|preventDefault
+                    on:click={() => resetTableColumnWidth()}
+                    >Auto width</button
+                >
+                <button
+                    class="align-left"
+                    type="button"
+                    aria-label="Align column left"
+                    aria-pressed={!currentTableCellAttributes.align ||
+                        currentTableCellAttributes.align === 'left'}
+                    title="Align this column left"
+                    on:mousedown|preventDefault
+                    on:click={() => setTableColumnAlign(null)}
+                    >Left</button
+                >
+                <button
+                    class="align-center"
+                    type="button"
+                    aria-label="Align column center"
+                    aria-pressed={currentTableCellAttributes.align === 'center'}
+                    title="Center this column"
+                    on:mousedown|preventDefault
+                    on:click={() => setTableColumnAlign('center')}
+                    >Center</button
+                >
+                <button
+                    class="align-right"
+                    type="button"
+                    aria-label="Align column right"
+                    aria-pressed={currentTableCellAttributes.align === 'right'}
+                    title="Align this column right"
+                    on:mousedown|preventDefault
+                    on:click={() => setTableColumnAlign('right')}
+                    >Right</button
+                >
+                <button
+                    class="no-wrap"
+                    type="button"
+                    aria-label="Column no wrap"
+                    aria-pressed={currentTableCellAttributes.nowrap === true}
+                    title="Keep this column on one line"
+                    on:mousedown|preventDefault
+                    on:click={toggleTableColumnWrap}
+                    >No wrap</button
                 >
                 <button
                     class="table-controls-done"
@@ -892,20 +1234,31 @@ import { canJoin } from '@tiptap/pm/transform'
     cursor: default;
 }
 
-.page-container :global(.flat-page-table) {
-    width: auto;
-    max-width: 100%;
+.page-container :global(.tableWrapper) {
     margin: 0.55em 0;
+    overflow-x: auto;
+}
+
+/* Columns share the page width until a border is dragged. Dragged widths
+   are saved as colwidth and rendered through the colgroup. The layout
+   stays automatic so a no-wrap column can grow to fit its text, in which
+   case the table scrolls inside its wrapper instead of clipping. */
+.page-container :global(.flat-page-table) {
+    width: 100%;
+    margin: 0;
     border-collapse: collapse;
-    table-layout: fixed;
+    table-layout: auto;
 }
 
 .page-container :global(.flat-page-table th),
 .page-container :global(.flat-page-table td) {
-    min-width: 7em;
+    position: relative;
+    min-width: 5em;
+    box-sizing: border-box;
     padding: 0.3em 0.45em;
     border: 1px solid var(--border-table);
     vertical-align: top;
+    overflow-wrap: anywhere;
 }
 
 .page-container :global(.flat-page-table th) {
@@ -914,12 +1267,47 @@ import { canJoin } from '@tiptap/pm/transform'
     text-align: left;
 }
 
-.page-container :global(.flat-page-table .selectedCell) {
-    background: var(--bg-pa-hover);
+.page-container :global(.flat-page-table [data-align='center']) {
+    text-align: center;
 }
 
+.page-container :global(.flat-page-table [data-align='right']) {
+    text-align: right;
+}
+
+.page-container :global(.flat-page-table [data-nowrap='true']) {
+    white-space: nowrap;
+    overflow-wrap: normal;
+}
+
+/* A light tint only. An outline per cell turns a selected block into a
+   heavy grid. */
+/* Selected cells wear the same colour as selected text, as a translucent
+   layer over their own background. */
 .page-container :global(.flat-page-table .selectedCell::after) {
-    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    content: '';
+    background: color-mix(in srgb, Highlight 18%, transparent);
+    pointer-events: none;
+}
+
+/* Kept inside the cell: a handle that straddles the border pokes past
+   the last column and makes the scrolling wrapper show a scrollbar. */
+.page-container :global(.column-resize-handle) {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    width: 4px;
+    background: var(--color-pa-btn);
+    pointer-events: none;
+}
+
+.page-container > :global(.ProseMirror.resize-cursor) {
+    cursor: col-resize;
 }
 
 .page-container :global(.flat-page-table :where(div, p)) {
@@ -949,8 +1337,9 @@ import { canJoin } from '@tiptap/pm/transform'
 .flat-table-menu.expanded {
     display: grid;
     grid-template-areas:
-        'row-before row-after delete-row delete-table'
-        'column-before column-after delete-column done';
+        'row-before row-after delete-row delete-table done'
+        'column-before column-after delete-column auto-widths done'
+        'align-left align-center align-right no-wrap done';
 }
 
 .flat-table-menu.expanded .row-before {
@@ -981,6 +1370,26 @@ import { canJoin } from '@tiptap/pm/transform'
     grid-area: delete-table;
 }
 
+.flat-table-menu.expanded .auto-widths {
+    grid-area: auto-widths;
+}
+
+.flat-table-menu.expanded .align-left {
+    grid-area: align-left;
+}
+
+.flat-table-menu.expanded .align-center {
+    grid-area: align-center;
+}
+
+.flat-table-menu.expanded .align-right {
+    grid-area: align-right;
+}
+
+.flat-table-menu.expanded .no-wrap {
+    grid-area: no-wrap;
+}
+
 .flat-table-menu.expanded .table-controls-done {
     grid-area: done;
 }
@@ -999,12 +1408,23 @@ import { canJoin } from '@tiptap/pm/transform'
     border-right: 0;
 }
 
-.flat-table-menu.expanded :where(.row-before, .row-after, .delete-row, .delete-table) {
+.flat-table-menu.expanded
+    :where(
+        .row-before,
+        .row-after,
+        .delete-row,
+        .delete-table,
+        .column-before,
+        .column-after,
+        .delete-column,
+        .auto-widths
+    ) {
     border-bottom: 1px solid var(--border-table);
 }
 
-.flat-table-menu.expanded .delete-table {
-    border-right: 0;
+.flat-table-menu button[aria-pressed='true'] {
+    background: var(--bg-pa-hover);
+    font-weight: bold;
 }
 
 .flat-table-menu button:hover {

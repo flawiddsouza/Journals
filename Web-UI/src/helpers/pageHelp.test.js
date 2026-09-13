@@ -44,6 +44,11 @@ describe('page help', () => {
                 expect.objectContaining({ shortcut: '[] then Space' }),
                 expect.objectContaining({ shortcut: '/table then Enter' }),
                 expect.objectContaining({ shortcut: 'Ctrl+Shift+Enter' }),
+                expect.objectContaining({ shortcut: 'Ctrl+;' }),
+                expect.objectContaining({ shortcut: 'Ctrl+A' }),
+                expect.objectContaining({ name: 'Resize column' }),
+                expect.objectContaining({ name: 'Align column' }),
+                expect.objectContaining({ name: 'Column no wrap' }),
             ]),
         )
     })

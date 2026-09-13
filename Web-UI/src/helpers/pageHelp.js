@@ -110,10 +110,45 @@ const pageTypeHelp = {
                             'Adds a row above the current row and moves the cursor into it.',
                     },
                     {
+                        name: 'Delete table row',
+                        shortcut: 'Ctrl+Delete',
+                        description: 'Removes the current row.',
+                    },
+                    {
+                        name: 'Copy cell above',
+                        shortcut: 'Ctrl+;',
+                        description:
+                            'Replaces the current table cell with the contents of the cell above it.',
+                    },
+                    {
+                        name: 'Select cell',
+                        shortcut: 'Ctrl+A',
+                        description:
+                            'Selects the text of the current table cell, as does a triple-click. A second Ctrl+A selects every cell of the table, a third the whole page. Drag across cells to select some of them.',
+                    },
+                    {
+                        name: 'Resize column',
+                        shortcut: 'Drag cell border',
+                        description:
+                            'Drags the border between two cells to set the column width. Widths are saved with the page. Double-click a border, or use Auto width in the table controls on the current column, to give that column back its automatic width.',
+                    },
+                    {
                         name: 'Table structure',
                         shortcut: '⋯',
                         description:
-                            'Opens row and column controls below the selected table.',
+                            'Opens row, column, width, alignment and wrap controls below the selected table.',
+                    },
+                    {
+                        name: 'Align column',
+                        shortcut: '⋯ then Left / Center / Right',
+                        description:
+                            'Aligns every cell of the current column. Saved with the page.',
+                    },
+                    {
+                        name: 'Column no wrap',
+                        shortcut: '⋯ then No wrap',
+                        description:
+                            'Keeps every cell of the current column on one line. The column grows to fit its text and the table scrolls sideways if needed.',
                     },
                 ],
             },
