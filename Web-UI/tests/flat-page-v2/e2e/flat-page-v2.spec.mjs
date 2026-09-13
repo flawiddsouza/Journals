@@ -30,6 +30,9 @@ async function placeCaretIn(page, text) {
         selection.removeAllRanges()
         selection.addRange(range)
     })
+    // The editor picks up a selection set from outside on a short timer.
+    // Wait it out, or the next key or click may act on the old caret.
+    await page.waitForTimeout(60)
 }
 
 async function createEmbeddedTable(page) {
@@ -38,6 +41,15 @@ async function createEmbeddedTable(page) {
     await editor.type('/table')
     await editor.press('Enter')
     return editor
+}
+
+// The ⋯ pinned at the bottom of the page opens the controls while the
+// caret is in a table.
+async function openTableControls(page) {
+    await page.getByRole('button', { name: 'Table options' }).click()
+    const tableMenu = page.locator('.flat-table-controls .flat-table-menu')
+    await expect(tableMenu).toBeVisible()
+    return tableMenu
 }
 
 test('Tab nests bullet items and Shift+Tab outdents them', async ({ page }) => {
@@ -249,17 +261,77 @@ test('Tab from the final table cell adds a row', async ({ page }) => {
     await expect(page.locator('.ProseMirror table tr')).toHaveCount(4)
 })
 
+test('table controls stay pinned to the bottom of the page area', async ({
+    page,
+}) => {
+    await page.setViewportSize({ width: 900, height: 400 })
+    await page.goto('/tests/flat-page-v2/harness.html')
+    const editor = await createEmbeddedTable(page)
+
+    for (let row = 0; row < 12; row += 1) {
+        await editor.press('Control+Enter')
+    }
+
+    const tableMenu = await openTableControls(page)
+    const container = page.locator('.page-container')
+    const containerBox = await container.boundingBox()
+    const menuBox = await tableMenu.boundingBox()
+    const containerBottom = containerBox.y + containerBox.height
+
+    expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(containerBottom)
+    expect(menuBox.y + menuBox.height).toBeGreaterThan(containerBottom - 40)
+    expect(
+        await page.evaluate(
+            () => document.documentElement.scrollHeight <= window.innerHeight,
+        ),
+    ).toBe(true)
+
+    // Scrolling the page leaves the bar where it is.
+    await container.evaluate((element) => {
+        element.scrollTop -= 150
+    })
+    expect(await tableMenu.boundingBox()).toEqual(menuBox)
+})
+
+test('table controls show only while the caret is in a table', async ({
+    page,
+}) => {
+    await page.goto('/tests/flat-page-v2/harness.html')
+    const editor = page.locator('.page-container .ProseMirror')
+    await editor.click()
+    await editor.type('before')
+    await editor.press('Enter')
+    await editor.type('/table')
+    await editor.press('Enter')
+
+    const toggle = page.getByRole('button', { name: 'Table options' })
+    await expect(toggle).toBeVisible()
+
+    await page.getByText('before', { exact: true }).click()
+    await expect(toggle).toBeHidden()
+
+    // Showing the bar must not grow the page or move it.
+    const container = page.locator('.page-container')
+    const scrollState = () =>
+        container.evaluate((element) => [
+            element.scrollHeight,
+            element.scrollTop,
+        ])
+    const scrollStateBefore = await scrollState()
+
+    await page.locator('.ProseMirror td').first().click()
+    await expect(toggle).toBeVisible()
+    expect(await scrollState()).toEqual(scrollStateBefore)
+})
+
 test('table controls add columns and remove rows', async ({ page }) => {
     await page.goto('/tests/flat-page-v2/harness.html')
     await createEmbeddedTable(page)
 
-    const tableMenu = page.locator('.flat-table-menu')
-    await expect(tableMenu).toBeVisible()
-    await expect(
-        tableMenu.getByRole('button', { name: 'Add column after' }),
-    ).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Table options' })).toBeVisible()
+    await expect(page.locator('.flat-table-menu')).toBeHidden()
 
-    await tableMenu.getByRole('button', { name: 'Table options' }).click()
+    const tableMenu = await openTableControls(page)
 
     await tableMenu.getByRole('button', { name: 'Add column before' }).click()
     await expect(page.locator('.ProseMirror table th')).toHaveCount(4)
@@ -541,8 +613,7 @@ test('Auto width in the table controls resets only the current column', async ({
     await page.goto('/tests/flat-page-v2/harness.html?content=table')
     await placeCaretIn(page, 'First item')
 
-    const tableMenu = page.locator('.flat-table-menu')
-    await tableMenu.getByRole('button', { name: 'Table options' }).click()
+    const tableMenu = await openTableControls(page)
     await tableMenu.getByRole('button', { name: 'Auto column width' }).click()
 
     await expect
@@ -561,8 +632,7 @@ test('alignment buttons align the current column and save it', async ({
     await page.goto('/tests/flat-page-v2/harness.html?content=table')
     await placeCaretIn(page, 'First item')
 
-    const tableMenu = page.locator('.flat-table-menu')
-    await tableMenu.getByRole('button', { name: 'Table options' }).click()
+    const tableMenu = await openTableControls(page)
 
     const rightButton = tableMenu.getByRole('button', {
         name: 'Align column right',
@@ -601,8 +671,7 @@ test('No wrap keeps the current column on one line and scrolls the table', async
     await page.goto('/tests/flat-page-v2/harness.html?content=table')
     await placeCaretIn(page, 'First item')
 
-    const tableMenu = page.locator('.flat-table-menu')
-    await tableMenu.getByRole('button', { name: 'Table options' }).click()
+    const tableMenu = await openTableControls(page)
     const noWrapButton = tableMenu.getByRole('button', {
         name: 'Column no wrap',
     })

@@ -60,8 +60,6 @@ import Table, { TableView } from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableHeader from '@tiptap/extension-table-header'
 import TableCell from '@tiptap/extension-table-cell'
-import BubbleMenu from '@tiptap/extension-bubble-menu'
-import 'tippy.js/dist/tippy.css'
 import { mergeAttributes } from '@tiptap/core'
 import PageLinkDropdown from '../PageLinkDropdown.svelte'
 
@@ -244,23 +242,19 @@ function insertPageLink(page) {
 }
 
 let editor
-let tableMenu
+let tableControls
 let tableControlsExpanded = false
 $: editorDom = editor?.view.dom
+$: tableActive = editor?.isActive('table') ?? false
 
-function tableMenuMounted(element) {
-    tableMenu = element
-}
-
-function getActiveTableRect() {
-    const domNode = editor.view.domAtPos(editor.state.selection.from).node
-    const domElement =
-        domNode.nodeType === 1 ? domNode : domNode.parentElement
-
-    return (
-        domElement.closest('table')?.getBoundingClientRect() ??
-        editor.view.dom.getBoundingClientRect()
-    )
+// The table controls are a bar pinned to the bottom edge of the page area
+// while the caret is in a table. It lives outside the editable document,
+// so it never takes part in editing or selection, and it is always in
+// view and in the same place however long the table is. Sticking to the
+// bottom needs the bar to come after the editor in the DOM, which tiptap
+// appends on mount, so move it behind once both exist.
+$: if (tableControls && pageContainer && tableControls.nextSibling) {
+    pageContainer.appendChild(tableControls)
 }
 
 function insertTableFromSlashCommand() {
@@ -528,20 +522,7 @@ function pageContainerMounted(element) {
 
     editor = new Editor({
         element: element,
-        extensions: [
-            ...extensions,
-            BubbleMenu.configure({
-                element: tableMenu,
-                shouldShow: ({ editor }) => editor.isActive('table'),
-                tippyOptions: {
-                    placement: 'bottom-end',
-                    arrow: false,
-                    theme: 'flat-page-table',
-                    maxWidth: 'none',
-                    getReferenceClientRect: getActiveTableRect,
-                },
-            }),
-        ],
+        extensions,
         content: pageContent,
         onTransaction() {
             // force re-render so `editor.isActive` works as expected
@@ -840,21 +821,7 @@ function pageContainerMounted(element) {
 
     editor.commands.focus('end')
 
-    const scrollContainerParent = document.querySelector(
-        'main.journal-page > .journal-page-entries .ProseMirror',
-    )
-
-    let scrollContainer = scrollContainerParent?.querySelector(
-        'div > main.journal-page > .journal-page-entries .ProseMirror',
-    )
-
-    if (!scrollContainer) {
-        scrollContainer = scrollContainerParent
-    }
-
-    if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight
-    }
+    element.scrollTop = element.scrollHeight
 }
 
 /*
@@ -957,155 +924,157 @@ import { canJoin } from '@tiptap/pm/transform'
         <div class="page-container" {style}>Loading...</div>
     {:else}
         <div
-            class="flat-table-menu"
-            class:expanded={tableControlsExpanded}
-            use:tableMenuMounted
-            style="visibility: hidden"
-        >
-            {#if tableControlsExpanded}
-                <button
-                    class="row-before"
-                    type="button"
-                    aria-label="Add row before"
-                    title="Add row above"
-                    on:mousedown|preventDefault
-                    on:click={() => addTableRowAndFocus(true)}
-                    >Row ↑</button
-                >
-                <button
-                    class="row-after"
-                    type="button"
-                    aria-label="Add row after"
-                    title="Add row below"
-                    on:mousedown|preventDefault
-                    on:click={() => addTableRowAndFocus(false)}
-                    >Row ↓</button
-                >
-                <button
-                    class="delete-row"
-                    type="button"
-                    aria-label="Delete row"
-                    title="Delete row"
-                    on:mousedown|preventDefault
-                    on:click={() => editor.chain().focus().deleteRow().run()}
-                    >- Row</button
-                >
-                <button
-                    class="column-before"
-                    type="button"
-                    aria-label="Add column before"
-                    title="Add column to the left"
-                    on:mousedown|preventDefault
-                    on:click={() =>
-                        editor.chain().focus().addColumnBefore().run()}
-                    >Col ←</button
-                >
-                <button
-                    class="column-after"
-                    type="button"
-                    aria-label="Add column after"
-                    title="Add column to the right"
-                    on:mousedown|preventDefault
-                    on:click={() =>
-                        editor.chain().focus().addColumnAfter().run()}
-                    >Col →</button
-                >
-                <button
-                    class="delete-column"
-                    type="button"
-                    aria-label="Delete column"
-                    title="Delete column"
-                    on:mousedown|preventDefault
-                    on:click={() =>
-                        editor.chain().focus().deleteColumn().run()}
-                    >- Col</button
-                >
-                <button
-                    class="delete-table"
-                    type="button"
-                    aria-label="Delete table"
-                    title="Delete table"
-                    on:mousedown|preventDefault
-                    on:click={() => editor.chain().focus().deleteTable().run()}
-                    >Delete</button
-                >
-                <button
-                    class="auto-widths"
-                    type="button"
-                    aria-label="Auto column width"
-                    title="Reset this column to automatic width"
-                    on:mousedown|preventDefault
-                    on:click={() => resetTableColumnWidth()}
-                    >Auto width</button
-                >
-                <button
-                    class="align-left"
-                    type="button"
-                    aria-label="Align column left"
-                    aria-pressed={!currentTableCellAttributes.align ||
-                        currentTableCellAttributes.align === 'left'}
-                    title="Align this column left"
-                    on:mousedown|preventDefault
-                    on:click={() => setTableColumnAlign(null)}
-                    >Left</button
-                >
-                <button
-                    class="align-center"
-                    type="button"
-                    aria-label="Align column center"
-                    aria-pressed={currentTableCellAttributes.align === 'center'}
-                    title="Center this column"
-                    on:mousedown|preventDefault
-                    on:click={() => setTableColumnAlign('center')}
-                    >Center</button
-                >
-                <button
-                    class="align-right"
-                    type="button"
-                    aria-label="Align column right"
-                    aria-pressed={currentTableCellAttributes.align === 'right'}
-                    title="Align this column right"
-                    on:mousedown|preventDefault
-                    on:click={() => setTableColumnAlign('right')}
-                    >Right</button
-                >
-                <button
-                    class="no-wrap"
-                    type="button"
-                    aria-label="Column no wrap"
-                    aria-pressed={currentTableCellAttributes.nowrap === true}
-                    title="Keep this column on one line"
-                    on:mousedown|preventDefault
-                    on:click={toggleTableColumnWrap}
-                    >No wrap</button
-                >
-                <button
-                    class="table-controls-done"
-                    type="button"
-                    aria-label="Hide table controls"
-                    title="Hide table controls"
-                    on:mousedown|preventDefault
-                    on:click={() => (tableControlsExpanded = false)}
-                    >Done</button
-                >
-            {:else}
-                <button
-                    class="table-menu-toggle"
-                    type="button"
-                    aria-label="Table options"
-                    title="Table options"
-                    on:mousedown|preventDefault
-                    on:click={() => (tableControlsExpanded = true)}
-                    >⋯</button
-                >
-            {/if}
-        </div>
-        <div
-            class="page-container"
+            class="page-container editing"
             spellcheck="false"
             {style}
             use:pageContainerMounted
-        ></div>
+        >
+            <div
+                class="flat-table-controls"
+                hidden={!tableActive}
+                bind:this={tableControls}
+            >
+                {#if tableControlsExpanded}
+                    <div class="flat-table-menu">
+                        <button
+                            class="row-before"
+                            type="button"
+                            aria-label="Add row before"
+                            title="Add row above"
+                            on:mousedown|preventDefault
+                            on:click={() => addTableRowAndFocus(true)}
+                            >Row ↑</button
+                        >
+                        <button
+                            class="row-after"
+                            type="button"
+                            aria-label="Add row after"
+                            title="Add row below"
+                            on:mousedown|preventDefault
+                            on:click={() => addTableRowAndFocus(false)}
+                            >Row ↓</button
+                        >
+                        <button
+                            class="delete-row"
+                            type="button"
+                            aria-label="Delete row"
+                            title="Delete row"
+                            on:mousedown|preventDefault
+                            on:click={() => editor.chain().focus().deleteRow().run()}
+                            >- Row</button
+                        >
+                        <button
+                            class="column-before"
+                            type="button"
+                            aria-label="Add column before"
+                            title="Add column to the left"
+                            on:mousedown|preventDefault
+                            on:click={() =>
+                                editor.chain().focus().addColumnBefore().run()}
+                            >Col ←</button
+                        >
+                        <button
+                            class="column-after"
+                            type="button"
+                            aria-label="Add column after"
+                            title="Add column to the right"
+                            on:mousedown|preventDefault
+                            on:click={() =>
+                                editor.chain().focus().addColumnAfter().run()}
+                            >Col →</button
+                        >
+                        <button
+                            class="delete-column"
+                            type="button"
+                            aria-label="Delete column"
+                            title="Delete column"
+                            on:mousedown|preventDefault
+                            on:click={() =>
+                                editor.chain().focus().deleteColumn().run()}
+                            >- Col</button
+                        >
+                        <button
+                            class="delete-table"
+                            type="button"
+                            aria-label="Delete table"
+                            title="Delete table"
+                            on:mousedown|preventDefault
+                            on:click={() => editor.chain().focus().deleteTable().run()}
+                            >Delete</button
+                        >
+                        <button
+                            class="auto-widths"
+                            type="button"
+                            aria-label="Auto column width"
+                            title="Reset this column to automatic width"
+                            on:mousedown|preventDefault
+                            on:click={() => resetTableColumnWidth()}
+                            >Auto width</button
+                        >
+                        <button
+                            class="align-left"
+                            type="button"
+                            aria-label="Align column left"
+                            aria-pressed={!currentTableCellAttributes.align ||
+                                currentTableCellAttributes.align === 'left'}
+                            title="Align this column left"
+                            on:mousedown|preventDefault
+                            on:click={() => setTableColumnAlign(null)}
+                            >Left</button
+                        >
+                        <button
+                            class="align-center"
+                            type="button"
+                            aria-label="Align column center"
+                            aria-pressed={currentTableCellAttributes.align === 'center'}
+                            title="Center this column"
+                            on:mousedown|preventDefault
+                            on:click={() => setTableColumnAlign('center')}
+                            >Center</button
+                        >
+                        <button
+                            class="align-right"
+                            type="button"
+                            aria-label="Align column right"
+                            aria-pressed={currentTableCellAttributes.align === 'right'}
+                            title="Align this column right"
+                            on:mousedown|preventDefault
+                            on:click={() => setTableColumnAlign('right')}
+                            >Right</button
+                        >
+                        <button
+                            class="no-wrap"
+                            type="button"
+                            aria-label="Column no wrap"
+                            aria-pressed={currentTableCellAttributes.nowrap === true}
+                            title="Keep this column on one line"
+                            on:mousedown|preventDefault
+                            on:click={toggleTableColumnWrap}
+                            >No wrap</button
+                        >
+                        <button
+                            class="table-controls-done"
+                            type="button"
+                            aria-label="Hide table controls"
+                            title="Hide table controls"
+                            on:mousedown|preventDefault
+                            on:click={() => (tableControlsExpanded = false)}
+                            >Done</button
+                        >
+                    </div>
+                {:else}
+                    <button
+                        class="flat-table-controls-toggle"
+                        type="button"
+                        aria-label="Table options"
+                        title="Table options"
+                        on:mousedown|preventDefault
+                        on:click={() => (tableControlsExpanded = true)}
+                        >⋯</button
+                    >
+                {/if}
+            </div>
+        </div>
     {/if}
 {:else}
     <div class="page-container view-only" bind:this={pageContainer} {style}>
@@ -1150,11 +1119,16 @@ import { canJoin } from '@tiptap/pm/transform'
     padding-bottom: 5.4em;
 }
 
+.page-container.editing {
+    overflow: auto;
+    container-type: inline-size;
+}
+
 .page-container > :global(.ProseMirror) {
-    height: 100%;
+    box-sizing: border-box;
+    min-height: 100%;
     padding-bottom: 5.4em;
     outline: none;
-    overflow: auto;
 }
 
 .page-container :global(:where(ul, ol)) {
@@ -1239,6 +1213,42 @@ import { canJoin } from '@tiptap/pm/transform'
     overflow-x: auto;
 }
 
+/* Pinned to the bottom edge of the page area. The strip itself has no
+   height, so showing or hiding it never changes the page's scroll size,
+   and its contents float above it. Only they take clicks. */
+.flat-table-controls {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    height: 0;
+    pointer-events: none;
+}
+
+.flat-table-controls > * {
+    position: absolute;
+    right: 0.4em;
+    bottom: 0.5em;
+    pointer-events: auto;
+}
+
+.flat-table-controls-toggle {
+    min-width: 2em;
+    padding: 0.28em 0.4em;
+    border: 1px solid var(--border-table);
+    border-radius: 4px;
+    background: var(--bg-center);
+    box-shadow: 0 1px 6px rgb(0 0 0 / 14%);
+    color: var(--color-pa-btn);
+    font: inherit;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.flat-table-controls-toggle:hover,
+.flat-table-controls-toggle:focus-visible {
+    background: var(--bg-pa-hover);
+}
+
 /* Columns share the page width until a border is dragged. Dragged widths
    are saved as colwidth and rendered through the colgroup. The layout
    stays automatic so a no-wrap column can grow to fit its text, in which
@@ -1316,81 +1326,89 @@ import { canJoin } from '@tiptap/pm/transform'
     outline: none;
 }
 
+/* One row where the page area is wide enough, three rows otherwise. */
 .flat-table-menu {
-    display: flex;
+    display: grid;
     overflow: hidden;
     border: 1px solid var(--border-table);
     border-radius: 4px;
     background: var(--bg-center);
-    box-shadow: 0 2px 8px rgb(0 0 0 / 14%);
+    box-shadow: 0 1px 6px rgb(0 0 0 / 14%);
+    grid-template-areas: 'row-before row-after delete-row column-before column-after delete-column auto-widths align-left align-center align-right no-wrap delete-table done';
 }
 
-.flat-table-menu:not(.expanded) {
-    opacity: 0.48;
+@container (max-width: 780px) {
+    .flat-table-menu {
+        grid-template-areas:
+            'row-before row-after delete-row delete-table done'
+            'column-before column-after delete-column auto-widths done'
+            'align-left align-center align-right no-wrap done';
+    }
+
+    .flat-table-menu
+        :where(
+            .row-before,
+            .row-after,
+            .delete-row,
+            .delete-table,
+            .column-before,
+            .column-after,
+            .delete-column,
+            .auto-widths
+        ) {
+        border-bottom: 1px solid var(--border-table);
+    }
 }
 
-.flat-table-menu:not(.expanded):hover,
-.flat-table-menu:not(.expanded):focus-within {
-    opacity: 1;
-}
-
-.flat-table-menu.expanded {
-    display: grid;
-    grid-template-areas:
-        'row-before row-after delete-row delete-table done'
-        'column-before column-after delete-column auto-widths done'
-        'align-left align-center align-right no-wrap done';
-}
-
-.flat-table-menu.expanded .row-before {
+.flat-table-menu .row-before {
     grid-area: row-before;
 }
 
-.flat-table-menu.expanded .row-after {
+.flat-table-menu .row-after {
     grid-area: row-after;
 }
 
-.flat-table-menu.expanded .delete-row {
+.flat-table-menu .delete-row {
     grid-area: delete-row;
 }
 
-.flat-table-menu.expanded .column-before {
+.flat-table-menu .column-before {
     grid-area: column-before;
 }
 
-.flat-table-menu.expanded .column-after {
+.flat-table-menu .column-after {
     grid-area: column-after;
 }
 
-.flat-table-menu.expanded .delete-column {
+.flat-table-menu .delete-column {
     grid-area: delete-column;
 }
 
-.flat-table-menu.expanded .delete-table {
+.flat-table-menu .delete-table {
     grid-area: delete-table;
 }
 
-.flat-table-menu.expanded .auto-widths {
+.flat-table-menu .auto-widths {
     grid-area: auto-widths;
 }
 
-.flat-table-menu.expanded .align-left {
+.flat-table-menu .align-left {
     grid-area: align-left;
 }
 
-.flat-table-menu.expanded .align-center {
+.flat-table-menu .align-center {
     grid-area: align-center;
 }
 
-.flat-table-menu.expanded .align-right {
+.flat-table-menu .align-right {
     grid-area: align-right;
 }
 
-.flat-table-menu.expanded .no-wrap {
+.flat-table-menu .no-wrap {
     grid-area: no-wrap;
 }
 
-.flat-table-menu.expanded .table-controls-done {
+.flat-table-menu .table-controls-done {
     grid-area: done;
 }
 
@@ -1408,20 +1426,6 @@ import { canJoin } from '@tiptap/pm/transform'
     border-right: 0;
 }
 
-.flat-table-menu.expanded
-    :where(
-        .row-before,
-        .row-after,
-        .delete-row,
-        .delete-table,
-        .column-before,
-        .column-after,
-        .delete-column,
-        .auto-widths
-    ) {
-    border-bottom: 1px solid var(--border-table);
-}
-
 .flat-table-menu button[aria-pressed='true'] {
     background: var(--bg-pa-hover);
     font-weight: bold;
@@ -1431,25 +1435,8 @@ import { canJoin } from '@tiptap/pm/transform'
     background: var(--bg-pa-hover);
 }
 
-.flat-table-menu .table-menu-toggle {
-    min-width: 2em;
-    padding-inline: 0.4em;
-    border-right: 0;
-    font-weight: bold;
-}
-
 .flat-table-menu .delete-table {
     color: var(--color-delete, #b42318);
-}
-
-:global(.tippy-box[data-theme~='flat-page-table']) {
-    border: 0;
-    background: transparent;
-    color: inherit;
-}
-
-:global(.tippy-box[data-theme~='flat-page-table'] .tippy-content) {
-    padding: 0;
 }
 
 :global(.page-link) {

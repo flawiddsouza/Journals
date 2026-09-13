@@ -32,7 +32,6 @@
         "@excalidraw/excalidraw": "^0.18.1",
         "@sotaproject/strikethrough": "^1.0.1",
         "@tiptap/core": "^2.0.3",
-        "@tiptap/extension-bubble-menu": "^2.27.2",
         "@tiptap/extension-image": "^2.27.2",
         "@tiptap/extension-link": "^2.27.2",
         "@tiptap/extension-table": "^2.27.2",
@@ -62,7 +61,6 @@
         "react-dom": "^18.2.0",
         "rollup-plugin-postcss": "^3.1.2",
         "svelte-dnd-action": "^0.9.61",
-        "tippy.js": "^6.3.7",
         "vue": "^3.5.21",
         "x-data-spreadsheet": "^1.1.9"
     },

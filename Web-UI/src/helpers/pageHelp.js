@@ -136,7 +136,7 @@ const pageTypeHelp = {
                         name: 'Table structure',
                         shortcut: '⋯',
                         description:
-                            'Opens row, column, width, alignment and wrap controls below the selected table.',
+                            'Opens row, column, width, alignment and wrap controls in a bar at the bottom of the page while the cursor is in a table.',
                     },
                     {
                         name: 'Align column',
