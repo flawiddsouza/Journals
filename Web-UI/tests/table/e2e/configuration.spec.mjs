@@ -23,6 +23,15 @@ const content = {
 const button = (page, name) => page.getByRole('button', { name, exact: true })
 const textbox = (page, name) => page.getByRole('textbox', { name, exact: true })
 
+// The app's own dialog (helpers/dialogs.js), answered by one of its buttons.
+async function answerDialog(page, buttonName, message = null) {
+    const dialog = page.getByRole('alertdialog')
+    await expect(dialog).toBeVisible()
+    if (message) await expect(dialog).toContainText(message)
+    await dialog.getByRole('button', { name: buttonName, exact: true }).tap()
+    await expect(dialog).toBeHidden()
+}
+
 async function openConfiguration(page, pageContent = content) {
     const saves = []
     await page.addInitScript(() => {
@@ -202,6 +211,7 @@ test.describe('standalone configuration actions', () => {
             page.locator('.config-table tbody tr').first(),
         ).toBeInViewport()
         await button(page, 'Copy Configuration').tap()
+        await answerDialog(page, 'OK', 'Configuration copied to clipboard')
         await expect
             .poll(() =>
                 page.evaluate(
@@ -222,11 +232,8 @@ test.describe('standalone configuration actions', () => {
         page,
     }) => {
         const saves = await openConfiguration(page)
-        page.once('dialog', async (dialog) => {
-            expect(dialog.message()).toBe('Configuration copied to clipboard')
-            await dialog.accept()
-        })
         await button(page, 'Copy Configuration').tap()
+        await answerDialog(page, 'OK', 'Configuration copied to clipboard')
         await expect
             .poll(() =>
                 page.evaluate(
@@ -239,12 +246,12 @@ test.describe('standalone configuration actions', () => {
             copied.columns[0].label = 'Pasted value'
             window.clipboardText = JSON.stringify(copied)
         })
-        page.once('dialog', (dialog) => dialog.dismiss())
         await button(page, 'Paste Configuration').tap()
+        await answerDialog(page, 'Cancel')
         const row = page.locator('.config-table tbody tr').first()
         await expect(row.locator('[data-label="Label"]')).toHaveText('Value')
-        page.once('dialog', (dialog) => dialog.accept())
         await button(page, 'Paste Configuration').tap()
+        await answerDialog(page, 'Paste')
         await expect(row.locator('[data-label="Label"]')).toHaveText(
             'Pasted value',
         )
@@ -259,11 +266,11 @@ test.describe('standalone configuration actions', () => {
         const last = page.locator('.config-table tbody tr').last()
         await button(last, 'Move Up').tap()
         await expect.poll(() => saves.at(-1)?.columns[0].name).toBe('value')
-        page.once('dialog', (dialog) => dialog.dismiss())
         await button(last, 'Delete').tap()
+        await answerDialog(page, 'Cancel')
         await expect(page.locator('.config-table tbody tr')).toHaveCount(2)
-        page.once('dialog', (dialog) => dialog.accept())
         await button(last, 'Delete').tap()
+        await answerDialog(page, 'Delete')
         await expect(page.locator('.config-table tbody tr')).toHaveCount(1)
         await expectNoPageOverflow(page)
     })

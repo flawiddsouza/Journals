@@ -1,4 +1,5 @@
 <script>
+import { tellSaveFailed } from '../../helpers/pageRevisions.js'
 export let pageId = null
 export let viewOnly = false
 export let pageContentOverride = undefined
@@ -47,7 +48,7 @@ const savePageContent = debounce(function () {
     if (pageId === null) return
     fetchPlus
         .put(`/pages/${pageId}`, { pageContent: JSON.stringify({ sections }) })
-        .catch(() => alert('Page Save Failed'))
+        .catch(tellSaveFailed)
 }, 500)
 </script>
 

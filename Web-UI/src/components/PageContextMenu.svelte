@@ -1,4 +1,5 @@
 <script>
+import { showAlert, showConfirm, showPrompt } from '../helpers/dialogs.js'
 export let pageItemContextMenu
 export let fetchPages
 export let pages
@@ -33,17 +34,28 @@ let pageToManageFavorites = null
 
 $: hasOpenModal = showMovePageModal || showAddToFavoritesModal || showManageFavoritesModal
 
-function renamePage() {
-    const newName = prompt('Page name:', pageItemContextMenu.page.name)
+// The menu closes on any click outside it, a dialog's buttons included. So each
+// action below takes the page the menu pointed at, closes the menu, and only
+// then opens a dialog.
+function takeMenuPage() {
+    const target = pageItemContextMenu.page
+    pageItemContextMenu.page = null
+    return target
+}
+
+const passwordPrompt = (message) => showPrompt(message, '', { type: 'password' })
+
+async function renamePage() {
+    const target = takeMenuPage()
+    const newName = await showPrompt('Page name:', target.name)
     if (newName && newName.trim()) {
-        fetchPlus.put(`/pages/name/${pageItemContextMenu.page.id}`, { pageName: newName.trim() })
-        pageItemContextMenu.page.name = newName.trim()
-        if (activePage.id === pageItemContextMenu.page.id) {
+        fetchPlus.put(`/pages/name/${target.id}`, { pageName: newName.trim() })
+        target.name = newName.trim()
+        if (activePage.id === target.id) {
             activePage.name = newName.trim()
         }
         pages = pages
     }
-    pageItemContextMenu.page = null
 }
 
 async function toggleHideTitle() {
@@ -102,15 +114,13 @@ async function duplicatePage() {
 }
 
 async function removeFromFavorites() {
-    if (confirm('Are you sure you want to remove this page from favorites?')) {
-        await removePageFromFavorites(
-            favoritesPageId,
-            pageItemContextMenu.page.id,
-        )
+    const target = takeMenuPage()
+    if (await showConfirm('Are you sure you want to remove this page from favorites?', { confirmLabel: 'Remove' })) {
+        await removePageFromFavorites(favoritesPageId, target.id)
 
-        pages = pages.filter((page) => page.id !== pageItemContextMenu.page.id)
+        pages = pages.filter((page) => page.id !== target.id)
 
-        if (activePage.id === pageItemContextMenu.page.id) {
+        if (activePage.id === target.id) {
             if (pages.length) {
                 activePage = pages[0]
             } else {
@@ -125,8 +135,6 @@ async function removeFromFavorites() {
             },
         })
     }
-
-    pageItemContextMenu.page = null
 }
 
 async function startAddToFavorites() {
@@ -137,7 +145,7 @@ async function startAddToFavorites() {
     favoritesPagesForAddModal = await fetchPlus.get('/favorites-pages')
 
     if (favoritesPagesForAddModal.length === 0) {
-        alert('No favorites pages found. Create a Favorites page first.')
+        showAlert('No favorites pages found. Create a Favorites page first.')
         pageItemContextMenu.page = null
         return
     }
@@ -229,7 +237,7 @@ async function movePage() {
         showMovePageModalData.section_id === sectionId &&
         existingPageGroupId === pageGroupId
     ) {
-        alert('Page is already in this section / page group')
+        showAlert('Page is already in this section / page group')
         return
     }
 
@@ -278,12 +286,13 @@ async function movePage() {
     showMovePageModal = false
 }
 
-function deletePage() {
-    if (confirm('Are you sure you want to delete this page?')) {
-        fetchPlus.delete(`/pages/${pageItemContextMenu.page.id}`)
-        pages = pages.filter((page) => page.id !== pageItemContextMenu.page.id)
+async function deletePage() {
+    const target = takeMenuPage()
+    if (await showConfirm('Are you sure you want to delete this page?', { confirmLabel: 'Delete', danger: true })) {
+        fetchPlus.delete(`/pages/${target.id}`)
+        pages = pages.filter((page) => page.id !== target.id)
 
-        if (activePage.id === pageItemContextMenu.page.id) {
+        if (activePage.id === target.id) {
             if (pageGroupId) {
                 if (pages.length) {
                     activePage = pages[0]
@@ -305,136 +314,131 @@ function deletePage() {
             }
         }
     }
-    pageItemContextMenu.page = null
 }
 
+// In each password action, cancelling a prompt (null) stops quietly. An empty
+// answer is told off, as before.
 async function passwordProtect() {
-    let password = prompt('Password:')
-    let passwordConfirm = prompt('Password Confirm:')
+    const target = takeMenuPage()
+    let password = await passwordPrompt('Password:')
+    if (password === null) return
+    let passwordConfirm = await passwordPrompt('Password Confirm:')
+    if (passwordConfirm === null) return
 
     if (password && passwordConfirm && password === passwordConfirm) {
-        await fetchPlus.put(
-            `/pages/password-protect/${pageItemContextMenu.page.id}`,
-            {
-                password,
-            },
-        )
+        await fetchPlus.put(`/pages/password-protect/${target.id}`, {
+            password,
+        })
 
-        pageItemContextMenu.page.password_exists = true
-        pageItemContextMenu.page.locked = true
+        target.password_exists = true
+        target.locked = true
+        pages = pages
 
-        if (activePage.id === pageItemContextMenu.page.id) {
+        if (activePage.id === target.id) {
             activePage.password_exists = true
             activePage.locked = true
         }
     } else {
         if (password === passwordConfirm) {
-            alert('Empty passwords given')
+            showAlert('Empty passwords given')
         } else {
-            alert("Given passwords didn't match")
+            showAlert("Given passwords didn't match")
         }
     }
-
-    pageItemContextMenu.page = null
 }
 
 async function unlockPage() {
-    let password = prompt('Password:')
+    const target = takeMenuPage()
+    let password = await passwordPrompt('Password:')
+    if (password === null) return
 
     if (password) {
-        const response = await fetchPlus.post(
-            `/pages/unlock/${pageItemContextMenu.page.id}`,
-            {
-                password,
-            },
-        )
+        const response = await fetchPlus.post(`/pages/unlock/${target.id}`, {
+            password,
+        })
 
         if ('error' in response) {
-            alert('Invalid password given')
+            showAlert('Invalid password given')
         } else {
-            pageItemContextMenu.page.locked = false
+            target.locked = false
+            pages = pages
 
-            if (activePage.id === pageItemContextMenu.page.id) {
+            if (activePage.id === target.id) {
                 activePage.locked = false
             }
         }
     } else {
-        alert('Empty password given')
+        showAlert('Empty password given')
     }
-
-    pageItemContextMenu.page = null
 }
 
 async function changePagePassword() {
-    let currentPassword = prompt('Current Password:')
+    const target = takeMenuPage()
+    let currentPassword = await passwordPrompt('Current Password:')
+    if (currentPassword === null) return
 
     if (currentPassword === '') {
-        alert('Current Password required')
+        showAlert('Current Password required')
         return
     }
 
-    let newPassword = prompt('New Password:')
+    let newPassword = await passwordPrompt('New Password:')
+    if (newPassword === null) return
 
     if (newPassword === '') {
-        alert('New Password required')
+        showAlert('New Password required')
         return
     }
 
-    let newPasswordConfirm = prompt('Confirm New Password:')
+    let newPasswordConfirm = await passwordPrompt('Confirm New Password:')
+    if (newPasswordConfirm === null) return
 
     if (newPasswordConfirm === '') {
-        alert('Confirm New Password required')
+        showAlert('Confirm New Password required')
         return
     }
 
     if (newPassword === newPasswordConfirm) {
-        const response = await fetchPlus.put(
-            `/pages/change-password/${pageItemContextMenu.page.id}`,
-            {
-                currentPassword,
-                newPassword,
-            },
-        )
+        const response = await fetchPlus.put(`/pages/change-password/${target.id}`, {
+            currentPassword,
+            newPassword,
+        })
 
         if ('error' in response) {
-            alert('Invalid current password given')
+            showAlert('Invalid current password given')
         } else {
-            alert('Page password changed')
+            showAlert('Page password changed')
         }
     } else {
-        alert("Given passwords didn't match")
+        showAlert("Given passwords didn't match")
     }
-
-    pageItemContextMenu.page = null
 }
 
 async function removePagePassword() {
-    let password = prompt('Password:')
+    const target = takeMenuPage()
+    let password = await passwordPrompt('Password:')
+    if (password === null) return
 
     if (password) {
-        const response = await fetchPlus.post(
-            `/pages/remove-password/${pageItemContextMenu.page.id}`,
-            {
-                password,
-            },
-        )
+        const response = await fetchPlus.post(`/pages/remove-password/${target.id}`, {
+            password,
+        })
 
         if ('error' in response) {
-            alert('Invalid password given')
+            showAlert('Invalid password given')
         } else {
-            pageItemContextMenu.page.locked = false
-            pageItemContextMenu.page.password_exists = false
+            target.locked = false
+            target.password_exists = false
+            pages = pages
 
-            if (activePage.id === pageItemContextMenu.page.id) {
+            if (activePage.id === target.id) {
                 activePage.locked = false
                 activePage.password_exists = false
             }
         }
     } else {
-        alert('Empty password given')
+        showAlert('Empty password given')
     }
-
-    pageItemContextMenu.page = null
 }
 
 async function fetchPageGroupsForSectionId() {

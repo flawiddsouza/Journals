@@ -41,6 +41,13 @@ const config = {
         }),
     ],
     publicDir: 'public-assets',
+    server: {
+        // The MCP sidecar is served from the app's own address when deployed
+        // (nginx.conf), and "Connect AI Apps" builds its addresses on that.
+        proxy: Object.fromEntries(
+            ['/mcp', '/oauth', '/.well-known/oauth-'].map((path) => [path, 'http://localhost:9901']),
+        ),
+    },
     build: {
         rollupOptions: {
             input: {

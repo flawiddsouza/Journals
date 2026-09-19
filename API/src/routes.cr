@@ -604,12 +604,30 @@ def extract_page_link_ids(content : String) : Array(Int64)
   ids.uniq
 end
 
+# What a client quotes back to say which content its change was made from.
+def page_revision(content : String | Nil) : String
+  Digest::SHA256.hexdigest(content || "")[0, 16]
+end
+
 put "/pages/:page_id" do |env|
   page_id = env.params.url["page_id"]
   page_content = env.params.json["pageContent"].as(String)
+  base_revision = env.params.json["baseRevision"]?.try(&.as?(String))
 
   # save page history
-  existing_content = db.scalar("SELECT content FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id).as(String | Nil)
+  existing = db.query_one("SELECT content, type FROM pages WHERE id = ? AND user_id = ?", page_id, env.auth_id, as: {content: String | Nil, type: String})
+  existing_content = existing[:content]
+
+  # The page is saved whole, so a save made from an older copy would undo
+  # whatever was saved in between. A client that says what it started from is
+  # refused instead. Without baseRevision nothing is checked. A page group's
+  # content is only which page is open in it, where the last save should win.
+  if base_revision && existing[:type] != "PageGroup" && base_revision != page_revision(existing_content) && existing_content != page_content
+    env.response.content_type = "application/json"
+    env.response.status_code = 409
+    env.response << {error: "The page changed since it was read", revision: page_revision(existing_content)}.to_json
+    next
+  end
 
   if existing_content && existing_content != page_content
     db.exec "INSERT INTO page_history(page_id, user_id, content, pinned) VALUES(?, ?, ?, 0)", page_id, env.auth_id, existing_content
@@ -645,7 +663,7 @@ put "/pages/:page_id" do |env|
   end
 
   env.response.content_type = "application/json"
-  {success: true}.to_json
+  {success: true, revision: page_revision(page_content)}.to_json
 end
 
 get "/pages/links/:page_id" do |env|
@@ -747,7 +765,7 @@ get "/pages/content/:page_id" do |env|
   page = db.query_one("SELECT content from pages WHERE id = ? AND user_id = ? AND deleted_at IS NULL", page_id, env.auth_id, as: {content: Nil | String})
 
   env.response.content_type = "application/json"
-  page.to_json
+  {content: page[:content], revision: page_revision(page[:content])}.to_json
 end
 
 get "/user-settings/:setting_key" do |env|

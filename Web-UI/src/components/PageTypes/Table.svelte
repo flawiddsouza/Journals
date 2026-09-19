@@ -1,4 +1,5 @@
 <script>
+import { showAlert, showConfirm } from '../../helpers/dialogs.js'
 export let pageId = null
 export let viewOnly = false
 export let pageContentOverride = undefined
@@ -338,7 +339,7 @@ function evalulateStartupScript(jsString, dynamicVariables) {
             functionArguments,
         )
     } catch (e) {
-        alert('error evaluating startup script')
+        showAlert('error evaluating startup script')
         console.log('startup script error', e)
     }
 }
@@ -563,7 +564,7 @@ function applyTableHistory(redo = false) {
     }
     const result = redo ? tableHistory.redo(items) : tableHistory.undo(items)
     if (result.status === 'conflict') {
-        alert('Undo is no longer available because the table changed outside its edit history.')
+        showAlert('Undo is no longer available because the table changed outside its edit history.')
         return
     }
     if (result.status !== 'applied') return
@@ -859,7 +860,7 @@ $: if (showAddColumn) {
 function addColumn() {
     let existingColumnNames = columns.map((column) => column.name)
     if (existingColumnNames.includes(column.name)) {
-        alert("You can't use an existing column name")
+        showAlert("You can't use an existing column name")
         return
     }
 
@@ -930,14 +931,14 @@ function cancelEditColumn() {
 
 function updateColumn() {
     if (columnToEditCopy.name === '') {
-        alert("Column name can't be be empty")
+        showAlert("Column name can't be be empty")
         return
     }
     let existingColumnNames = columns
         .map((column) => column.name)
         .filter((columnName) => columnName != columnToEditReference.name)
     if (existingColumnNames.includes(columnToEditCopy.name)) {
-        alert("You can't use an existing column name")
+        showAlert("You can't use an existing column name")
         return
     }
     if (columnToEditReference.name !== columnToEditCopy.name
@@ -968,10 +969,11 @@ function updateColumn() {
     columnToEditReference = null
 }
 
-function deleteColumn(columnName) {
+async function deleteColumn(columnName) {
     if (
-        confirm(
+        await showConfirm(
             'Deleting a column, will also delete all the items under it. Are you sure you want to delete this column?',
+            { confirmLabel: 'Delete', danger: true },
         )
     ) {
         resetTableHistory()
@@ -1069,12 +1071,27 @@ function handleNotePaste(event) {
         const linksRegex = /(https?:\/\/[^\s]+)/g
         const links = text.match(linksRegex)
         if (links && links.length > 0) {
-            if (
-                confirm(
-                    `Do you want to convert ${links.length} links to clickable links?`,
-                )
-            ) {
-                event.preventDefault()
+            // The answer comes later, and by then the browser's own paste can
+            // no longer happen. So the paste is taken over here either way,
+            // with what the clipboard held and where the caret was.
+            event.preventDefault()
+            const pastedHtml = event.clipboardData.getData('text/html')
+            const editable = event.currentTarget
+            const selection = window.getSelection()
+            const at = selection.rangeCount ? selection.getRangeAt(0).cloneRange() : null
+            showConfirm(`Do you want to convert ${links.length} links to clickable links?`, { confirmLabel: 'Convert', cancelLabel: 'Paste as is' }).then((convert) => {
+                editable.focus()
+                if (at) {
+                    selection.removeAllRanges()
+                    selection.addRange(at)
+                }
+                if (!convert) {
+                    // What a plain paste would have put in.
+                    const fragment = pastedHtml.match(/<!--StartFragment-->([\s\S]*)<!--EndFragment-->/)
+                    if (pastedHtml) document.execCommand('insertHTML', false, fragment ? fragment[1] : pastedHtml)
+                    else document.execCommand('insertText', false, text)
+                    return
+                }
 
                 let html = text
                     .split('\n')
@@ -1091,7 +1108,7 @@ function handleNotePaste(event) {
                 }
 
                 document.execCommand('insertHTML', false, html)
-            }
+            })
         }
     }
 }
@@ -1107,16 +1124,17 @@ function copyConfiguration() {
         note,
     })
     navigator.clipboard.writeText(copyText).then(() => {
-        alert('Configuration copied to clipboard')
+        showAlert('Configuration copied to clipboard')
     })
 }
 
 async function pasteConfiguration() {
     const clipboardText = await navigator.clipboard.readText()
     if (
-        !confirm(
+        !(await showConfirm(
             'Are you sure you want to paste configuration? This will overwrite the current configuration.',
-        )
+            { confirmLabel: 'Paste' },
+        ))
     ) {
         return
     }
@@ -1139,7 +1157,7 @@ async function pasteConfiguration() {
         note = parsedClipboardText.note || ''
         editorKey++
     } catch (e) {
-        alert('Invalid configuration')
+        showAlert('Invalid configuration')
     }
 }
 
@@ -1267,7 +1285,7 @@ function getColumnValue(type, value) {
         return value.split('\n').join('<br>')
     }
 
-    alert('Invalid column type')
+    showAlert('Invalid column type')
 }
 
 import { onDestroy, tick } from 'svelte'
@@ -1702,11 +1720,12 @@ onDestroy(unsubEventStore)
                                 >
                                 <button
                                     aria-label="Delete row"
-                                    on:click={() => {
+                                    on:click={async () => {
                                         if (
-                                            !confirm(
+                                            !(await showConfirm(
                                                 'Are you sure you want to delete this row?',
-                                            )
+                                                { confirmLabel: 'Delete', danger: true },
+                                            ))
                                         ) {
                                             return
                                         }

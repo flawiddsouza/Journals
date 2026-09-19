@@ -1,4 +1,5 @@
 <script>
+import { showAlert, showPrompt } from '../helpers/dialogs.js'
 import { createEventDispatcher } from 'svelte'
 import 'code-mirror-custom-element'
 
@@ -42,10 +43,10 @@ $: displayModules = modules
     .map((m, i) => ({ m, i }))
     .sort((a, b) => collator.compare(a.m.name, b.m.name))
 
-function addModule() {
+async function addModule() {
     if (readOnly) return
     // Ask user for a filename instead of auto-incrementing
-    let name = prompt('New module filename (e.g., utils.js or styles-base.css)')
+    let name = await showPrompt('New module filename (e.g., utils.js or styles-base.css)')
     if (name == null) return // cancelled
     name = name.trim()
     if (!name) return
@@ -58,7 +59,7 @@ function addModule() {
 
     // Prevent duplicates locally; parent can still enforce final rules
     if (modules.some((m) => m.name === name)) {
-        alert(`A module named "${name}" already exists.`)
+        showAlert(`A module named "${name}" already exists.`)
         return
     }
 

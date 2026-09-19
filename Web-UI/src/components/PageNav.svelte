@@ -1,4 +1,5 @@
 <script>
+import { showConfirm } from '../helpers/dialogs.js'
 export let activePage = null
 export let activeSection = null
 export let showBacklinks = false
@@ -100,8 +101,8 @@ async function viewPageHistoryItem(pageHistoryItem) {
     }
 }
 
-function restorePageHistoryItem(pageHistoryItemId) {
-    if (confirm('Are you sure you want to restore the page to this state?')) {
+async function restorePageHistoryItem(pageHistoryItemId) {
+    if (await showConfirm('Are you sure you want to restore the page to this state?', { confirmLabel: 'Restore' })) {
         fetchPlus
             .post(`/page-history/restore/${pageHistoryItemId}`, {})
             .then(() => {
@@ -156,8 +157,8 @@ function viewImage(pageUploadsItem) {
     window.open(`${baseURL}/${pageUploadsItem.file_path}`)
 }
 
-function deleteImage(pageUploadsItemId) {
-    if (confirm('Are you sure you want to delete this image?')) {
+async function deleteImage(pageUploadsItemId) {
+    if (await showConfirm('Are you sure you want to delete this image?', { confirmLabel: 'Delete', danger: true })) {
         fetchPlus
             .delete(`/page-uploads/delete/${pageUploadsItemId}`)
             .then(() => {

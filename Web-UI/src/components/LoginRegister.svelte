@@ -1,4 +1,5 @@
 <script>
+import { showAlert } from '../helpers/dialogs.js'
 import fetchPlus from '../helpers/fetchPlus.js'
 import { focus } from '../actions/focus.js'
 import { initTheme } from '../helpers/theme.js'
@@ -50,7 +51,7 @@ function register() {
                 type = 'login'
                 registerUsername = ''
                 registerPassword = ''
-                alert('Registered Successfully!')
+                showAlert('Registered Successfully!')
             }
         })
 }

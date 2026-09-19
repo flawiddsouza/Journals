@@ -1,4 +1,5 @@
 <script>
+import { showConfirm } from '../helpers/dialogs.js'
 import { createEventDispatcher } from 'svelte'
 import fetchPlus from '../helpers/fetchPlus.js'
 import { format } from 'date-fns'
@@ -29,7 +30,7 @@ async function restore(type, id) {
 }
 
 async function permanentDelete(type, id) {
-    if (confirm('Permanently delete this item? This cannot be undone.')) {
+    if (await showConfirm('Permanently delete this item? This cannot be undone.', { confirmLabel: 'Delete permanently', danger: true })) {
         await fetchPlus.delete(`/recycle-bin/permanent/${type}/${id}`)
         await fetchRecycleBin({ silent: true })
     }

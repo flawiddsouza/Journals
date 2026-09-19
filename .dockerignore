@@ -10,3 +10,6 @@
 # Web-UI ignores
 /Web-UI/public
 /Web-UI/public2
+
+# MCP ignores
+/MCP/data

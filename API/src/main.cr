@@ -4,6 +4,7 @@ require "crypto/bcrypt"
 require "jwt"
 require "file_utils"
 require "mime"
+require "digest/sha256"
 require "dotenv"
 
 if File.exists?("./.env")

@@ -1,4 +1,6 @@
 <script>
+import { showAlert, showConfirm, showPrompt } from '../../helpers/dialogs.js'
+import { tellSaveFailed } from '../../helpers/pageRevisions.js'
 export let pageId = null
 /* svelte-ignore unused-export-let */
 export let viewOnly = false
@@ -54,19 +56,19 @@ function validModuleName(name) {
 function addModule(name) {
     if (readOnlyMode) return
     if (modules.length >= MAX_MODULES)
-        return alert(`Limit ${MAX_MODULES} modules`)
+        return showAlert(`Limit ${MAX_MODULES} modules`)
     const names = new Set(modules.map((m) => m.name))
     let filename = (name || '').trim()
-    if (!filename) return alert('Please provide a filename like utils.js or styles.css')
+    if (!filename) return showAlert('Please provide a filename like utils.js or styles.css')
     // Ensure extension and simple filename (no folders)
     const lower = filename.toLowerCase()
     if (!lower.endsWith('.js') && !lower.endsWith('.css')) {
         filename += '.js' // default to JS
     }
     if (!validModuleName(filename))
-        return alert('Invalid name. Use something like utils.js or styles.css (no /).')
+        return showAlert('Invalid name. Use something like utils.js or styles.css (no /).')
     if (names.has(filename))
-        return alert(`A module named "${filename}" already exists.`)
+        return showAlert(`A module named "${filename}" already exists.`)
 
     modules = [...modules, { name: filename, code: `` }]
     selectedModuleIndex = modules.length - 1
@@ -75,30 +77,30 @@ function addModule(name) {
     savePageContent()
 }
 
-function renameModule(index) {
+async function renameModule(index) {
     if (readOnlyMode) return
     if (index < 0 || index >= modules.length) return
     const current = modules[index]
-    const next = prompt(
+    const next = await showPrompt(
         'Rename module (must end with .js or .css, no folders):',
         current.name,
     )
     if (!next || next === current.name) return
     if (!validModuleName(next))
-        return alert('Invalid name. Use something like utils.js or styles.css (no /).')
+        return showAlert('Invalid name. Use something like utils.js or styles.css (no /).')
     if (modules.some((m, i) => i !== index && m.name === next))
-        return alert('A module with this name already exists.')
+        return showAlert('A module with this name already exists.')
     modules = modules.map((m, i) => (i === index ? { ...m, name: next } : m))
     modulesKey++
     buildAndRunDebounced()
     savePageContent()
 }
 
-function deleteModule(index) {
+async function deleteModule(index) {
     if (readOnlyMode) return
     if (index < 0 || index >= modules.length) return
     const m = modules[index]
-    if (!confirm(`Delete module ${m.name}?`)) return
+    if (!(await showConfirm(`Delete module ${m.name}?`, { confirmLabel: 'Delete', danger: true }))) return
     const arr = modules.slice()
     arr.splice(index, 1)
     modules = arr
@@ -281,7 +283,7 @@ async function pullTemplate(revision = null) {
         await loadTemplateLink()
         buildAndRun()
     } catch (e) {
-        alert('Failed to pull template update')
+        showAlert('Failed to pull template update')
     }
 }
 // Ensure files.modules persists in payload even if undefined in older pages
@@ -346,7 +348,7 @@ const savePageContent = debounce(async function () {
         await fetchPlus.put(`/pages/${pageId}`, { pageContent: payload })
     } catch (e) {
         console.error(e)
-        alert('Page Save Failed')
+        tellSaveFailed(e)
     }
 }, 500)
 

@@ -1,4 +1,5 @@
 <script>
+import { showConfirm } from '../helpers/dialogs.js'
 export let kv = {}
 export let readOnly = false
 
@@ -72,9 +73,9 @@ function downloadJSON(filename, dataObj) {
     URL.revokeObjectURL(url)
 }
 
-function handleClearData() {
+async function handleClearData() {
     if (readOnly) return
-    if (!confirm("Clear this Mini App's data?")) return
+    if (!(await showConfirm("Clear this Mini App's data?", { confirmLabel: 'Clear', danger: true }))) return
     dispatch('clearData')
 }
 

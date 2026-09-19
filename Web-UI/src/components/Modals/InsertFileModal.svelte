@@ -1,4 +1,5 @@
 <script>
+import { showAlert } from '../../helpers/dialogs.js'
 import Modal from '../Modal.svelte'
 import { createLoader } from '../../helpers/loader.js'
 import {
@@ -29,7 +30,7 @@ async function uploadFile() {
         try {
             const clipboardItems = await navigator.clipboard.read()
             if (clipboardItems.length === 0) {
-                alert('No items found in the clipboard.')
+                showAlert('No items found in the clipboard.')
                 return
             } else {
                 const firstClipboardItem = clipboardItems[0]
@@ -60,7 +61,7 @@ async function uploadFile() {
                 clipboardItem = await firstClipboardItem.getType(type)
             }
         } catch (error) {
-            alert(
+            showAlert(
                 'An error occurred while reading the clipboard: ' +
                     error.message,
             )

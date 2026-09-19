@@ -13,6 +13,19 @@ COPY API ./
 RUN crystal build --static --release src/main.cr -o journalsApp
 
 
+FROM oven/bun:1-alpine AS mcp-build
+WORKDIR /app
+
+# Project dependencies MCP
+COPY MCP/package.json MCP/bun.lock ./
+RUN bun install --frozen-lockfile
+
+# Copy source and compile to a single executable, so the runner needs no
+# JavaScript runtime of its own
+COPY MCP ./
+RUN bun build --compile index.ts --outfile journalsMcp
+
+
 FROM node:24-slim as ui-build
 WORKDIR /app
 
@@ -28,11 +41,23 @@ RUN npm run build
 
 FROM nginx:1.25.1-alpine3.17-slim AS runner
 
+# The compiled MCP binary links against libstdc++, which the slim image omits
+RUN apk add --no-cache libstdc++
+
 # Copy all the build files
 COPY --from=api-build /app/journalsApp /app/api/journalsApp
 COPY --from=ui-build /app/public /app/ui/public
+COPY --from=mcp-build /app/journalsMcp /app/mcp/journalsMcp
 
 COPY nginx.conf /etc/nginx/nginx.conf
+
+# MCP sidecar. It reads JWT_SECRET from the same env file the API does, and
+# keeps its OAuth database on the data volume. nginx fronts it, so the port
+# stays internal. File uploads also need JOURNALS_PUBLIC_API_URL in that env
+# file: the API's public URL, the same value as baseURL in the UI's config.js.
+ENV MCP_PORT=9901
+ENV MCP_DB=/app/data/mcp.db
+ENV JOURNALS_API_URL=http://127.0.0.1:9900
 
 # Set PORT
 EXPOSE 9900
@@ -40,4 +65,4 @@ EXPOSE 80
 
 WORKDIR /app
 # Start the application
-CMD nginx & /app/api/journalsApp
+CMD nginx & /app/mcp/journalsMcp & /app/api/journalsApp

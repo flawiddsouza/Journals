@@ -1,4 +1,5 @@
 <script>
+import { tellSaveFailed } from '../../helpers/pageRevisions.js'
 import { Editor, Node as TiptapNode } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import TaskList from '@tiptap/extension-task-list'
@@ -116,9 +117,7 @@ const savePageContent = debounce(function () {
         .put(`/pages/${pageId}`, {
             pageContent: JSON.stringify(pageContent),
         })
-        .catch(() => {
-            alert('Page Save Failed')
-        })
+        .catch(tellSaveFailed)
 }, 500)
 
 function getTaskItemContext($position = editor.state.selection.$from) {

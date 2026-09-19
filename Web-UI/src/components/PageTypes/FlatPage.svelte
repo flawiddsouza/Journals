@@ -1,4 +1,6 @@
 <script>
+import { showConfirm } from '../../helpers/dialogs.js'
+import { tellSaveFailed } from '../../helpers/pageRevisions.js'
 export let pageId = null
 export let viewOnly = false
 export let pageContentOverride = undefined
@@ -62,9 +64,7 @@ const savePageContent = debounce(function () {
         .put(`/pages/${pageId}`, {
             pageContent,
         })
-        .catch(() => {
-            alert('Page Save Failed')
-        })
+        .catch(tellSaveFailed)
 }, 500)
 
 import defaultKeydownHandlerForContentEditableArea from '../../helpers/defaultKeydownHandlerForContentEditableArea.js'
@@ -249,14 +249,27 @@ function handlePaste(event) {
         const linksRegex = /(https?:\/\/[^\s]+)/g
         const links = text.match(linksRegex)
         if (links && links.length > 0) {
-            if (
-                confirm(
-                    `Do you want to convert ${links.length} links to clickable links?`,
-                )
-            ) {
-                event.preventDefault()
-
+            // The answer comes later, and by then the browser's own paste can
+            // no longer happen. So the paste is taken over here either way,
+            // with what the clipboard held and where the caret was.
+            event.preventDefault()
+            const html = event.clipboardData.getData('text/html')
+            const at = window.getSelection().rangeCount ? window.getSelection().getRangeAt(0).cloneRange() : null
+            showConfirm(`Do you want to convert ${links.length} links to clickable links?`, { confirmLabel: 'Convert', cancelLabel: 'Paste as is' }).then((convert) => {
+                pageContainer.focus()
                 const sel = window.getSelection()
+                if (at) {
+                    sel.removeAllRanges()
+                    sel.addRange(at)
+                }
+                if (!convert) {
+                    // What a plain paste would have put in.
+                    const fragment = html.match(/<!--StartFragment-->([\s\S]*)<!--EndFragment-->/)
+                    if (html) document.execCommand('insertHTML', false, fragment ? fragment[1] : html)
+                    else document.execCommand('insertText', false, text)
+                    return
+                }
+
                 if (!sel || sel.rangeCount === 0) return
                 const range = sel.getRangeAt(0)
                 range.deleteContents()
@@ -291,7 +304,10 @@ function handlePaste(event) {
                 afterRange.collapse(true)
                 sel.removeAllRanges()
                 sel.addRange(afterRange)
-            }
+
+                // Trigger input event to update pageContent and save
+                pageContainer.dispatchEvent(new Event('input'))
+            })
         }
     }
 }

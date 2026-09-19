@@ -1,4 +1,5 @@
 <script>
+import { showConfirm } from '../../helpers/dialogs.js'
 import { createEventDispatcher } from 'svelte'
 import { dndzone } from 'svelte-dnd-action'
 import TableStatsChart from './TableStatsChart.svelte'
@@ -73,8 +74,8 @@ function handleSave(e) {
     dispatch('update-widgets', updated)
 }
 
-function removeWidget(id) {
-    if (confirm('Remove this widget?')) {
+async function removeWidget(id) {
+    if (await showConfirm('Remove this widget?', { confirmLabel: 'Remove', danger: true })) {
         const updated = displayWidgets.filter(w => w.id !== id)
         displayWidgets = updated
         dispatch('update-widgets', updated)

@@ -1,3 +1,4 @@
+import { showConfirm, showPrompt } from './dialogs.js'
 import { format } from 'date-fns'
 
 function surroundSelection(element) {
@@ -109,24 +110,35 @@ export default function (e, disableLinkHandling = false) {
             (element) => element.tagName === 'A',
         )
         if (selectedAnchorLinks.length > 0) {
-            if (confirm('Make selected links clickable?')) {
+            showConfirm('Make selected links clickable?').then((yes) => {
+                if (!yes) return
                 selectedAnchorLinks.forEach((a) => {
                     a.contentEditable = false
                     a.target = '_blank' // also make it open in a new tab, if it already isn't doing that
                 })
                 e.target.dispatchEvent(new Event('input')) // trigger input event, so that the change is persisted to the array
-            }
+            })
             return // function exits here and create link is not triggered
         }
 
-        let link = prompt('Enter link')
-        if (link) {
+        // The dialog takes the focus, and the selection with it, so the
+        // selection is kept here and put back before the link is made.
+        const selection = window.getSelection()
+        const selected = selection.rangeCount ? selection.getRangeAt(0).cloneRange() : null
+        const editable = e.target
+        showPrompt('Enter link').then((link) => {
+            if (!link) return
+            editable.focus()
+            if (selected) {
+                selection.removeAllRanges()
+                selection.addRange(selected)
+            }
             let anchorTag = document.createElement('a')
             anchorTag.href = link
             anchorTag.target = '_blank'
             anchorTag.contentEditable = false
             surroundSelection(anchorTag)
-            e.target.dispatchEvent(new Event('input')) // trigger input event, so that the change is persisted to the array
-        }
+            editable.dispatchEvent(new Event('input')) // trigger input event, so that the change is persisted to the array
+        })
     }
 }

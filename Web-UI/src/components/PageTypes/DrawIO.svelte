@@ -1,4 +1,5 @@
 <script>
+import { tellSaveFailed } from '../../helpers/pageRevisions.js'
 export let pageId = null
 export let viewOnly = false
 export let pageContentOverride = undefined
@@ -31,9 +32,7 @@ const savePageContent = debounce(function () {
         .put(`/pages/${pageId}`, {
             pageContent,
         })
-        .catch(() => {
-            alert('Page Save Failed')
-        })
+        .catch(tellSaveFailed)
 }, 500)
 
 import { onMount } from 'svelte'

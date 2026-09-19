@@ -1,0 +1,21 @@
+{
+  "name": "mcp",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "e2e": "bun run e2e.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "prosemirror-model": "^1.25.11"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "hono": "^4.13.8",
+    "zod": "^4.6.5"
+  }
+}

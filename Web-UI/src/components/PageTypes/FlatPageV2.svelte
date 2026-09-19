@@ -1,4 +1,6 @@
 <script>
+import { showConfirm, showPrompt } from '../../helpers/dialogs.js'
+import { tellSaveFailed } from '../../helpers/pageRevisions.js'
 export let pageId = null
 export let viewOnly = false
 export let pageContentOverride = undefined
@@ -33,9 +35,7 @@ const savePageContent = debounce(function () {
         .put(`/pages/${pageId}`, {
             pageContent: JSON.stringify(pageContent),
         })
-        .catch(() => {
-            alert('Page Save Failed')
-        })
+        .catch(tellSaveFailed)
 }, 500)
 
 let showInsertFileModal = false
@@ -571,25 +571,20 @@ function pageContainerMounted(element) {
 
                 if (event.ctrlKey && event.key.toLowerCase() === 'k') {
                     event.preventDefault()
-                    const url = prompt('Enter link')
-                    if (url) {
-                        const label = editor.state.doc.textBetween(
-                            editor.state.selection.from,
-                            editor.state.selection.to,
-                            ''
-                        ) || url
-                        if (!editor.state.selection.empty) {
-                            editor.chain().deleteSelection().insertContent({
-                                type: 'externalLink',
-                                attrs: { href: url, label },
-                            }).run()
-                        } else {
-                            editor.commands.insertContent({
-                                type: 'externalLink',
-                                attrs: { href: url, label },
-                            })
-                        }
-                    }
+                    // The dialog takes the focus, and when the editor gets it
+                    // back it may read a different selection from the page. So
+                    // the selection is kept here and put back before it is used.
+                    const { from, to } = editor.state.selection
+                    showPrompt('Enter link').then((url) => {
+                        if (!url) return
+                        const label = editor.state.doc.textBetween(from, to, '') || url
+                        const chain = editor.chain().focus().setTextSelection({ from, to })
+                        if (from !== to) chain.deleteSelection()
+                        chain.insertContent({
+                            type: 'externalLink',
+                            attrs: { href: url, label },
+                        }).run()
+                    })
                     return true
                 }
 
@@ -727,7 +722,7 @@ function pageContainerMounted(element) {
                 }
                 return false
             },
-            handlePaste(view, event) {
+            handlePaste(view, event, slice) {
                 const items = Array.from(event.clipboardData?.items || [])
                 const imageItem = items.find(i => i.type.startsWith('image/'))
 
@@ -750,8 +745,20 @@ function pageContainerMounted(element) {
                     const text = event.clipboardData.getData('text/plain')
                     const links = text.match(/(https?:\/\/[^\s]+)/g)
                     if (links?.length > 0) {
-                        if (confirm(`Do you want to convert ${links.length} links to clickable links?`)) {
-                            event.preventDefault()
+                        // The answer comes later, so the paste is taken over
+                        // here either way. "No" inserts what the editor itself
+                        // would have: the slice it parsed from the clipboard.
+                        event.preventDefault()
+                        // Kept and put back, as for Ctrl+K above.
+                        const { from, to } = view.state.selection
+                        showConfirm(`Do you want to convert ${links.length} links to clickable links?`, { confirmLabel: 'Convert', cancelLabel: 'Paste as is' }).then((convert) => {
+                            if (!convert) {
+                                editor.chain().focus().setTextSelection({ from, to }).command(({ tr }) => {
+                                    tr.replaceSelection(slice).scrollIntoView().setMeta('paste', true).setMeta('uiEvent', 'paste')
+                                    return true
+                                }).run()
+                                return
+                            }
                             const paragraphs = text.split('\n').map((line) => {
                                 const parts = line.split(/(https?:\/\/[^\s]+)/)
                                 const content = parts
@@ -763,9 +770,9 @@ function pageContainerMounted(element) {
                                     )
                                 return { type: 'paragraph', content: content.length ? content : [] }
                             })
-                            editor.commands.insertContent(paragraphs)
-                            return true
-                        }
+                            editor.chain().focus().setTextSelection({ from, to }).insertContent(paragraphs).run()
+                        })
+                        return true
                     }
                 }
 

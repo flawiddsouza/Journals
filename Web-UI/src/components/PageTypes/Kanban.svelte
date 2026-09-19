@@ -1,4 +1,6 @@
 <script>
+import { showConfirm, showPrompt } from '../../helpers/dialogs.js'
+import { tellSaveFailed } from '../../helpers/pageRevisions.js'
 export let pageId = null
 export let viewOnly = false
 export let pageContentOverride = undefined
@@ -152,9 +154,7 @@ const savePageContent = debounce(function () {
                 boards,
             }),
         })
-        .catch(() => {
-            alert('Page Save Failed')
-        })
+        .catch(tellSaveFailed)
 }, 500)
 
 function handleAddCard(boardId) {
@@ -237,10 +237,10 @@ function saveCardDescription(boardId, cardId, newDescription) {
     }
 }
 
-function handleDeleteCard(boardId, cardId) {
+async function handleDeleteCard(boardId, cardId) {
     const board = boards.find((b) => b.id === boardId)
     if (board) {
-        if (confirm('Are you sure you want to delete this card?')) {
+        if (await showConfirm('Are you sure you want to delete this card?', { confirmLabel: 'Delete', danger: true })) {
             board.cards = board.cards.filter((c) => c.id !== cardId)
             delete editState.cards[cardId]
             boards = boards // trigger svelte reactivity
@@ -249,8 +249,8 @@ function handleDeleteCard(boardId, cardId) {
     }
 }
 
-function handleAddBoard() {
-    const boardTitle = prompt('Enter board title:')
+async function handleAddBoard() {
+    const boardTitle = await showPrompt('Enter board title:')
     if (boardTitle && boardTitle.trim()) {
         const now = new Date().toISOString()
         boards.push({
@@ -265,10 +265,10 @@ function handleAddBoard() {
     }
 }
 
-function handleEditBoard(boardId) {
+async function handleEditBoard(boardId) {
     const board = boards.find((b) => b.id === boardId)
     if (board) {
-        const boardTitle = prompt('Edit board title:', board.title)
+        const boardTitle = await showPrompt('Edit board title:', board.title)
         if (boardTitle && boardTitle.trim()) {
             board.title = boardTitle
             // Update the updatedAt timestamp
@@ -279,12 +279,13 @@ function handleEditBoard(boardId) {
     }
 }
 
-function handleDeleteBoard(boardId) {
+async function handleDeleteBoard(boardId) {
     const board = boards.find((b) => b.id === boardId)
     if (board) {
         if (
-            confirm(
+            await showConfirm(
                 `Are you sure you want to delete the "${board.title}" board and all its cards?`,
+                { confirmLabel: 'Delete', danger: true },
             )
         ) {
             boards = boards.filter((b) => b.id !== boardId)

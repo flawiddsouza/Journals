@@ -719,3 +719,65 @@ test('view-only pages keep column alignment and no wrap', async ({ page }) => {
         'left',
     )
 })
+
+// The app's own dialog (helpers/dialogs.js), answered by one of its buttons.
+async function answerDialog(page, buttonName) {
+    const dialog = page.getByRole('alertdialog')
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: buttonName, exact: true }).click()
+    await expect(dialog).toBeHidden()
+}
+
+async function pasteText(page, text) {
+    await page.locator('.page-container .ProseMirror').evaluate((editor, pasted) => {
+        const clipboardData = new DataTransfer()
+        clipboardData.setData('text/plain', pasted)
+        editor.dispatchEvent(
+            new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }),
+        )
+    }, text)
+}
+
+test('pasting text with links asks first, and Convert makes them links', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html')
+    const editor = page.locator('.page-container .ProseMirror')
+    await editor.click()
+    await editor.type('Before ')
+    await pasteText(page, 'see https://example.com now')
+    await answerDialog(page, 'Convert')
+    await expect(editor.locator('a[href="https://example.com"]')).toHaveCount(1)
+    await expect(editor).toContainText('Before see')
+    // The editor has the caret back, after what was pasted.
+    await page.keyboard.type(' after')
+    await expect(editor).toContainText('now after')
+})
+
+test('pasting text with links and choosing Paste as is pastes it plain, once', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html')
+    const editor = page.locator('.page-container .ProseMirror')
+    await editor.click()
+    await editor.type('Before ')
+    await pasteText(page, 'see https://example.com now')
+    await answerDialog(page, 'Paste as is')
+    await expect(editor.locator('a')).toHaveCount(0)
+    await expect(editor).toHaveText('Before see https://example.com now')
+    await page.keyboard.type(' after')
+    await expect(editor).toHaveText('Before see https://example.com now after')
+})
+
+test('Ctrl+K asks for a link and wraps the selected text', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html')
+    const editor = page.locator('.page-container .ProseMirror')
+    await editor.click()
+    await editor.type('read the docs')
+    await page.keyboard.press('Shift+Control+ArrowLeft')
+    // The editor picks up a selection made in the page on a short timer.
+    await page.waitForTimeout(60)
+    await page.keyboard.press('Control+k')
+    const dialog = page.getByRole('alertdialog')
+    await dialog.getByRole('textbox').fill('https://example.com/docs')
+    await answerDialog(page, 'OK')
+    const link = editor.locator('a[href="https://example.com/docs"]')
+    await expect(link).toHaveText('docs')
+    await expect(editor).toContainText('read the')
+})

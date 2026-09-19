@@ -1,4 +1,5 @@
 <script>
+import { showAlert, showConfirm, showPrompt } from '../helpers/dialogs.js'
 import { onMount, onDestroy } from 'svelte'
 import { eventStore, role } from '../stores.js'
 import { slugify } from '../helpers/string.js'
@@ -141,8 +142,8 @@ let selectedProfileId = null
 
 let showManageProfilesModal = false
 
-function addProfile() {
-    let profileName = prompt('Enter a name for the new profile')
+async function addProfile() {
+    let profileName = await showPrompt('Enter a name for the new profile')
     if (profileName && profileName.trim() !== '') {
         fetchPlus.post('/profiles', { profileName }).then(() => {
             fetchProfiles()
@@ -150,8 +151,8 @@ function addProfile() {
     }
 }
 
-function renameProfile(profile) {
-    let newProfileName = prompt(
+async function renameProfile(profile) {
+    let newProfileName = await showPrompt(
         'Enter the new name for the profile',
         profile.name,
     )
@@ -169,8 +170,8 @@ function renameProfile(profile) {
     }
 }
 
-function deleteProfile(profileId) {
-    if (confirm('Are you sure you want to delete this profile?')) {
+async function deleteProfile(profileId) {
+    if (await showConfirm('Are you sure you want to delete this profile?', { confirmLabel: 'Delete', danger: true })) {
         fetchPlus.delete(`/profiles/delete/${profileId}`).then(() => {
             fetchProfiles()
             if (profileId === selectedProfileId) {
@@ -213,7 +214,7 @@ function fetchNotebooks(profileId = null) {
 $: fetchNotebooks(selectedProfileId)
 
 async function addNotebook() {
-    let notebookName = prompt('Enter new notebook name')
+    let notebookName = await showPrompt('Enter new notebook name')
     if (notebookName) {
         const response = await fetchPlus.post('/notebooks', {
             notebookName,
@@ -232,7 +233,7 @@ async function addNotebook() {
 }
 
 async function addSectionToNotebook(notebook) {
-    let sectionName = prompt('Enter new section name')
+    let sectionName = await showPrompt('Enter new section name')
     if (sectionName) {
         const response = await fetchPlus.post('/sections', {
             notebookId: notebook.id,
@@ -384,43 +385,42 @@ function moveSection() {
     showMoveSectionModal = false
 }
 
-function renameSection() {
-    let newSectionName = prompt(
-        'Enter new section name',
-        sectionItemContextMenu.section.name,
-    )
-    if (newSectionName) {
-        fetchPlus.put(`/sections/name/${sectionItemContextMenu.section.id}`, {
-            sectionName: newSectionName,
-        })
-        sectionItemContextMenu.section.name = newSectionName
-        notebooks = notebooks
-    }
+async function renameSection() {
+    // The menu closes on any click outside it, a dialog's buttons included,
+    // so what it pointed at is taken before the dialog opens.
+    const section = sectionItemContextMenu.section
     sectionItemContextMenu.section = null
     sectionItemContextMenu.notebook = null
+    let newSectionName = await showPrompt('Enter new section name', section.name)
+    if (newSectionName) {
+        fetchPlus.put(`/sections/name/${section.id}`, {
+            sectionName: newSectionName,
+        })
+        section.name = newSectionName
+        notebooks = notebooks
+    }
 }
 
-function deleteSection() {
-    if (confirm('Move this section to the recycle bin?')) {
-        fetchPlus.delete(`/sections/${sectionItemContextMenu.section.id}`)
-        sectionItemContextMenu.notebook.sections =
-            sectionItemContextMenu.notebook.sections.filter(
-                (section) => section.id !== sectionItemContextMenu.section.id,
-            )
+async function deleteSection() {
+    const { section: deleted, notebook } = sectionItemContextMenu
+    sectionItemContextMenu.section = null
+    sectionItemContextMenu.notebook = null
+    if (await showConfirm('Move this section to the recycle bin?', { confirmLabel: 'Move to recycle bin', danger: true })) {
+        fetchPlus.delete(`/sections/${deleted.id}`)
+        notebook.sections = notebook.sections.filter(
+            (section) => section.id !== deleted.id,
+        )
         notebooks = notebooks
 
-        if (activeSection.id === sectionItemContextMenu.section.id) {
+        if (activeSection.id === deleted.id) {
             activeSection = {}
         }
 
         // set activePage to {} if it belongs to the deleted section
-        if (activePage.section_id === sectionItemContextMenu.section.id) {
+        if (activePage.section_id === deleted.id) {
             activePage = {}
         }
     }
-
-    sectionItemContextMenu.section = null
-    sectionItemContextMenu.notebook = null
 }
 
 let notebookItemContextMenu = {
@@ -500,42 +500,35 @@ function configureSectionSortOrder() {
     showConfigureSectionSortOrderModal = false
 }
 
-function renameNotebook() {
-    let newNotebookName = prompt(
-        'Enter new notebook name',
-        notebookItemContextMenu.notebook.name,
-    )
+async function renameNotebook() {
+    const notebook = notebookItemContextMenu.notebook
+    notebookItemContextMenu.notebook = null
+    let newNotebookName = await showPrompt('Enter new notebook name', notebook.name)
     if (newNotebookName) {
-        fetchPlus.put(
-            `/notebooks/name/${notebookItemContextMenu.notebook.id}`,
-            {
-                notebookName: newNotebookName,
-            },
-        )
-        notebookItemContextMenu.notebook.name = newNotebookName
+        fetchPlus.put(`/notebooks/name/${notebook.id}`, {
+            notebookName: newNotebookName,
+        })
+        notebook.name = newNotebookName
         notebooks = notebooks
     }
-    notebookItemContextMenu.notebook = null
 }
 
-function deleteNotebook() {
-    if (confirm('Move this notebook to the recycle bin?')) {
-        fetchPlus.delete(`/notebooks/${notebookItemContextMenu.notebook.id}`)
-        notebooks = notebooks.filter(
-            (notebook) => notebook.id !== notebookItemContextMenu.notebook.id,
-        )
+async function deleteNotebook() {
+    const deleted = notebookItemContextMenu.notebook
+    notebookItemContextMenu.notebook = null
+    if (await showConfirm('Move this notebook to the recycle bin?', { confirmLabel: 'Move to recycle bin', danger: true })) {
+        fetchPlus.delete(`/notebooks/${deleted.id}`)
+        notebooks = notebooks.filter((notebook) => notebook.id !== deleted.id)
 
         // set activeSection to {} if it belongs to the deleted notebook
-        if (activeSection.notebook_id === notebookItemContextMenu.notebook.id) {
+        if (activeSection.notebook_id === deleted.id) {
             activeSection = {}
         }
         // set activePage to {} if it belongs to the deleted notebook
-        if (activePage.notebook_id === notebookItemContextMenu.notebook.id) {
+        if (activePage.notebook_id === deleted.id) {
             activePage = {}
         }
     }
-
-    notebookItemContextMenu.notebook = null
 }
 
 
@@ -553,8 +546,8 @@ const updatePageName = debounce(function (e) {
 
 import { logoutAccount } from '../helpers/account.js'
 
-function logout() {
-    if (confirm('Are you sure you want to logout?')) {
+async function logout() {
+    if (await showConfirm('Are you sure you want to logout?', { confirmLabel: 'Logout' })) {
         logoutAccount()
     }
 }
@@ -588,7 +581,7 @@ function changePassword() {
                 localStorage.setItem('password', changePasswordObj.newPassword)
                 showChangePasswordModal = false
                 changePasswordObj.error = ''
-                alert('Password changed successfully!')
+                showAlert('Password changed successfully!')
             }
             changePasswordObj.currentPassword = ''
             changePasswordObj.newPassword = ''
@@ -704,8 +697,10 @@ import Modal from './Modal.svelte'
 import AddPageModal from './Modals/AddPageModal.svelte'
 import BacklinksPanel from './BacklinksPanel.svelte'
 import RecycleBin from './RecycleBin.svelte'
+import ConnectMcpModal from './Modals/ConnectMcpModal.svelte'
 
 let showRecycleBin = false
+let showConnectMcpModal = false
 
 let theme = getTheme()
 initTheme()
@@ -880,6 +875,9 @@ function handleRecycleBinRestored() {
             >
                 Recycle Bin
             </div>
+            <div class="journal-sidebar-item journal-sidebar-action" on:click={() => (showConnectMcpModal = true)}>
+                Connect AI Apps
+            </div>
             <div class="drawer-mobile-only">
                 <div class="drawer-section">
                     <div class="drawer-section-label">Profile</div>
@@ -1018,6 +1016,10 @@ function handleRecycleBinRestored() {
             onClose={() => (showAddPageModal = false)}
         />
     {/if}
+    {#if showConnectMcpModal}
+        <ConnectMcpModal on:close-modal={() => (showConnectMcpModal = false)} />
+    {/if}
+
     {#if showChangePasswordModal}
         <Modal on:close-modal={() => (showChangePasswordModal = false)}>
             <form on:submit|preventDefault={changePassword}>

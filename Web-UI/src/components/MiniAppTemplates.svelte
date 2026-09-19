@@ -1,4 +1,5 @@
 <script>
+import { showAlert, showConfirm } from '../helpers/dialogs.js'
 export let pageId = null
 
 import fetchPlus from '../helpers/fetchPlus.js'
@@ -269,7 +270,7 @@ async function togglePublic(item) {
 }
 
 async function deleteTemplate(item) {
-    if (!confirm('Delete this template and all its revisions?')) return
+    if (!(await showConfirm('Delete this template and all its revisions?', { confirmLabel: 'Delete', danger: true }))) return
     await fetchPlus.delete(`/miniapp/templates/${item.id}`)
     await loadList()
     if (detail && detail.id === item.id) exitDetailView()
@@ -309,7 +310,7 @@ async function applyToPage(templateId, rev = null) {
     const msg = rev
         ? `Apply this template revision (#${rev}) to the page? This will overwrite your current mini app content.`
         : 'Apply the latest revision of this template to the page? This will overwrite your current mini app content.'
-    if (!confirm(msg)) return
+    if (!(await showConfirm(msg, { confirmLabel: 'Apply' }))) return
     const body = { pageId }
     if (rev) body.revision = rev
     await fetchPlus.post(`/miniapp/templates/${templateId}/apply-to-page`, body)
@@ -346,7 +347,7 @@ async function publishFromCurrentPage() {
     try {
         if (publishMode === 'existing') {
             if (!selectedTemplateId) {
-                alert('Choose a template to update')
+                showAlert('Choose a template to update')
                 return
             }
             await fetchPlus.post(
@@ -360,7 +361,7 @@ async function publishFromCurrentPage() {
             await loadList()
         } else {
             if (!publish.name.trim()) {
-                alert('Enter a name')
+                showAlert('Enter a name')
                 return
             }
             const body = {
@@ -406,7 +407,7 @@ async function saveEdit() {
     if (!detail) return
     const trimmed = (editName || '').trim()
     if (!trimmed) {
-        alert('Enter a name')
+        showAlert('Enter a name')
         return
     }
     editBusy = true

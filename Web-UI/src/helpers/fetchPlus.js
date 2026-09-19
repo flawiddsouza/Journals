@@ -1,13 +1,17 @@
 import { token } from '../stores.js'
 import { baseURL } from '../../config.js'
 import { logoutAccount } from './account.js'
+import { withPageRevision } from './pageRevisions.js'
 
-const fetchPlus = function (method, url, data, headers = {}) {
+const request = function (method, url, data, headers = {}) {
     const isMultipart = data instanceof FormData
     const baseHeaders = isMultipart
         ? { Accept: 'application/json', Token: fetchPlus.headers['Token'] }
         : fetchPlus.headers
-    return fetch(baseURL + url, {
+    // A full address goes where it says: the MCP sidecar is served from the
+    // app's own address, not the API's.
+    const address = /^https?:\/\//.test(url) ? url : baseURL + url
+    return fetch(address, {
         method: method.toUpperCase(),
         body: isMultipart ? data : JSON.stringify(data),
         credentials: fetchPlus.credentials,
@@ -38,7 +42,7 @@ const fetchPlus = function (method, url, data, headers = {}) {
                             const retryBaseHeaders = isMultipart
                                 ? { Accept: 'application/json', Token: fetchPlus.headers['Token'] }
                                 : fetchPlus.headers
-                            return fetch(baseURL + url, {
+                            return fetch(address, {
                                 method: method.toUpperCase(),
                                 body: isMultipart ? data : JSON.stringify(data),
                                 credentials: fetchPlus.credentials,
@@ -55,6 +59,14 @@ const fetchPlus = function (method, url, data, headers = {}) {
             }
             return Promise.reject(res)
         })
+}
+
+// Loading and saving page content goes through the revision check. Everything
+// else is sent as it is.
+const fetchPlus = function (method, url, data, headers = {}) {
+    return withPageRevision(method, url, data, (dataToSend) =>
+        request(method, url, dataToSend, headers),
+    )
 }
 
 fetchPlus.token = null
