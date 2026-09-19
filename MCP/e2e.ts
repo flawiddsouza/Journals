@@ -96,6 +96,7 @@ async function checks(base: string, api: string) {
     await fetch(base + '/.well-known/oauth-authorization-server', { headers: { 'x-forwarded-proto': 'https' } })
   ).json()) as any
   ok('behind a TLS proxy the issuer says https', meta.issuer === base.replace('http:', 'https:'), meta.issuer)
+  ok('metadata says the redirect carries iss', meta.authorization_response_iss_parameter_supported === true)
   ok('/mcp/ below the exact match is not proxied', (await fetch(base + '/mcp/x', { method: 'POST' })).status !== 401)
   ok('other /.well-known paths still belong to the UI', (await fetch(base + '/.well-known/acme-challenge/x')).status === 404)
 

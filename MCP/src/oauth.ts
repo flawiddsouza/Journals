@@ -203,6 +203,8 @@ export function oauthRoutes(): Hono {
       grant_types_supported: ['authorization_code', 'refresh_token'],
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: ['none'],
+      // RFC 9207: a server that sends iss on the redirect must say so, or a strict client discards the response.
+      authorization_response_iss_parameter_supported: true,
     })
   })
 
