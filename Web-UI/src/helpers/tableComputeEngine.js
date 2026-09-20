@@ -69,6 +69,12 @@ export function createTableComputeEngine() {
 
             const itemsProxy = new Proxy(_items, {
                 get(target, prop) {
+                    // Symbol keys are the array's own protocol: Symbol.iterator
+                    // is what for..of, spread and Array.from read first, and
+                    // Number(symbol) throws. The iterator it returns reads back
+                    // through this trap by index, so those forms still see row
+                    // proxies and still register dependencies.
+                    if (typeof prop !== 'string') return target[prop]
                     const n = Number(prop)
                     if (Number.isInteger(n) && n >= 0 && String(n) === prop) {
                         return makeItemProxy(n)

@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import * as api from './journals'
+import { pageText, snippetAround } from './pageText'
 import { PAGE_TYPES } from './pageTypes'
 import { ToolError, mutates, pageSchema, readOnly, run, writeDenied } from './toolkit'
 
@@ -64,6 +65,23 @@ async function forgetInGroup(username: string, groupId: number, pageId: number):
     active = JSON.parse(content ?? '{}')?.activePageId
   } catch {}
   if (active === pageId) await api.putPageContent(username, groupId, JSON.stringify({ activePageId: null }), revision)
+}
+
+/** The page as it reads, windowed around the match. The API's own snippet is
+ *  a window on the stored content, which for every structured page type is
+ *  markup or JSON, so the page is decoded here when it can be. Falling back to
+ *  the API's snippet keeps a page type this server cannot read from losing its
+ *  snippet altogether; <mark> comes off either way, because a marker put in
+ *  here is markup in every line the agent writes back. */
+async function readableSnippet(username: string, pageId: number, type: string, fallback: string, query: string): Promise<string> {
+  const plain = fallback.replace(/<\/?mark>/g, '')
+  try {
+    const { content } = await api.getPageContent(username, pageId)
+    const said = pageText(type, content)
+    return said ? snippetAround(said, query) || plain : plain
+  } catch {
+    return plain
+  }
 }
 
 /** The app offers none of these on a password protected page until it is
@@ -138,7 +156,7 @@ export function registerPageTools(server: McpServer, { username, canWrite }: { u
     {
       title: 'Search pages by name or by what they say',
       description:
-        "The app's own search. By default it matches page names. With text set it searches what the pages say, through the full text index, and returns a snippet around each match. Either way it returns the ten best matches, so make the query specific. A text search matches whole words.",
+        "The app's own search. By default it matches page names. With text set it searches what the pages say, through the full text index, and returns a snippet of the page as it reads, not as it is stored. Either way it returns the ten best matches, so make the query specific. A text search matches whole words.",
       inputSchema: z.object({
         query: z.string().min(1).describe('What to look for'),
         text: z.boolean().optional().describe('Search what pages say instead of their names'),
@@ -147,7 +165,8 @@ export function registerPageTools(server: McpServer, { username, canWrite }: { u
     },
     async ({ query, text }) =>
       run(async () => {
-        const hits = await api.searchPages(username, query.trim(), Boolean(text))
+        const needle = query.trim()
+        const hits = await api.searchPages(username, needle, Boolean(text))
         const pages = await Promise.all(
           hits.map(async (hit) => {
             // The search leaves out the type, and which tools apply turns on it.
@@ -160,7 +179,7 @@ export function registerPageTools(server: McpServer, { username, canWrite }: { u
               section: hit.section_name,
               sectionId: hit.section_id,
               // A password protected page is not readable here, its snippet included.
-              ...(hit.snippet && !info.locked ? { snippet: hit.snippet.replace(/<\/?mark>/g, '**') } : {}),
+              ...(hit.snippet && !info.locked ? { snippet: await readableSnippet(username, hit.id, info.type, hit.snippet, needle) } : {}),
               ...(info.locked ? { locked: true } : {}),
             }
           }),

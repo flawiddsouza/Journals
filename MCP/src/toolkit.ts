@@ -113,8 +113,10 @@ export async function assertLinksExist(username: string, before: string | null, 
 
 type Loaded = Awaited<ReturnType<typeof loadPage>>
 
-/** The two checks every save makes before anything else. */
-export function assertWritable({ info, revision: current }: Loaded, revision: string): void {
+/** The two checks every save makes before anything else. `hint` is appended to
+ *  the revision refusal, for a page that has a known reason to move on its
+ *  own. */
+export function assertWritable({ info, revision: current }: Loaded, revision: string, hint = ''): void {
   // PUT /pages/:page_id does not check this; the app simply never saves a
   // view-only page (Table.svelte:234), so the refusal has to be ours.
   if (info.view_only || info.parent_view_only) {
@@ -122,7 +124,7 @@ export function assertWritable({ info, revision: current }: Loaded, revision: st
   }
   if (revision !== current) {
     throw new ToolError(
-      `The page changed since you read it (revision ${current}, you sent ${revision}). Read it again before saving.`,
+      `The page changed since you read it (revision ${current}, you sent ${revision}). Read it again before saving.${hint ? ` ${hint}` : ''}`,
     )
   }
 }

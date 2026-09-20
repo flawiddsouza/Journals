@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { COLUMN_OPTIONS, editColumns } from './tableColumns'
+import { startupHint } from './tableDoc'
 import { editRows, readRows } from './tableRows'
 import { assertLinksExist, assertWritable, loadTable, mutates, pageSchema, readOnly, revisionSchema, run, savePage, writeDenied } from './toolkit'
 
@@ -90,7 +91,7 @@ export function registerTableRowTools(server: McpServer, { username, canWrite }:
       if (!canWrite) return writeDenied
       return run(async () => {
         const loaded = await loadTable(username, page)
-        assertWritable(loaded, revision)
+        assertWritable(loaded, revision, startupHint(loaded.doc))
         const summary = editRows(loaded.doc, { update, remove, add, addBefore })
         const content = JSON.stringify(loaded.doc)
         await assertLinksExist(username, loaded.content, content)
@@ -124,7 +125,7 @@ export function registerTableRowTools(server: McpServer, { username, canWrite }:
       if (!canWrite) return writeDenied
       return run(async () => {
         const loaded = await loadTable(username, page)
-        assertWritable(loaded, revision)
+        assertWritable(loaded, revision, startupHint(loaded.doc))
         const summary = editColumns(loaded.doc, { update, remove, add, order })
         const content = JSON.stringify(loaded.doc)
         const saved = await savePage(username, loaded, content)

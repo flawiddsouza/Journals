@@ -40,6 +40,15 @@ export type TableDocument = {
   stats?: { widgets?: StatsWidget[] }
 }
 
+/** Opening a table in the app runs its startup script, and the app saves the
+ *  rows back when the script changed them (Table.svelte:175-186). So a page
+ *  with one can move on from what was read without anyone editing it, and a
+ *  refused save should say so rather than look inexplicable. */
+export const startupHint = (doc: TableDocument): string =>
+  doc.startupScript?.trim()
+    ? 'This table has a startup script: the app runs it when the page is opened and saves the rows it changes, so viewing the page alone can move the revision on.'
+    : ''
+
 export function parseTableDocument(content: string | null): TableDocument {
   // A never-saved page is the document the app itself starts from
   // (Table.svelte:147-158). Every key is there because a save writes this back.

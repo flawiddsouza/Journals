@@ -47,6 +47,9 @@ export function applyLineEdit<T>(
     if (edit.after < 0 || edit.after > total) {
       throw new CodecError(`after must be between 0 and ${total}, the number of lines on the page`)
     }
+  } else if (!total) {
+    // "1 <= start <= end <= 0" is arithmetic, not an answer.
+    throw new CodecError('This page has no lines yet, so there is nothing to replace. Write the first lines with after: 0.')
   } else if (start < 1 || end > total || end < start) {
     throw new CodecError(`start and end must satisfy 1 <= start <= end <= ${total}, the number of lines on the page`)
   }

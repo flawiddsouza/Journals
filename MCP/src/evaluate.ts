@@ -118,6 +118,11 @@ const HARNESS = `
   function makeItemsProxy(seen) {
     return new Proxy(items, {
       get: function (target, prop) {
+        // Symbol keys are the array's own protocol: Symbol.iterator is what
+        // for..of, spread and Array.from read first, and Number(symbol) throws.
+        // The iterator it returns reads back through this trap by index, so
+        // those forms still see row proxies and still count dependencies.
+        if (typeof prop !== 'string') return target[prop]
         var n = Number(prop)
         if (Number.isInteger(n) && n >= 0 && String(n) === prop) return makeItemProxy(n, seen)
         return target[prop]

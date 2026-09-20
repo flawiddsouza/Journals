@@ -14,8 +14,8 @@ JWT_SECRET=<same secret as the API> bun run index.ts
 ```
 
 `bun test` covers the script sandbox, the column profiling, the line codecs,
-table rows and columns, and the Mini App document. It needs no API and no
-environment.
+table rows, columns and stats widgets, the text a search hit is shown as, and
+the Mini App document. It needs no API and no environment.
 
 This server repeats things the app decides: which page types exist, what a
 saved table carries, how a computed column resolves. `src/uiContract.test.ts`
@@ -80,7 +80,7 @@ open in it.
 
 | Tool | |
 |---|---|
-| `search_pages` | The app's own search, by page name or by what pages say. Ten best matches, each with its type. |
+| `search_pages` | The app's own search, by page name or by what pages say. Ten best matches, each with its type, and a snippet of the page as it reads. |
 | `list_pages` | Pages narrowed by type, section or name, up to a limit. Walks page groups too, or nested pages go missing. |
 | `list_sections` | Every section with its notebook and profile. The only way to find a section that has no pages yet. |
 | `create_page` | A new, empty page of any type the app offers, in a section or inside a page group. |
@@ -101,6 +101,7 @@ open in it.
 | `get_table_config` | Every script on a Table page, a profile per column, a chosen row sample, and how the app calls each kind of script. Never returns all rows. |
 | `evaluate_table_script` | Dry run against the real rows. Reports output and cost. Saves nothing. |
 | `set_table_script` | Save one script. Evaluates first, and re-checks dependents when the target is `customFns`. |
+| `edit_table_stats` | The stat cards and charts under the Stats tab: add, retitle, retype, resize, reorder and remove. A widget has to exist before `set_table_script` can fill it. |
 
 Every save takes the `revision` its get tool returned and is refused when the
 page changed since, and every save refuses view-only pages. Renaming, moving
@@ -145,7 +146,9 @@ serves a file only to its owner.
 - A download is always sent as an attachment, because this origin also serves
   the app.
 - There is no delete. The API's upload delete removes the file from disk, and
-  every other delete in Journals is a soft one.
+  every other delete in Journals is a soft one. An upload outlives the page
+  being deleted and goes when the page is cleared from the recycle bin, which
+  deletes the files its uploads point at.
 - nginx allows 26 MB on `/mcp/files/` so that the sidecar's 25 MB limit is what
   answers an oversized upload, with a message the agent can read.
 
@@ -173,3 +176,11 @@ document written here carries it, a never-saved page included.
 `evaluate_table_script` runs the candidate in `node:vm` with the same Proxy
 instrumentation the app's compute engine uses, so an expression that is correct
 but registers O(n squared) dependency entries gets flagged before it is saved.
+The proxy stands in for an array, so `for..of`, spread and `Array.from` have to
+reach it by index the way the app's engine does; `uiContract.test.ts` runs the
+app's engine beside this one to keep the two agreeing on that.
+
+A stats widget is the one script that has nowhere to live until something makes
+it. `edit_table_stats` creates it, with or without its expression, and
+`evaluate_table_script` will dry run a candidate with no `widgetId` at all, so
+an expression can be checked before the widget exists.

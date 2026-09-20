@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { type LineEdit, applyLineEdit, linesOf } from './edit'
-import { type PMNode, proseCodec } from './prose'
+import { type PMNode, isTaskLine, proseCodec } from './prose'
 import { assertLoads, flatPageV2Schema, taskListSchema } from './testSchema'
 
 const v2 = proseCodec('FlatPageV2')
@@ -206,6 +206,13 @@ describe('Task List', () => {
     const result = edit(tasks, LIST, { after: 3, lines: ['plain line', '- bullet', '# not a heading', '', '- [x] done **now**'] })
     expect(result.lines.slice(3)).toEqual(['- [ ] plain line', '- [ ] bullet', '- [ ] # not a heading', '- [x] done **now**'])
     assertLoads(taskListSchema, result.content)
+  })
+
+  test('which lines that changes is answerable, so edit_page can say so', () => {
+    expect(['plain line', '- bullet', '# not a heading', ''].filter(isTaskLine)).toEqual([])
+    expect(['- [ ] open', '- [x] done', '  - [X] nested', '- [ ]'].every(isTaskLine)).toBe(true)
+    // A marker needs its space: "- [ ]x" is text that happens to start that way.
+    expect(isTaskLine('- [ ]x')).toBe(false)
   })
 
   test('links do not exist there, so link syntax stays text', () => {

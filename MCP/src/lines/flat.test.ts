@@ -64,6 +64,8 @@ describe('reading', () => {
   test('a never-saved page has no lines', () => {
     expect(linesOf(flatCodec.read(null))).toEqual([])
     expect(edit(null, { after: 0, lines: ['first'] }).content).toBe('<div>first</div>')
+    // There is no line 1 to replace yet, and saying so beats "1 <= start <= end <= 0".
+    expect(() => edit(null, { start: 1, end: 1, lines: ['first'] })).toThrow(/no lines yet.*after: 0/)
   })
 })
 

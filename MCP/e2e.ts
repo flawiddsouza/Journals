@@ -210,9 +210,9 @@ async function checks(base: string, api: string) {
   const tools = await rpc(T, 'tools/list', {})
   const toolNames = (tools.result?.tools ?? []).map((t: any) => t.name).sort()
   ok(
-    'the tools are the documented twenty-one',
+    'the tools are the documented twenty-two',
     toolNames.join() ===
-      'create_file_download,create_file_upload,create_page,delete_page,edit_page,edit_table_columns,edit_table_rows,evaluate_table_script,get_mini_app,get_page,get_table_config,get_table_rows,list_page_files,list_pages,list_sections,move_page,rename_page,search_pages,set_mini_app_data,set_mini_app_files,set_table_script',
+      'create_file_download,create_file_upload,create_page,delete_page,edit_page,edit_table_columns,edit_table_rows,edit_table_stats,evaluate_table_script,get_mini_app,get_page,get_table_config,get_table_rows,list_page_files,list_pages,list_sections,move_page,rename_page,search_pages,set_mini_app_data,set_mini_app_files,set_table_script',
     toolNames,
   )
 
@@ -286,6 +286,7 @@ async function checks(base: string, api: string) {
   ok('the save wrote a page history entry', (await historyOf(open)) === historyBefore + 1, [historyBefore, await historyOf(open)])
   ok('the old revision is now stale', (await save(T, open, cfg.data.revision)).err)
 
+  await statsWidgetChecks()
   await tableRowChecks()
   await documentChecks()
   await miniAppChecks()
@@ -361,7 +362,9 @@ async function checks(base: string, api: string) {
     const named = await call(T, 'search_pages', { query: 'zebra' })
     ok('search_pages finds a page by name and reports its type', named.data?.pages?.[0]?.id === id && named.data.pages[0].type === 'FlatPage' && named.data.pages[0].section === 'Sec', named.raw)
     const said = await call(T, 'search_pages', { query: 'okapi', text: true })
-    ok('search_pages finds a page by what it says, with a snippet', said.data?.pages?.[0]?.id === id && String(said.data.pages[0].snippet).includes('**okapi**'), said.raw)
+    // The snippet is the page as it reads: no <div> from the stored HTML, and
+    // no marker round the match, which would be markup in every line written back.
+    ok('search_pages finds a page by what it says, and the snippet is what the page says', said.data?.pages?.[0]?.id === id && said.data.pages[0].snippet === 'the okapi budget is late', said.raw)
     ok("search_pages never reaches another user's pages", ((await call(T, 'search_pages', { query: 'Private' })).data?.pages ?? []).length === 0)
 
     ok('rename_page without write scope refused', (await call(roTok.access_token, 'rename_page', { page: id, name: 'x' })).err)
@@ -549,6 +552,59 @@ async function checks(base: string, api: string) {
     ok('group has to be a page group', (await call(T, 'create_page', { name: 'x', type: 'FlatPage', group: budget })).err)
     const firstTask = await call(T, 'edit_page', { page: child.data?.id, revision: (await call(T, 'get_page', { page: child.data?.id })).data?.revision, start: 1, end: 1, text: '- [ ] first' })
     ok('the new page takes an edit straight away', !firstTask.err, firstTask.raw)
+  }
+
+  // ---- stats widgets
+  async function statsWidgetChecks() {
+    const at = async () => (await call(T, 'get_table_config', { page: open })).data?.revision
+    const dry = await call(T, 'evaluate_table_script', { page: open, target: 'statsWidget', code: 'return items.length' })
+    ok('a stats widget expression can be dry run before any widget holds it', dry.data?.sample?.[0]?.output === '3', dry.raw)
+
+    const bad = await call(T, 'edit_table_stats', { page: open, revision: await at(), add: [{ title: 'Broken', type: 'stat', expression: 'return nope(' }] })
+    ok('a widget whose expression does not compile is refused', bad.err && !JSON.parse(await contentOf(open)).stats?.widgets?.length, bad.text)
+
+    const made = await call(T, 'edit_table_stats', {
+      page: open,
+      revision: await at(),
+      add: [
+        { title: 'Rows', type: 'stat', align: 'center', expression: 'return items.length' },
+        { title: 'By amount', type: 'bar', colSpan: 6, align: 'center', expression: "return { labels: items.map((r) => String(r['Amount'])), values: items.map((_, i) => i) }" },
+      ],
+    })
+    ok('widgets are created with ids of their own', !made.err && made.data?.added?.length === 2, made.raw)
+    const saved = JSON.parse(await contentOf(open)).stats?.widgets ?? []
+    ok(
+      'what is saved is the shape the app writes',
+      saved.length === 2 &&
+        saved[0].align === 'center' &&
+        saved[0].colSpan === 2 &&
+        saved[1].align === undefined &&
+        saved[1].colSpan === 6 &&
+        saved.every((w: any) => typeof w.id === 'string' && w.id.length > 10),
+      saved,
+    )
+
+    const id = made.data?.added?.[0]
+    const script = await call(T, 'set_table_script', { page: open, revision: await at(), target: 'statsWidget', widgetId: id, code: 'return items.length * 2' })
+    ok('set_table_script fills a widget made here', !script.err && (JSON.parse(await contentOf(open)).stats.widgets[0].expression as string).includes('* 2'), script.raw)
+    ok('saving a statsWidget with no widgetId says how to make one', (await call(T, 'set_table_script', { page: open, revision: await at(), target: 'statsWidget', code: 'return 1' })).text.includes('edit_table_stats'))
+
+    const second = made.data?.added?.[1]
+    const reordered = await call(T, 'edit_table_stats', { page: open, revision: await at(), order: [second, id] })
+    const inOrder = async () => JSON.parse(await contentOf(open)).stats.widgets.map((w: any) => w.id).join()
+    ok('order puts them in sequence', !reordered.err && (await inOrder()) === `${second},${id}`, reordered.raw)
+    const both = await call(T, 'edit_table_stats', { page: open, revision: await at(), add: [{ title: 'Third', type: 'stat', expression: 'return 1' }], order: [second, id] })
+    ok(
+      'ordering a widget added in the same batch is refused, and adds nothing',
+      both.err && both.text.includes('before') && JSON.parse(await contentOf(open)).stats.widgets.length === 2,
+      both.text,
+    )
+    ok('an unknown widget id names the ones that exist', (await call(T, 'edit_table_stats', { page: open, revision: await at(), update: [{ widget: 'nope', title: 'x' }] })).text.includes('Rows'))
+    ok('stale revision refused', (await call(T, 'edit_table_stats', { page: open, revision: 'stale', remove: [id] })).err)
+    ok('no write scope refused', (await call(roTok.access_token, 'edit_table_stats', { page: open, revision: await at(), remove: [id] })).err)
+
+    const gone = await call(T, 'edit_table_stats', { page: open, revision: await at(), remove: made.data?.added ?? [] })
+    ok('removal takes the widgets and leaves the key', !gone.err && JSON.parse(await contentOf(open)).stats.widgets.length === 0, gone.raw)
   }
 
   // ---- table data

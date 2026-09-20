@@ -1,8 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
-import { type LineCodec, type Unit, applyLineEdit, linesOf } from './lines/edit'
-import { flatCodec } from './lines/flat'
-import { proseCodec } from './lines/prose'
+import { LINE_CODECS, LINE_TYPES } from './lines/codecs'
+import { type Unit, applyLineEdit, linesOf } from './lines/edit'
+import { isTaskLine } from './lines/prose'
 import { ToolError, assertLinksExist, assertWritable, loadPage, mutates, pageSchema, readOnly, revisionSchema, run, savePage, writeDenied } from './toolkit'
 
 /**
@@ -10,13 +10,6 @@ import { ToolError, assertLinksExist, assertWritable, loadPage, mutates, pageSch
  * numbered lines. One pair of tools serves all three because the line model is
  * the same; only the codec underneath differs.
  */
-
-const CODECS: Record<string, LineCodec<unknown>> = {
-  FlatPage: flatCodec as LineCodec<unknown>,
-  FlatPageV2: proseCodec('FlatPageV2') as LineCodec<unknown>,
-  TaskList: proseCodec('TaskList') as LineCodec<unknown>,
-}
-const TYPES = Object.keys(CODECS)
 
 const DEFAULT_LIMIT = 400
 
@@ -30,6 +23,24 @@ const LINE_FORM = [
 ].join('\n')
 
 const numbered = (lines: string[], first: number) => lines.map((l, i) => `${first + i}\t${l}`).join('\n')
+
+/** A Task List is one list of tasks, so it takes a line with no marker as an
+ *  unchecked task and keeps no blank lines (prose.ts, parseBlocks). Both are
+ *  what the app does with a pasted list, and both mean the page does not say
+ *  quite what was sent, so the edit reports them. */
+function taskListChanges(lines: string[]): string | null {
+  const untasked = lines.filter((line) => line.trim() && !isTaskLine(line)).length
+  const blank = lines.filter((line) => !line.trim()).length
+  const said = [
+    untasked
+      ? untasked > 1
+        ? `${untasked} lines had no "- [ ] " marker and were saved as unchecked tasks`
+        : '1 line had no "- [ ] " marker and was saved as an unchecked task'
+      : '',
+    blank ? `${blank} blank line${blank > 1 ? 's were' : ' was'} dropped` : '',
+  ].filter(Boolean)
+  return said.length ? `${said.join(', and ')}. Every line of a Task List is a task.` : null
+}
 
 /** Read-only stretches that overlap the lines being returned. */
 function readOnlyRanges(units: Unit<unknown>[], from: number, to: number) {
@@ -64,8 +75,8 @@ export function registerDocTools(server: McpServer, { username, canWrite }: { us
     },
     async ({ page, start, limit }) =>
       run(async () => {
-        const { info, content, revision } = await loadPage(username, page, TYPES)
-        const units = CODECS[info.type]!.read(content)
+        const { info, content, revision } = await loadPage(username, page, LINE_TYPES)
+        const units = LINE_CODECS[info.type]!.read(content)
         const lines = linesOf(units)
         const from = Math.min(Math.max(1, start === undefined ? 1 : start < 0 ? lines.length + start + 1 : start), Math.max(1, lines.length))
         const to = Math.min(lines.length, from + (limit ?? DEFAULT_LIMIT) - 1)
@@ -112,10 +123,10 @@ export function registerDocTools(server: McpServer, { username, canWrite }: { us
         if (replacing === (after !== undefined) || (replacing && (start === undefined || end === undefined))) {
           throw new ToolError('Pass either start and end to replace lines, or after to insert. Not both, and not neither.')
         }
-        const loaded = await loadPage(username, page, TYPES)
+        const loaded = await loadPage(username, page, LINE_TYPES)
         assertWritable(loaded, revision)
 
-        const codec = CODECS[loaded.info.type]!
+        const codec = LINE_CODECS[loaded.info.type]!
         const lines = text === '' ? [] : text.replace(/\r/g, '').replace(/\n$/, '').split('\n')
         if (!replacing && !lines.length) throw new ToolError('Nothing to insert: text is empty')
         const result = applyLineEdit(codec, codec.read(loaded.content), replacing ? { start: start!, end: end!, lines } : { after: after!, lines })
@@ -125,12 +136,14 @@ export function registerDocTools(server: McpServer, { username, canWrite }: { us
         const saved = await savePage(username, loaded, result.content)
         const from = Math.max(1, result.changed.start - 2)
         const to = Math.min(result.lines.length, result.changed.end + 2)
+        const note = loaded.info.type === 'TaskList' ? taskListChanges(lines) : null
         return {
           saved: true,
           revision: saved,
           lineCount: result.lines.length,
           changed: result.changed.end < result.changed.start ? null : result.changed,
           context: numbered(result.lines.slice(from - 1, to), from),
+          ...(note ? { note } : {}),
         }
       })
     },

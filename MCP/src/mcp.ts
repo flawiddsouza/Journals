@@ -10,8 +10,10 @@ import { registerTableRowTools } from './tableRowTools'
 import {
   chooseSample,
   profileColumn,
+  startupHint,
   type TableDocument,
 } from './tableDoc'
+import { WIDGET_OPTIONS, editWidgets } from './tableStats'
 import {
   ToolError,
   assertWritable,
@@ -58,7 +60,7 @@ const CONTRACTS: Record<ScriptTarget, string> = {
   rowStyle:
     "Runs as new Function('items','rowIndex','item', customFunctions + code), once per visible row. Note there is no columnName parameter. item is enriched. Return an inline CSS string.",
   startup:
-    "Runs once on load as new Function('rows', code). Mutate the rows array to add, update or remove rows. Return nothing. No network access.",
+    "Runs once on load as new Function('rows', code). Mutate the rows array to add, update or remove rows. Return nothing. No network access. The app saves the rows back when the script changed them, so a mutation persists and opening the page is enough to move its revision on.",
   customFns:
     'Prepended to every computed, total, colStyle and rowStyle expression on the page. Define pure helpers only, no side effects on load. Note it is NOT prepended to stats widget expressions.',
   statsWidget:
@@ -73,25 +75,34 @@ const columnSchema = z
   .string()
   .optional()
   .describe("Column name, required for computed, total and colStyle; ignored otherwise")
+/** The widths the app offers, from the one list tableStats.ts keeps. */
+const colSpanSchema = z.literal([...WIDGET_OPTIONS.colSpan])
+
 const widgetSchema = z
   .string()
   .optional()
-  .describe('Stats widget id, required for statsWidget')
+  .describe('Stats widget id from get_table_config, required to save a statsWidget. A dry run may leave it out, to check a candidate for a widget edit_table_stats has not made yet')
 
 function resolveTarget(
   doc: TableDocument,
   target: ScriptTarget,
   column: string | undefined,
   widgetId: string | undefined,
+  forWrite = true,
 ): { columnName: string | null; current: string } {
   if (target === 'rowStyle') return { columnName: null, current: doc.rowStyle ?? '' }
   if (target === 'startup') return { columnName: null, current: doc.startupScript ?? '' }
   if (target === 'customFns') return { columnName: null, current: doc.customFunctions ?? '' }
 
   if (target === 'statsWidget') {
-    if (!widgetId) throw new ToolError('statsWidget needs a widgetId')
+    // The expression is called with items alone, so a dry run needs no widget:
+    // a candidate can be checked before edit_table_stats makes one to hold it.
+    if (!widgetId) {
+      if (!forWrite) return { columnName: null, current: '' }
+      throw new ToolError('Saving a statsWidget needs a widgetId, from get_table_config. Make the widget with edit_table_stats first.')
+    }
     const widget = doc.stats?.widgets?.find((w) => w.id === widgetId)
-    if (!widget) throw new ToolError(`No stats widget with id ${widgetId}`)
+    if (!widget) throw new ToolError(`No stats widget with id ${widgetId}. This table has: ${doc.stats?.widgets?.map((w) => `${w.id} (${w.title})`).join(', ') || 'no widgets yet'}`)
     return { columnName: null, current: widget.expression ?? '' }
   }
 
@@ -164,7 +175,7 @@ function buildServer(username: string, scopes: string[], origin: string) {
         'FlatPage, FlatPageV2 and TaskList: get_page shows the page as numbered lines, edit_page replaces or inserts lines.',
         'Files and images on any page: create_file_upload mints a link to send a file to, and its response carries the markup to insert; list_page_files and create_file_download read them back.',
         'MiniApp: get_mini_app, then set_mini_app_files for the code and set_mini_app_data for what the app has stored.',
-        'Table: get_table_rows reads the data, edit_table_rows changes it and edit_table_columns shapes the columns. For the JavaScript behind a table, get_table_config shows every script on the page plus per-column profiles. Always evaluate_table_script before set_table_script: it runs the candidate against the real rows and reports both the output and the cost, which is the only way to catch an expression that is correct but degrades the page.',
+        'Table: get_table_rows reads the data, edit_table_rows changes it, edit_table_columns shapes the columns and edit_table_stats the stat cards and charts. For the JavaScript behind a table, get_table_config shows every script on the page plus per-column profiles. Always evaluate_table_script before set_table_script: it runs the candidate against the real rows and reports both the output and the cost, which is the only way to catch an expression that is correct but degrades the page.',
         'Every save needs the revision from the matching get tool and is refused if the page changed since, in the app or anywhere else, so read again after a refusal. Each save writes a page history entry, so it can be undone from the app.',
         CELL_HTML_NOTE,
       ].join(' '),
@@ -236,7 +247,7 @@ function buildServer(username: string, scopes: string[], origin: string) {
     async ({ page, target, code, column, widgetId, rows }) =>
       run(async () => {
         const { doc } = await loadTable(username, page)
-        resolveTarget(doc, target, column, widgetId)
+        resolveTarget(doc, target, column, widgetId, false)
         const result = evaluateScript(doc, target, code, column ?? null, { rows })
         return { ...result }
       }),
@@ -272,7 +283,7 @@ function buildServer(username: string, scopes: string[], origin: string) {
       if (!canWrite) return writeDenied
       return run(async () => {
         const loaded = await loadTable(username, page)
-        assertWritable(loaded, revision)
+        assertWritable(loaded, revision, startupHint(loaded.doc))
         const { doc } = loaded
         resolveTarget(doc, target, column, widgetId)
 
@@ -345,6 +356,92 @@ function buildServer(username: string, scopes: string[], origin: string) {
           },
           dependentsBroken: broke,
         }
+      })
+    },
+  )
+
+  server.registerTool(
+    'edit_table_stats',
+    {
+      title: "Add, change, remove and reorder a table's stats widgets",
+      description: [
+        "One batch of changes to the stat cards and charts under a Table page's Stats tab: update changes existing widgets, remove deletes them with their expressions, add creates them, order puts them in sequence. They apply in that order and a bad id refuses the whole batch.",
+        'update, remove and before name widgets by the id get_table_config reports; order names them as the batch leaves them and has to list every widget. A new widget is given its id here, which is not known until the call returns, so place one with before rather than ordering it in the same batch.',
+        "An expression is checked the way set_table_script checks one and is refused if it does not compile or throws, unless force is set. A widget may be made without one and given it later. What an expression is called with, and what each type has to return, is under contracts in get_table_config.",
+        "align applies to a 'stat' widget only; the app drops it from a chart. colSpan is the width: 2 is a third, 3 a half, 4 two thirds, 6 the full row.",
+      ].join(' '),
+      inputSchema: z.object({
+        page: pageSchema,
+        revision: revisionSchema,
+        update: z
+          .array(
+            z.object({
+              widget: z.string().describe('Widget id from get_table_config'),
+              title: z.string().optional(),
+              type: z.enum(WIDGET_OPTIONS.type).optional(),
+              colSpan: colSpanSchema.optional(),
+              align: z.enum(WIDGET_OPTIONS.align).optional().describe("'stat' widgets only"),
+              expression: z.string().optional().describe('The full replacement expression, not a diff'),
+            }),
+          )
+          .optional(),
+        remove: z.array(z.string()).optional().describe('Widget ids to delete, with their expressions'),
+        add: z
+          .array(
+            z.object({
+              title: z.string().describe('Heading shown above the widget'),
+              type: z.enum(WIDGET_OPTIONS.type),
+              colSpan: colSpanSchema.optional().describe('Default 2, a third of the row'),
+              align: z.enum(WIDGET_OPTIONS.align).optional().describe("'stat' widgets only. Default left"),
+              expression: z.string().optional().describe('Leave out to add the widget empty and fill it later'),
+              before: z.string().optional().describe('Insert above this widget id. Default: at the end'),
+            }),
+          )
+          .optional(),
+        order: z.array(z.string()).optional().describe('Every widget id, in the order they should appear'),
+        force: z.boolean().optional().describe('Save even though an expression fails to compile or throws. Does not allow one that never finishes, and does not bypass the revision check'),
+      }),
+      annotations: { ...mutates, destructiveHint: true, idempotentHint: false },
+    },
+    async ({ page, revision, update, remove, add, order, force }) => {
+      if (!canWrite) return writeDenied
+      return run(async () => {
+        const loaded = await loadTable(username, page)
+        assertWritable(loaded, revision, startupHint(loaded.doc))
+        const summary = editWidgets(loaded.doc, { update, remove, add, order })
+
+        // Checked after the batch lands, so a widget made and filled in one
+        // call is checked as saved, and one whose type changed is too.
+        const failed: { widget: string; title: string; message: string }[] = []
+        if (update?.length || add?.length) {
+          for (const widget of loaded.doc.stats?.widgets ?? []) {
+            const touched = update?.some((u) => u.widget === widget.id) || summary.added.includes(widget.id)
+            // Optional as resolveTarget reads it: the document is parsed, not
+            // validated, so a widget without an expression is a shape to survive.
+            if (!touched || !widget.expression?.trim()) continue
+            const outcome = evaluateScript(loaded.doc, 'statsWidget', widget.expression, null, { timeoutMs: 1500 })
+            // As in set_table_script: a script that never finishes is refused
+            // outright. One that throws shows an error in the widget; one that
+            // hangs takes the page it is reached from with it.
+            if (outcome.timedOut) {
+              throw new ToolError(
+                `Not saved: the expression for ${widget.title} did not finish in time. A widget that does not terminate would make the page unopenable, so this is refused even with force.`,
+              )
+            }
+            if (!outcome.compiled || outcome.threw > 0) {
+              failed.push({ widget: widget.id, title: widget.title, message: outcome.errors[0]?.message ?? 'unknown' })
+            }
+          }
+          if (failed.length && !force) {
+            // By title: nothing is saved, so the id of a widget this batch was
+            // adding belongs to a widget that will not exist.
+            const named = failed.map((f) => `${f.title}: ${f.message}`).join('; ')
+            throw new ToolError(`Not saved: ${named}. Pass force to save anyway.`)
+          }
+        }
+
+        const saved = await savePage(username, loaded, JSON.stringify(loaded.doc))
+        return { saved: true, revision: saved, ...summary, expressionsFailing: failed }
       })
     },
   )

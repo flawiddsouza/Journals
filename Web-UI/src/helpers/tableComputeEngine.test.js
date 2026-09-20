@@ -417,3 +417,46 @@ describe('invalidateAll + onStructuralChange + setItems reference', () => {
         expect(engine.getComputedValue(0, 'C')).toBe('world')
     })
 })
+
+describe('iterating items', () => {
+    // items is a Proxy. for..of, spread and Array.from read items[Symbol.iterator]
+    // first, and a trap that puts every key through Number() throws on a symbol.
+    const build = () => {
+        const e = createTableComputeEngine()
+        e.setColumns([
+            { name: 'Amount' },
+            { name: 'Double', expression: "return Number(item['Amount']) * 2" },
+            { name: 'ForOf', expression: "let sum = 0; for (const r of items) sum += Number(r['Amount']); return sum" },
+            { name: 'Spread', expression: "return [...items].length" },
+            { name: 'FromDoubles', expression: "return Array.from(items, (r) => r['Double']).join(',')" },
+        ])
+        const items = [{ Amount: '1' }, { Amount: '2' }, { Amount: '3' }]
+        e.setItems(items)
+        return { e, items }
+    }
+    const engine = () => build().e
+
+    it('for..of walks the rows instead of throwing', () => {
+        expect(engine().getComputedValue(0, 'ForOf')).toBe(6)
+    })
+
+    it('spread sees every row', () => {
+        expect(engine().getComputedValue(0, 'Spread')).toBe(3)
+    })
+
+    it('a row reached by iteration still resolves computed columns', () => {
+        expect(engine().getComputedValue(0, 'FromDoubles')).toBe('2,4,6')
+    })
+
+    it('rows reached by iteration are registered as dependencies', () => {
+        const { e, items } = build()
+        expect(e.getComputedValue(0, 'ForOf')).toBe(6)
+        // The same array, edited in place, so onRawCellChanged is the only
+        // thing that can clear the cached 6. Handing setItems a new array
+        // would invalidate everything and pass whether row 2 was registered
+        // as a dependency or not.
+        items[2].Amount = '10'
+        e.onRawCellChanged(2, 'Amount')
+        expect(e.getComputedValue(0, 'ForOf')).toBe(13)
+    })
+})

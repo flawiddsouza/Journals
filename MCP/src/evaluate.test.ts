@@ -85,6 +85,29 @@ describe('harness matches the app', () => {
     expect(outputs('statsWidget', 'return typeof dbl', null)).toEqual(['undefined'])
   })
 
+  // items is a Proxy, and for..of, spread and Array.from read its
+  // Symbol.iterator before any index. The app runs these, so refusing them
+  // here would refuse a script that works.
+  test('for..of walks the rows, enriched, in every target that gets items', () => {
+    const forOf = "let out = ''; for (const r of items) out += r['Double']; return out"
+    expect(outputs('computed', forOf, 'Next')).toEqual(['246', '246', '246'])
+    expect(outputs('total', forOf)).toEqual(['246'])
+    expect(outputs('statsWidget', forOf, null)).toEqual(['246'])
+  })
+
+  test('spread and Array.from too', () => {
+    expect(outputs('total', 'return [...items].length')).toEqual(['3'])
+    expect(outputs('total', "return Array.from(items, (r) => r['Double']).join('-')")).toEqual(['2-4-6'])
+  })
+
+  test('rows reached by iteration are counted as dependencies', () => {
+    const cost = (code: string) => evaluateScript(doc, 'total', code, 'Amount').cost.dependencyEntries
+    // Three rows read once each, the same as reaching them by index.
+    expect(cost("let n = 0; for (const r of items) n += Number(r['Amount']); return n")).toBe(
+      cost("let n = 0; for (let i = 0; i < items.length; i++) n += Number(items[i]['Amount']); return n"),
+    )
+  })
+
   test('the startup script works on a copy of the rows', () => {
     expect(outputs('startup', "rows.push({ Amount: '9' })", null)).toEqual(['rows after script: 4'])
     expect(doc.items).toHaveLength(3)

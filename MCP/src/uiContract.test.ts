@@ -10,6 +10,7 @@ import { MAX_MODULES } from './miniApp'
 import { PAGE_TYPES } from './pageTypes'
 import { COLUMN_OPTIONS } from './tableColumns'
 import { type TableDocument, parseTableDocument } from './tableDoc'
+import { WIDGET_OPTIONS } from './tableStats'
 
 /**
  * This server repeats things the app decides: which page types exist, what a
@@ -41,6 +42,21 @@ describe('constants copied from the app', () => {
     expect(optionsOf('Filter')).toEqual([...COLUMN_OPTIONS.filterable])
     // Computed is offered by the app too. Here it is set_table_script's job.
     expect(optionsOf('Type')).toEqual([...COLUMN_OPTIONS.type, 'Computed'])
+  })
+
+  test('stats widget options are the ones the app stores (tableStats.ts)', () => {
+    const source = ui('components/PageTypes/TableStats.svelte')
+    const setOf = (name: string) => {
+      const listed = source.split(`const ${name} = new Set([`)[1]!.split('])')[0]!
+      return [...listed.matchAll(/'([^']+)'|(\d+)/g)].map((m) => m[1] ?? Number(m[2]))
+    }
+    expect(setOf('validTypes')).toEqual([...WIDGET_OPTIONS.type])
+    expect(setOf('validSpans')).toEqual([...WIDGET_OPTIONS.colSpan])
+    expect(setOf('validAligns')).toEqual([...WIDGET_OPTIONS.align])
+    // The widths the app offers, which is what colSpan means.
+    expect(JSON.parse(source.match(/const SPAN_OPTIONS = (\[[^\]]*\])/)![1]!)).toEqual([...WIDGET_OPTIONS.colSpan])
+    // align is written for a stat widget and left off a chart.
+    expect(source).toContain("...(type === 'stat' && { align })")
   })
 
   test('a saved table carries the keys the app saves (tableDoc.ts)', () => {
@@ -76,6 +92,9 @@ describe("the app's compute engine and the harness agree (evaluate.ts)", () => {
       { name: 'OnDouble', type: 'Computed', expression: "return item['Double'] + 1" },
       { name: 'Running', type: 'Computed', expression: "return items.slice(0, rowIndex + 1).reduce((a, r) => a + Number(r['Amount']), 0)" },
       { name: 'Prev', type: 'Computed', expression: "return rowIndex ? items[rowIndex - 1]['OnDouble'] : 'first'" },
+      // for..of, spread and Array.from all read items[Symbol.iterator] first.
+      { name: 'Iterated', type: 'Computed', expression: "let sum = 0; for (const r of items) sum += Number(r['Amount']); return sum" },
+      { name: 'Spread', type: 'Computed', expression: "return [...items].map((r) => r['Double']).join(',')" },
       { name: 'Throws', type: 'Computed', expression: "if (rowIndex === 1) throw new Error('no'); return item.hasOwnProperty('Amount')" },
       { name: 'ReadsThrows', type: 'Computed', expression: "return 'saw: ' + item['Throws']" },
       { name: 'LoopA', type: 'Computed', expression: "return 'a' + item['LoopB']" },

@@ -130,6 +130,11 @@ const paragraph = (source: string, mode: ProseMode): PMNode => {
 
 type ListLine = { indent: number; list: ListType; checked: boolean; number: number; text: string }
 
+/** Whether a line already carries a task marker. A Task List takes any line
+ *  and makes a task of it, so what the caller sent and what the page now says
+ *  can differ, and edit_page says so rather than letting it pass unseen. */
+export const isTaskLine = (line: string) => /^\s*- \[[ xX]\](?: |$)/.test(line)
+
 function readListLine(line: string, mode: ProseMode): ListLine | null {
   const match = line.match(/^(\s*)(?:- \[([ xX])\](?: |$)|(- )|(\d+)\. )(.*)$/)
   // Tabs count as one level, like two spaces.
