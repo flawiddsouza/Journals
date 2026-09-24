@@ -7,6 +7,7 @@ export function generatePageLinks(
         tableStatsView,
         tableStatsEditMode,
         tableConfigureMode,
+        tablePullPageId = null,
         handlers,
     },
 ) {
@@ -55,6 +56,14 @@ export function generatePageLinks(
     }
 
     if (activePage.type === 'Table' && activePage.view_only === false) {
+        // Only once the open table has said it has a pull script.
+        if (tablePullPageId === activePage.id) {
+            links.push({
+                href: '#pull',
+                text: 'Pull',
+                onClick: handlers.pullTable,
+            })
+        }
         if (!tableStatsView) {
             if (!tableConfigureMode) {
                 links.push({

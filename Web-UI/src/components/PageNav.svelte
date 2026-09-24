@@ -15,6 +15,8 @@ let miniAppConfigMode = false
 let tableStatsView = false
 let tableStatsEditMode = false
 let tableConfigureMode = false
+// The table page that has a pull script, as the Table reports it.
+let tablePullPageId = null
 import Modal from './Modal.svelte'
 import Portal from './Portal.svelte'
 import FlatPageHistoryPreview from './FlatPageHistoryPreview.svelte'
@@ -52,6 +54,11 @@ let lastActivePageId = null
 const unsubEventStore = eventStore.subscribe((event) => {
     if (event?.event === 'tableStatsEditMode') {
         tableStatsEditMode = event.data.active
+    }
+    if (event?.event === 'tablePullAvailable') {
+        const { pageId, available } = event.data
+        if (available) tablePullPageId = pageId
+        else if (tablePullPageId === pageId) tablePullPageId = null
     }
 })
 onDestroy(unsubEventStore)
@@ -350,6 +357,10 @@ function toggleTableStatsEdit() {
     })
 }
 
+function pullTable() {
+    eventStore.set({ event: 'tablePull', data: { pageId: activePage.id } })
+}
+
 function configureMiniApp() {
     miniAppConfigMode = true
     eventStore.set({
@@ -376,6 +387,7 @@ const linkHandlers = {
     exitConfigureTable,
     toggleTableStats,
     toggleTableStatsEdit,
+    pullTable,
     configureMiniApp,
     exitConfigureMiniApp,
     exportPage,
@@ -386,6 +398,7 @@ $: pageLinks = generatePageLinks(activePage, {
     tableStatsView,
     tableStatsEditMode,
     tableConfigureMode,
+    tablePullPageId,
     handlers: linkHandlers,
 })
 

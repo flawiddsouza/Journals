@@ -41,8 +41,12 @@ RUN npm run build
 
 FROM nginx:1.25.1-alpine3.17-slim AS runner
 
-# The compiled MCP binary links against libstdc++, which the slim image omits
-RUN apk add --no-cache libstdc++
+# The compiled MCP binary links against libstdc++, which the slim image omits.
+# Integrations make https requests from the API, which needs CA certificates,
+# and its static OpenSSL looks for them where the build image keeps them, so
+# point it at Alpine's bundle.
+RUN apk add --no-cache libstdc++ ca-certificates
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
 # Copy all the build files
 COPY --from=api-build /app/journalsApp /app/api/journalsApp

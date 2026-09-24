@@ -7,8 +7,11 @@ export let backdrop = true
 
 const dispatch = createEventDispatcher()
 
+// Only a click on the backdrop itself. Asking whether the target sits inside
+// the dialog fails for a button its own click removed, such as one that swaps
+// a list for a form, and the dialog would close under the person.
 function closeModal(event) {
-    if (event.target.closest('dialog')) {
+    if (event.target !== event.currentTarget) {
         return
     }
     dispatch('close-modal')

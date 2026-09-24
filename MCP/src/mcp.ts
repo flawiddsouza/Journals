@@ -2,6 +2,7 @@ import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { registerDocTools } from './docTools'
 import { registerFileTools } from './fileTools'
+import { registerIntegrationTools } from './integrationTools'
 import { evaluateScript, type ScriptTarget } from './evaluate'
 import { registerMiniAppTools } from './miniAppTools'
 import { SCOPES } from './oauth'
@@ -40,6 +41,7 @@ const TARGETS = [
   'colStyle',
   'rowStyle',
   'startup',
+  'pull',
   'customFns',
   'statsWidget',
 ] as const
@@ -61,6 +63,8 @@ const CONTRACTS: Record<ScriptTarget, string> = {
     "Runs as new Function('items','rowIndex','item', customFunctions + code), once per visible row. Note there is no columnName parameter. item is enriched. Return an inline CSS string.",
   startup:
     "Runs once on load as new Function('rows', code). Mutate the rows array to add, update or remove rows. Return nothing. No network access. The app saves the rows back when the script changed them, so a mutation persists and opening the page is enough to move its revision on.",
+  pull:
+    "Runs when the person presses Pull in the app, as an async function (rows, integration), so await works. rows is a copy of the table's rows: mutate it to add, update or remove rows, and return nothing. integration(name) is a client for a service the person saved under Integrations, with get(path), delete(path), post(path, body), put(path, body) and patch(path, body); path is relative to the integration's base address, or a full address under it such as a pagination link. Each resolves to { status, ok, headers, body, text(), json(), arrayBuffer(), blob() }, where body is the text, and throws on a non-2xx status. A request body may be a string, bytes (an ArrayBuffer, a typed array, a Blob or a File) or an object, which is sent as JSON. The integration adds its own secret headers. The app shows the diff of rows and saves only what the person keeps, so skip rows already in the table rather than adding them again. A dry run here only compiles it.",
   customFns:
     'Prepended to every computed, total, colStyle and rowStyle expression on the page. Define pure helpers only, no side effects on load. Note it is NOT prepended to stats widget expressions.',
   statsWidget:
@@ -92,6 +96,7 @@ function resolveTarget(
 ): { columnName: string | null; current: string } {
   if (target === 'rowStyle') return { columnName: null, current: doc.rowStyle ?? '' }
   if (target === 'startup') return { columnName: null, current: doc.startupScript ?? '' }
+  if (target === 'pull') return { columnName: null, current: doc.pullScript ?? '' }
   if (target === 'customFns') return { columnName: null, current: doc.customFunctions ?? '' }
 
   if (target === 'statsWidget') {
@@ -128,6 +133,7 @@ function applyScript(
 ): void {
   if (target === 'rowStyle') return void (doc.rowStyle = code)
   if (target === 'startup') return void (doc.startupScript = code)
+  if (target === 'pull') return void (doc.pullScript = code)
   if (target === 'customFns') return void (doc.customFunctions = code)
   if (target === 'statsWidget') {
     const widget = doc.stats?.widgets?.find((w) => w.id === widgetId)
@@ -176,6 +182,7 @@ function buildServer(username: string, scopes: string[], origin: string) {
         'Files and images on any page: create_file_upload mints a link to send a file to, and its response carries the markup to insert; list_page_files and create_file_download read them back.',
         'MiniApp: get_mini_app, then set_mini_app_files for the code and set_mini_app_data for what the app has stored.',
         'Table: get_table_rows reads the data, edit_table_rows changes it, edit_table_columns shapes the columns and edit_table_stats the stat cards and charts. For the JavaScript behind a table, get_table_config shows every script on the page plus per-column profiles. Always evaluate_table_script before set_table_script: it runs the candidate against the real rows and reports both the output and the cost, which is the only way to catch an expression that is correct but degrades the page.',
+        'Integrations are saved services that pull scripts and Mini Apps call by name: list_integrations, create_integration, update_integration and delete_integration manage them, call_integration shows what a service answers, and revoke_integration_grant takes one away from a Mini App.',
         'Every save needs the revision from the matching get tool and is refused if the page changed since, in the app or anywhere else, so read again after a refusal. Each save writes a page history entry, so it can be undone from the app.',
         CELL_HTML_NOTE,
       ].join(' '),
@@ -189,7 +196,7 @@ function buildServer(username: string, scopes: string[], origin: string) {
     {
       title: 'Read a table\'s scripts and column profiles',
       description: [
-        'The whole logic graph for one Table page: every column with its type, expression and style, plus totals, rowStyle, startupScript, customFunctions and stats widgets.',
+        'The whole logic graph for one Table page: every column with its type, expression and style, plus totals, rowStyle, startupScript, pullScript, customFunctions and stats widgets.',
         'Also returns a profile per column (distinct counts, inferred kind, how many values fail to parse) and a deliberately chosen sample of rows, including the empty, longest and unparseable ones.',
         'It returns a sample, not the data: use get_table_rows to read rows. For writing a script the profile answers more than the rows would.',
         'contracts says, per script target, how the app calls the script and what it has to return. Read it before writing one.',
@@ -211,6 +218,7 @@ function buildServer(username: string, scopes: string[], origin: string) {
           widths: doc.widths ?? {},
           rowStyle: doc.rowStyle ?? '',
           startupScript: doc.startupScript ?? '',
+          pullScript: doc.pullScript ?? '',
           customFunctions: doc.customFunctions ?? '',
           note: doc.note ?? '',
           statsWidgets: doc.stats?.widgets ?? [],
@@ -451,6 +459,7 @@ function buildServer(username: string, scopes: string[], origin: string) {
   registerDocTools(server, { username, canWrite })
   registerMiniAppTools(server, { username, canWrite })
   registerFileTools(server, { username, canWrite, origin })
+  registerIntegrationTools(server, { username, canWrite })
   return server
 }
 

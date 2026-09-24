@@ -35,6 +35,9 @@ export type TableDocument = {
   widths?: Record<string, string>
   rowStyle?: string
   startupScript?: string
+  /** Run only when the person presses Pull, and saved only after they have
+   *  seen its diff (TablePullModal.svelte). */
+  pullScript?: string
   customFunctions?: string
   note?: string
   stats?: { widgets?: StatsWidget[] }
@@ -53,7 +56,7 @@ export function parseTableDocument(content: string | null): TableDocument {
   // A never-saved page is the document the app itself starts from
   // (Table.svelte:147-158). Every key is there because a save writes this back.
   if (!content) {
-    return { columns: [], items: [], totals: {}, widths: {}, rowStyle: '', startupScript: '', customFunctions: '', note: '' }
+    return { columns: [], items: [], totals: {}, widths: {}, rowStyle: '', startupScript: '', pullScript: '', customFunctions: '', note: '' }
   }
   const parsed = JSON.parse(content) as TableDocument
   return {

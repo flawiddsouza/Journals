@@ -25,7 +25,7 @@ describe('a never-saved table', () => {
   test('starts as the document the app starts from, totals included', () => {
     // The app reads totals with no fallback, so a saved document without the
     // key does not load.
-    expect(parseTableDocument(null)).toEqual({ columns: [], items: [], totals: {}, widths: {}, rowStyle: '', startupScript: '', customFunctions: '', note: '' })
+    expect(parseTableDocument(null)).toEqual({ columns: [], items: [], totals: {}, widths: {}, rowStyle: '', startupScript: '', pullScript: '', customFunctions: '', note: '' })
     expect(parseTableDocument('{"columns":[],"items":[]}').totals).toEqual({})
   })
 

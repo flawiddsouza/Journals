@@ -13,6 +13,9 @@ let totals = {}
 let widths = {}
 let rowStyle = ''
 let startupScript = ''
+// Run only when the person presses Pull, and only saved once they have seen
+// its diff (TablePullModal.svelte).
+let pullScript = ''
 let customFunctions = ''
 let note = ''
 let stats = { widgets: [] }
@@ -96,6 +99,7 @@ $: if (pageContentOverride) {
     widths = parsedPage.widths
     rowStyle = parsedPage.rowStyle
     startupScript = parsedPage.startupScript
+    pullScript = parsedPage.pullScript || ''
     customFunctions = parsedPage.customFunctions
     note = parsedPage.note || ''
 
@@ -154,6 +158,7 @@ function fetchPage(pageIdRequested) {
                   widths: {},
                   rowStyle: '',
                   startupScript: '',
+                  pullScript: '',
                   customFunctions: '',
                   note: '',
               }
@@ -165,6 +170,7 @@ function fetchPage(pageIdRequested) {
         startupScript = parsedResponse.startupScript
             ? parsedResponse.startupScript
             : ''
+        pullScript = parsedResponse.pullScript || ''
         customFunctions = parsedResponse.customFunctions
             ? parsedResponse.customFunctions
             : ''
@@ -245,6 +251,7 @@ function queueSavePageContent() {
             widths,
             rowStyle,
             startupScript,
+            pullScript,
             customFunctions,
             note,
             stats,
@@ -283,6 +290,8 @@ $: if (items) {
     rowStyle = rowStyle
 
     startupScript = startupScript
+
+    pullScript = pullScript
 
     customFunctions = customFunctions
 
@@ -1120,6 +1129,7 @@ function copyConfiguration() {
         widths,
         rowStyle,
         startupScript,
+        pullScript,
         customFunctions,
         note,
     })
@@ -1153,6 +1163,7 @@ async function pasteConfiguration() {
         widths = parsedClipboardText.widths
         rowStyle = parsedClipboardText.rowStyle
         startupScript = parsedClipboardText.startupScript
+        pullScript = parsedClipboardText.pullScript || ''
         customFunctions = parsedClipboardText.customFunctions
         note = parsedClipboardText.note || ''
         editorKey++
@@ -1508,6 +1519,11 @@ function openAIFor(target) {
             `Field: Startup Script\nRuntime: The code runs once on load as new Function('rows', code).\nVariables: rows (array of row objects) – mutate this array to add/update/remove rows.\nSchema columns available: ${JSON.stringify(colList)}. Example rows are provided below.\nContract: Perform setup logic; do not return a value; avoid external network.` +
             schema
         current = startupScript || ''
+    } else if (target.type === 'pull') {
+        ctx =
+            `Field: Pull Script\nRuntime: Runs when the user presses Pull, as an async function (rows, integration). Top-level await works.\nVariables: rows (a copy of the table's rows, keyed by column name, values are HTML strings) – mutate it to add/update/remove rows. integration(name) returns a client for an integration the user saved under Integrations in the sidebar: get(path), delete(path), post(path, body), put(path, body), patch(path, body). path is relative to the integration's base address, or a full address under it such as a pagination link. Each resolves to { status, ok, headers, body, text(), json(), arrayBuffer(), blob() }, where body is the text, and throws on a non-2xx status. A request body may be a string, bytes (an ArrayBuffer, a typed array, a Blob or a File) or an object, which is sent as JSON. The integration adds its own secret headers.\nContract: Do not return a value. The user sees a diff of the rows before anything is saved, so skip rows that are already there rather than re-adding them.\nSchema columns available: ${JSON.stringify(colList)}.` +
+            schema
+        current = pullScript || ''
     } else if (target.type === 'customFns') {
         ctx =
             `Field: Custom Functions\nRuntime: This code is prepended to all evaluated expressions (computed/totals/styles).\nGuidance: Write small pure helpers that operate on raw values. Callers may pass HTML-containing strings; consider providing helpers like asText(v) and asNumber(v).\nContract: Define pure helper functions only (e.g., function sum(a,b){return a+b}). Do not execute side effects on load.` +
@@ -1551,6 +1567,9 @@ function handleAIApply(event) {
     } else if (aiTarget.type === 'startup') {
         startupScript = js
         editorKey++
+    } else if (aiTarget.type === 'pull') {
+        pullScript = js
+        editorKey++
     } else if (aiTarget.type === 'customFns') {
         customFunctions = js
         editorKey++
@@ -1586,8 +1605,56 @@ const unsubEventStore = eventStore.subscribe((event) => {
     if (event && event.event === 'tableStatsEditMode') {
         statsEditMode = event.data.active
     }
+    if (event?.event === 'tablePull' && event.data.pageId === pageId && pullAvailable) {
+        pullBase = JSON.stringify(items)
+        showPullModal = true
+    }
 })
 onDestroy(unsubEventStore)
+
+import TablePullModal from '../Modals/TablePullModal.svelte'
+
+let showPullModal = false
+// What the table held when the pull started, to catch an edit that got in
+// while the script ran.
+let pullBase = ''
+
+// The page menu offers Pull only for the table on screen, not a history
+// preview of it.
+$: pullAvailable = loaded && !viewOnly && pageContentOverride === undefined && Boolean(pullScript?.trim())
+$: if (pageContentOverride === undefined && pageId !== null) {
+    eventStore.set({ event: 'tablePullAvailable', data: { pageId, available: pullAvailable } })
+}
+onDestroy(() => {
+    if (pageContentOverride === undefined) {
+        eventStore.set({ event: 'tablePullAvailable', data: { pageId, available: false } })
+    }
+})
+
+function applyPull(event) {
+    showPullModal = false
+    if (!canEditTable()) return
+    if (JSON.stringify(items) !== pullBase) {
+        showAlert('The table changed while the pull script ran, so nothing was applied. Press Pull again.')
+        return
+    }
+    const rows = event.detail.rows
+    const firstColumn = columns.find((column) => column.type !== 'Computed')?.name
+    const lastPage = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+    // One undoable step, recorded like any other row edit.
+    tableHistory.recordRows({
+        index: 0, before: items.slice(), after: rows.slice(),
+        previousRow: undefined, nextRow: undefined,
+        beforeFocus: captureTableFocus(items.at(-1)),
+        afterFocus: { row: rows.at(-1), columnName: firstColumn },
+        beforeView: { currentPage, overflowCount },
+        afterView: { currentPage: lastPage, overflowCount: 0 },
+    })
+    items.splice(0, items.length, ...rows)
+    overflowCount = 0
+    currentPage = lastPage
+    refreshTableStructure()
+}
 </script>
 
 <svelte:window on:click={handleWindowClick} />
@@ -2187,6 +2254,54 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`}</code
         </div>
 
         <div class="config-heading mt-1em editor-row">
+            <span>Pull Script</span><button
+                class="btn-sm"
+                type="button"
+                on:click={() => openAIFor({ type: 'pull' })}>Ask AI</button
+            >
+        </div>
+        <div class="config-area-font-size">
+            <div>
+                {#key editorKey + ':pull'}
+                    <code-mirror
+                        value={pullScript}
+                        on:input={(e) => (pullScript = e.target.value)}
+                        style="border: 1px solid darkgray"
+                    ></code-mirror>
+                {/key}
+            </div>
+        </div>
+        <div class="config-area-note">
+            Brings in rows from another service. Once it is set, <b>Pull</b>
+            appears at the top of the page. It runs the script, shows what it
+            would add, change or remove, and saves only what you keep.<br />
+            Available variables: <code>rows</code> (a copy to change) and
+            <code>integration(name)</code>, for an integration added under
+            <b>Integrations</b> in the sidebar. <code>await</code> works.
+            <details>
+                <summary style="cursor: pointer; user-select: none;"
+                    >Click here to see an example that adds new GitHub commits</summary
+                >
+                <code style="white-space: pre-wrap;"
+                    >{`const github = integration('GitHub')
+const answer = await github.get('/repos/OWNER/REPO/commits?per_page=50')
+
+// Skip commits already in the table
+const seen = new Set(rows.map(row => row['Link']))
+
+for (const commit of answer.json().reverse()) {
+    if (seen.has(commit.html_url)) continue
+    rows.push({
+        'Date': commit.commit.author.date.slice(0, 10),
+        'Message': commit.commit.message.split('\\n')[0],
+        'Link': commit.html_url,
+    })
+}`}</code
+                >
+            </details>
+        </div>
+
+        <div class="config-heading mt-1em editor-row">
             <span>Custom Functions</span><button
                 class="btn-sm"
                 type="button"
@@ -2261,6 +2376,16 @@ rows.splice(insertAtIndex, 0, { 'Column 1': 'Inserted at index 1' })`}</code
             {/each}
         </div>
     </div>
+{/if}
+
+{#if showPullModal}
+    <TablePullModal
+        {columns}
+        rows={items}
+        script={pullScript}
+        on:apply={applyPull}
+        on:close-modal={() => (showPullModal = false)}
+    />
 {/if}
 
 {#if showInsertFileModal}

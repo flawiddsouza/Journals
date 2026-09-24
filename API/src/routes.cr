@@ -390,6 +390,38 @@ get "/install" do
     user_version = 18
   end
 
+  if user_version == 18
+    # headers holds the secrets sent with every request, as a JSON object. It
+    # is written by the owner and read only by the request route, never
+    # returned by a listing.
+    db.exec "
+      CREATE TABLE IF NOT EXISTS integrations (
+          id INTEGER PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          base_url TEXT NOT NULL,
+          headers TEXT NOT NULL DEFAULT '{}',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          deleted_at TIMESTAMP
+      );
+    "
+    db.exec "CREATE UNIQUE INDEX IF NOT EXISTS idx_integrations_user_name ON integrations(user_id, name) WHERE deleted_at IS NULL"
+    # Which Mini App pages may use which integration. A Mini App can run code
+    # its owner did not write, from a template, so it asks first.
+    db.exec "
+      CREATE TABLE IF NOT EXISTS integration_grants (
+          page_id INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+          integration_id INTEGER NOT NULL REFERENCES integrations(id) ON DELETE CASCADE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          deleted_at TIMESTAMP,
+          PRIMARY KEY(page_id, integration_id)
+      );
+    "
+    db.exec "PRAGMA user_version = 19"
+    user_version = 19
+  end
+
   "Installation Complete!"
 end
 
@@ -1688,8 +1720,13 @@ get "/recycle-bin" do |env|
     ORDER BY p.deleted_at DESC
   ", env.auth_id, as: {id: Int64, name: String, type: String, section_id: Int64, section_name: String, notebook_name: String, parent_id: Int64 | Nil, page_group_name: String | Nil, deleted_at: String})
 
+  integrations = db.query_all(
+    "SELECT id, name, base_url, deleted_at FROM integrations WHERE user_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+    env.auth_id, as: {id: Int64, name: String, base_url: String, deleted_at: String}
+  )
+
   env.response.content_type = "application/json"
-  {notebooks: notebooks, sections: sections, pages: pages}.to_json
+  {notebooks: notebooks, sections: sections, pages: pages, integrations: integrations}.to_json
 end
 
 post "/recycle-bin/restore/notebook/:id" do |env|
@@ -1812,6 +1849,9 @@ delete "/recycle-bin/permanent/all" do |env|
   db.exec "DELETE FROM pages WHERE user_id = ? AND deleted_at IS NOT NULL", env.auth_id
   db.exec "DELETE FROM sections WHERE user_id = ? AND deleted_at IS NOT NULL", env.auth_id
   db.exec "DELETE FROM notebooks WHERE user_id = ? AND deleted_at IS NOT NULL", env.auth_id
+  # Takes the saved secret headers with it.
+  db.exec "DELETE FROM integration_grants WHERE integration_id IN (SELECT id FROM integrations WHERE user_id = ? AND deleted_at IS NOT NULL)", env.auth_id
+  db.exec "DELETE FROM integrations WHERE user_id = ? AND deleted_at IS NOT NULL", env.auth_id
 
   env.response.content_type = "application/json"
   {success: true}.to_json

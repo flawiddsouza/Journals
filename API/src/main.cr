@@ -65,5 +65,8 @@ require "./miniapp_routes"
 # admin routes
 require "./admin_routes"
 
+# integration routes
+require "./integration_routes"
+
 Kemal.config.port = 9900
 Kemal.run

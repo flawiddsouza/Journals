@@ -112,6 +112,14 @@ describe('harness matches the app', () => {
     expect(outputs('startup', "rows.push({ Amount: '9' })", null)).toEqual(['rows after script: 4'])
     expect(doc.items).toHaveLength(3)
   })
+
+  test('a pull script may await, and a dry run only compiles it', () => {
+    const result = evaluateScript(doc, 'pull', "const a = await integration('X').get('/'); rows.push(a)", null)
+    expect(result.compiled).toBe(true)
+    expect(result.errors).toEqual([])
+    expect(result.sample[0]?.output).toContain('only Pull in the app runs it')
+    expect(evaluateScript(doc, 'pull', 'rows.push(', null).compiled).toBe(false)
+  })
 })
 
 describe('failures', () => {

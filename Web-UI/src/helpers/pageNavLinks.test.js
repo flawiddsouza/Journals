@@ -109,6 +109,23 @@ describe('page navigation links', () => {
         }
     })
 
+    it('offers Pull only for the open table once it has a pull script', () => {
+        const pullTable = () => {}
+        const pullLinks = (page, tablePullPageId) =>
+            generatePageLinks(page, {
+                tableStatsView: false,
+                tableConfigureMode: false,
+                tablePullPageId,
+                handlers: { ...handlers(), pullTable },
+            }).filter((link) => link.href === '#pull')
+
+        const table = { id: 1, type: 'Table', view_only: false }
+        expect(pullLinks(table, 1)).toEqual([{ href: '#pull', text: 'Pull', onClick: pullTable }])
+        expect(pullLinks(table, null)).toEqual([])
+        expect(pullLinks(table, 2)).toEqual([])
+        expect(pullLinks({ ...table, view_only: true }, 1)).toEqual([])
+    })
+
     it('hides unsupported style and export actions', () => {
         const links = generatePageLinks(
             { id: 1, type: 'MiniApp', view_only: false },

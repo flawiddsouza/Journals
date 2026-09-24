@@ -210,9 +210,9 @@ async function checks(base: string, api: string) {
   const tools = await rpc(T, 'tools/list', {})
   const toolNames = (tools.result?.tools ?? []).map((t: any) => t.name).sort()
   ok(
-    'the tools are the documented twenty-two',
+    'the tools are the documented twenty-eight',
     toolNames.join() ===
-      'create_file_download,create_file_upload,create_page,delete_page,edit_page,edit_table_columns,edit_table_rows,edit_table_stats,evaluate_table_script,get_mini_app,get_page,get_table_config,get_table_rows,list_page_files,list_pages,list_sections,move_page,rename_page,search_pages,set_mini_app_data,set_mini_app_files,set_table_script',
+      'call_integration,create_file_download,create_file_upload,create_integration,create_page,delete_integration,delete_page,edit_page,edit_table_columns,edit_table_rows,edit_table_stats,evaluate_table_script,get_mini_app,get_page,get_table_config,get_table_rows,list_integrations,list_page_files,list_pages,list_sections,move_page,rename_page,revoke_integration_grant,search_pages,set_mini_app_data,set_mini_app_files,set_table_script,update_integration',
     toolNames,
   )
 
@@ -224,7 +224,7 @@ async function checks(base: string, api: string) {
   const evaluateTool = (tools.result?.tools ?? []).find((t: any) => t.name === 'evaluate_table_script')
   ok(
     'the script contracts come with get_table_config, not with every tool listing',
-    String(cfg.data?.contracts?.rowStyle).includes('no columnName parameter') && Object.keys(cfg.data?.contracts ?? {}).length === 7 && !evaluateTool.description.includes('new Function'),
+    String(cfg.data?.contracts?.rowStyle).includes('no columnName parameter') && Object.keys(cfg.data?.contracts ?? {}).length === 8 && 'pull' in (cfg.data?.contracts ?? {}) && !evaluateTool.description.includes('new Function'),
     evaluateTool?.description,
   )
   ok('non-Table page refused', (await call(T, 'get_table_config', { page: notes })).err)
@@ -294,8 +294,10 @@ async function checks(base: string, api: string) {
   await fileChecks()
   await conflictChecks()
   await pageChecks()
+  await mcpIntegrationChecks()
   // Last: it takes T's access away.
   await connectionChecks()
+  await integrationChecks()
 
   // ---- a save made from an older copy of a page is refused by the API itself
   async function conflictChecks() {
@@ -820,6 +822,52 @@ async function checks(base: string, api: string) {
     ok('a stored key can be removed, and a missing one is an error', !removed.err && removed.data?.keys?.join() === 'n' && missing.err, removed.raw)
   }
 
+  // ---- integrations over MCP: the same as the app can do, never a header value
+  async function mcpIntegrationChecks() {
+    const RO = roTok.access_token as string
+    const made = await call(T, 'create_integration', { name: 'Zen', baseUrl: 'https://api.github.com', headers: { 'X-Secret': 'mcp-shh' } })
+    const listed = await call(T, 'list_integrations', {})
+    const zen = (listed.data?.integrations ?? []).find((i: any) => i.name === 'Zen')
+    ok(
+      'create_integration saves one, and list_integrations shows its header names but never the values',
+      !made.err && zen?.headerNames?.join() === 'X-Secret' && !listed.text.includes('mcp-shh'),
+      listed.text.slice(0, 300),
+    )
+
+    const answer = await call(T, 'call_integration', { name: 'Zen', path: '/zen' })
+    ok('call_integration returns the service status and text', !answer.err && answer.data?.status === 200 && typeof answer.data?.body === 'string', answer.text.slice(0, 300))
+    await call(T, 'create_integration', { name: 'McpAvatars', baseUrl: 'https://avatars.githubusercontent.com' })
+    const image = await call(T, 'call_integration', { name: 'McpAvatars', path: '/u/1?v=4' })
+    ok('a binary answer is described, not dumped', image.data?.binary === true && image.data?.bytes > 0 && image.data?.body === undefined, image.text.slice(0, 300))
+
+    ok(
+      'a read-only token can list and GET, but not add or send anything else',
+      !(await call(RO, 'list_integrations', {})).err &&
+        !(await call(RO, 'call_integration', { name: 'Zen', path: '/zen' })).err &&
+        (await call(RO, 'create_integration', { name: 'Nope', baseUrl: 'https://example.com' })).text.includes('scope') &&
+        (await call(RO, 'call_integration', { name: 'Zen', method: 'POST', path: '/zen' })).text.includes('scope'),
+    )
+
+    const renamed = await call(T, 'update_integration', { name: 'Zen', newName: 'Zen2' })
+    ok('update_integration renames and keeps the saved headers when none are given', !renamed.err && renamed.data?.integration?.headerNames?.join() === 'X-Secret', renamed.text.slice(0, 300))
+    ok('a missing integration is named in the refusal', (await call(T, 'call_integration', { name: 'Zen', path: '/zen' })).err)
+
+    const app = (await json(jwt, 'POST', '/pages', { sectionId: sec, pageType: 'MiniApp', pageName: 'McpGranted', pageParentId: null })).insertedRowId as number
+    await fetch(`${api}/integration-grants/${app}/${zen.id}`, { method: 'PUT', headers: { Token: jwt } })
+    const revoked = await call(T, 'revoke_integration_grant', { name: 'Zen2', page: app })
+    const after = (await call(T, 'list_integrations', {})).data?.integrations.find((i: any) => i.name === 'Zen2')
+    ok('revoke_integration_grant takes a Mini App permission back', !revoked.err && after?.grants?.length === 0, revoked.text)
+
+    const deleted = await call(T, 'delete_integration', { name: 'Zen2' })
+    await call(T, 'delete_integration', { name: 'McpAvatars' })
+    const bin = (await json(jwt, 'GET', '/recycle-bin')).integrations as any[]
+    ok(
+      'delete_integration sends it to the recycle bin',
+      !deleted.err && !(await call(T, 'list_integrations', {})).data?.integrations.some((i: any) => i.name === 'Zen2') && bin.some((i) => i.name === 'Zen2'),
+      bin,
+    )
+  }
+
   // ---- the app's Connect AI apps screen: what is connected, and taking it back
   async function connectionChecks() {
     const connections = (token: string | null) => fetch(base + '/oauth/connections', { headers: token ? { Token: token } : {} })
@@ -841,6 +889,217 @@ async function checks(base: string, api: string) {
     const refreshed = await fetch(base + '/oauth/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: r1.refresh_token }) })
     ok('disconnecting kills the access token and the refresh token, and only that app', gone.status === 200 && !(await usable()) && refreshed.status === 400 && after.length === 1 && after[0].id === ro.reg.client_id, after)
     ok('disconnecting it again finds nothing', (await disconnect(jwt, b.reg.client_id)).status === 404)
+  }
+  // ---- integrations: secrets kept in the API, requests made by it
+  async function integrationChecks() {
+    const call = (token: string, method: string, path: string, body?: unknown) =>
+      fetch(api + path, {
+        method,
+        headers: { 'content-type': 'application/json', Token: token },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
+    const listOf = async (token: string) => (await (await call(token, 'GET', '/integrations')).json()) as any[]
+    // As helpers/integrations.js sends it: what to do in headers, the body as bytes.
+    type Outgoing = { name: string; method?: string; path: string; headers?: Record<string, string>; body?: Uint8Array }
+    const request = (token: string, r: Outgoing) =>
+      fetch(api + '/integration-requests', {
+        method: 'POST',
+        headers: {
+          Token: token,
+          'Content-Type': 'application/octet-stream',
+          'X-Integration-Name': encodeURIComponent(r.name),
+          'X-Integration-Method': encodeURIComponent(r.method ?? 'GET'),
+          'X-Integration-Path': encodeURIComponent(r.path),
+          'X-Integration-Headers': encodeURIComponent(JSON.stringify(r.headers ?? {})),
+        },
+        body: r.body,
+      })
+    const answerOf = async (response: Response) => ({
+      status: Number(response.headers.get('x-integration-status')),
+      headers: JSON.parse(decodeURIComponent(response.headers.get('x-integration-headers') ?? '%7B%7D')),
+      bytes: new Uint8Array(await response.arrayBuffer()),
+    })
+
+    const made = await call(jwt, 'POST', '/integrations', {
+      name: 'GitHub',
+      baseUrl: 'https://api.github.com/',
+      headers: { 'X-Secret': 'shh' },
+    })
+    const id = ((await made.json()) as any).id as number
+    const listed = await listOf(jwt)
+    ok(
+      'an integration is listed with its header names and never its values',
+      made.status === 200 && listed.length === 1 && listed[0].baseUrl === 'https://api.github.com' &&
+        listed[0].headerNames.join() === 'X-Secret' && !JSON.stringify(listed).includes('shh'),
+      listed,
+    )
+    ok("and not in another user's list", (await listOf(otherJwt)).length === 0)
+    ok(
+      'a second one with the same name is refused',
+      (await call(jwt, 'POST', '/integrations', { name: 'GitHub', baseUrl: 'https://example.com' })).status === 400,
+    )
+    ok(
+      'a header with no value is refused, since it would still be sent',
+      (await call(jwt, 'POST', '/integrations', { name: 'Blank', baseUrl: 'https://example.com', headers: { Authorization: '' } })).status === 400,
+    )
+    ok(
+      'a base address that is not http or https is refused',
+      (await call(jwt, 'POST', '/integrations', { name: 'Files', baseUrl: 'file:///etc' })).status === 400,
+    )
+
+    // A null value keeps the saved secret, a name left out drops it.
+    await call(jwt, 'PUT', `/integrations/${id}`, {
+      name: 'GitHub',
+      baseUrl: 'https://api.github.com',
+      headers: { 'X-Secret': null, Accept: 'application/vnd.github+json' },
+    })
+    ok('an edit that leaves a secret blank keeps it', (await listOf(jwt))[0].headerNames.sort().join() === 'Accept,X-Secret')
+
+    const zen = await request(jwt, { name: 'GitHub', method: 'GET', path: '/zen' })
+    const zenAnswer = await answerOf(zen)
+    ok(
+      'a request goes out over https and comes back as the service answered',
+      zen.status === 200 && zenAnswer.status === 200 && zenAnswer.bytes.length > 0 &&
+        String(zenAnswer.headers['content-type']).startsWith('text/plain') && !('set-cookie' in zenAnswer.headers),
+      { status: zenAnswer.status, headers: zenAnswer.headers },
+    )
+    ok(
+      'the answer can never be read as a page on the API origin',
+      zen.headers.get('content-type') === 'application/octet-stream' && zen.headers.get('x-content-type-options') === 'nosniff' &&
+        zen.headers.get('content-disposition') === 'attachment' && zen.headers.get('content-security-policy') === 'sandbox',
+      Object.fromEntries(zen.headers),
+    )
+    ok(
+      'the browser is allowed to send and read the integration headers',
+      (zen.headers.get('access-control-expose-headers') ?? '').includes('X-Integration-Headers') &&
+        ((await fetch(api + '/integration-requests', { method: 'OPTIONS' })).headers.get('access-control-allow-headers') ?? '').includes('X-Integration-Name'),
+    )
+    const notFound = await answerOf(await request(jwt, { name: 'GitHub', path: '/this-does-not-exist-anywhere' }))
+    ok("the service's own error status is passed back, not raised", notFound.status === 404, notFound.status)
+
+    // Bytes both ways: an image comes back as it was, and bytes sent arrive as they were.
+    await call(jwt, 'POST', '/integrations', { name: 'Avatars', baseUrl: 'https://avatars.githubusercontent.com' })
+    const avatar = await answerOf(await request(jwt, { name: 'Avatars', path: '/u/1?v=4' }))
+    ok(
+      'a binary answer comes back byte for byte',
+      avatar.status === 200 && avatar.headers['content-type'] === 'image/png' &&
+        [...avatar.bytes.slice(0, 4)].join() === '137,80,78,71',
+      { status: avatar.status, type: avatar.headers['content-type'], first: [...avatar.bytes.slice(0, 4)] },
+    )
+    await call(jwt, 'POST', '/integrations', { name: 'Echo', baseUrl: 'https://httpbin.org' })
+    const echoed = await answerOf(
+      await request(jwt, {
+        name: 'Echo',
+        method: 'POST',
+        path: '/anything',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: new Uint8Array([0x00, 0xff, 0x10, 0x89]),
+      }),
+    )
+    const echo = JSON.parse(new TextDecoder().decode(echoed.bytes))
+    ok('a binary body arrives at the service byte for byte', echo.data === 'data:application/octet-stream;base64,AP8QiQ==', echo.data)
+    const sentJson = await answerOf(
+      await request(jwt, { name: 'Echo', method: 'POST', path: '/anything', headers: { 'Content-Type': 'application/json' }, body: new TextEncoder().encode('{"a":1}') }),
+    )
+    ok(
+      'a JSON body is sent as it is, not swallowed by the API',
+      JSON.parse(new TextDecoder().decode(sentJson.bytes)).json?.a === 1,
+      new TextDecoder().decode(sentJson.bytes).slice(0, 300),
+    )
+    ok(
+      "another user cannot use it by name",
+      (await request(otherJwt, { name: 'GitHub', path: '/zen' })).status === 404,
+    )
+    ok(
+      'a path that leaves the base address is refused',
+      (await request(jwt, { name: 'GitHub', path: 'https://example.com/' })).status === 400 &&
+        (await request(jwt, { name: 'GitHub', path: 'zen' })).status === 400,
+    )
+
+    for (const [name, baseUrl] of [
+      ['Loopback', 'http://127.0.0.1:9900'],
+      ['Localhost', 'http://localhost:9900'],
+      ['Private', 'http://10.1.2.3'],
+      ['Metadata', 'http://169.254.169.254'],
+    ] as [string, string][]) {
+      await call(jwt, 'POST', '/integrations', { name, baseUrl })
+      const refused = await request(jwt, { name, path: '/' })
+      const text = await refused.text()
+      ok(`${name} addresses are refused`, refused.status === 400 && text.includes('private address'), text)
+    }
+
+    // Grants: which Mini Apps may use it, and a template pull takes them away.
+    const app = await mk(jwt, 'MiniApp', 'Integrated', null, sec)
+    await json(jwt, 'PUT', `/pages/${app}`, { pageContent: JSON.stringify({ files: { html: '', css: '', js: '', modules: [] }, kv: {} }) })
+    ok(
+      "a grant needs the user's own Mini App",
+      (await call(otherJwt, 'PUT', `/integration-grants/${app}/${id}`)).status === 404 &&
+        (await call(jwt, 'PUT', `/integration-grants/${open}/${id}`)).status === 404,
+    )
+    await call(jwt, 'PUT', `/integration-grants/${app}/${id}`)
+    const granted = (await (await call(jwt, 'GET', `/integration-grants/${app}`)).json()) as string[]
+    const grantsListed = (await listOf(jwt)).find((i) => i.id === id).grants
+    ok(
+      'a grant shows on the page and under the integration',
+      granted.join() === 'GitHub' && grantsListed.length === 1 && grantsListed[0].pageName === 'Integrated',
+      { granted, grantsListed },
+    )
+    const template = (await json(jwt, 'POST', '/miniapp/templates', { name: 'T', description: '', isPublic: false, pageId: app })) as any
+    if (template.insertedRowId) {
+      await json(jwt, 'POST', `/miniapp/templates/${template.insertedRowId}/apply-to-page`, { pageId: app })
+      const after = (await (await call(jwt, 'GET', `/integration-grants/${app}`)).json()) as string[]
+      ok('applying a template takes the grant away', after.length === 0, after)
+    } else {
+      ok('a template could be made to test grant removal', false, template)
+    }
+    await call(jwt, 'PUT', `/integration-grants/${app}/${id}`)
+    await call(jwt, 'DELETE', `/integration-grants/${app}/${id}`)
+    ok('a grant can be taken back', ((await (await call(jwt, 'GET', `/integration-grants/${app}`)).json()) as string[]).length === 0)
+
+    await call(jwt, 'DELETE', `/integrations/${id}`)
+    ok(
+      'a deleted integration is gone from the list and cannot be called',
+      !(await listOf(jwt)).some((i) => i.id === id) && (await request(jwt, { name: 'GitHub', path: '/zen' })).status === 404,
+    )
+    const binOf = async (token: string) => ((await (await call(token, 'GET', '/recycle-bin')).json()) as any).integrations as any[]
+    const binned = await binOf(jwt)
+    ok(
+      'it waits in the Recycle Bin, without its header values',
+      binned.some((i) => i.id === id && i.name === 'GitHub') && !JSON.stringify(binned).includes('shh') && (await binOf(otherJwt)).length === 0,
+      binned,
+    )
+    ok(
+      'another user cannot restore or remove it',
+      (await call(otherJwt, 'POST', `/recycle-bin/restore/integration/${id}`)).status === 404 &&
+        (await call(otherJwt, 'DELETE', `/recycle-bin/permanent/integration/${id}`)).status === 200 &&
+        (await binOf(jwt)).some((i) => i.id === id),
+    )
+
+    // A new one under the same name, then the old one cannot come back beside it.
+    const replacement = ((await (await call(jwt, 'POST', '/integrations', { name: 'GitHub', baseUrl: 'https://api.github.com' })).json()) as any).id
+    ok('its name can be used again', typeof replacement === 'number')
+    const clash = await call(jwt, 'POST', `/recycle-bin/restore/integration/${id}`)
+    ok('restoring it beside another of the same name is refused', clash.status === 409 && (await clash.text()).includes('already have'))
+
+    await call(jwt, 'DELETE', `/integrations/${replacement}`)
+    await call(jwt, 'DELETE', `/recycle-bin/permanent/integration/${replacement}`)
+    const restored = await call(jwt, 'POST', `/recycle-bin/restore/integration/${id}`)
+    const back = (await listOf(jwt)).find((i) => i.id === id)
+    ok(
+      'restoring brings it back with its saved headers, and it works again',
+      restored.status === 200 && back?.headerNames.sort().join() === 'Accept,X-Secret' &&
+        (await request(jwt, { name: 'GitHub', path: '/zen' })).status === 200,
+      back,
+    )
+
+    // Emptying the bin is what finally removes it, secrets included.
+    await call(jwt, 'PUT', `/integration-grants/${app}/${id}`)
+    await call(jwt, 'DELETE', `/integrations/${id}`)
+    await call(jwt, 'DELETE', '/recycle-bin/permanent/all')
+    ok(
+      'emptying the Recycle Bin removes it for good',
+      !(await binOf(jwt)).some((i) => i.id === id) && (await call(jwt, 'POST', `/recycle-bin/restore/integration/${id}`)).status === 404,
+    )
   }
 }
 

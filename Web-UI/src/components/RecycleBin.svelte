@@ -1,5 +1,6 @@
 <script>
-import { showConfirm } from '../helpers/dialogs.js'
+import { showAlert, showConfirm } from '../helpers/dialogs.js'
+import { apiError } from '../helpers/integrations.js'
 import { createEventDispatcher } from 'svelte'
 import fetchPlus from '../helpers/fetchPlus.js'
 import { format } from 'date-fns'
@@ -8,14 +9,15 @@ import { focus } from '../actions/focus.js'
 const dispatch = createEventDispatcher()
 
 let loading = true
-let recycleBinItems = { notebooks: [], sections: [], pages: [] }
+let recycleBinItems = { notebooks: [], sections: [], pages: [], integrations: [] }
 let showEmptyConfirm = false
 let emptyConfirmText = ''
 let restoringKey = null
 
 async function fetchRecycleBin({ silent = false } = {}) {
     if (!silent) loading = true
-    recycleBinItems = await fetchPlus.get('/recycle-bin')
+    // An API older than this page sends no integrations.
+    recycleBinItems = { integrations: [], ...(await fetchPlus.get('/recycle-bin')) }
     loading = false
 }
 
@@ -23,7 +25,14 @@ async function restore(type, id) {
     const key = `${type}-${id}`
     if (restoringKey) return
     restoringKey = key
-    await fetchPlus.post(`/recycle-bin/restore/${type}/${id}`, {})
+    try {
+        await fetchPlus.post(`/recycle-bin/restore/${type}/${id}`, {})
+    } catch (failure) {
+        // An integration cannot come back under a name already in use.
+        restoringKey = null
+        showAlert((await apiError(failure, "Couldn't restore it.")).message)
+        return
+    }
     await fetchRecycleBin({ silent: true })
     dispatch('restored')
     restoringKey = null
@@ -51,7 +60,8 @@ function formatDate(dateStr) {
 $: hasItems =
     recycleBinItems.notebooks.length > 0 ||
     recycleBinItems.sections.length > 0 ||
-    recycleBinItems.pages.length > 0
+    recycleBinItems.pages.length > 0 ||
+    recycleBinItems.integrations.length > 0
 
 // IDs of deleted notebooks, sections, and pages — used to build the hierarchy
 $: deletedNotebookIds = new Set(recycleBinItems.notebooks.map((n) => n.id))
@@ -288,6 +298,20 @@ fetchRecycleBin()
                     </div>
                 {/each}
             {/each}
+        {/each}
+
+        <!-- ── Integrations: their saved headers go when they are removed from here ── -->
+        {#each recycleBinItems.integrations as integration (integration.id)}
+            <div class="rb-row" class:rb-notebook-row={integration === recycleBinItems.integrations[0]}>
+                <div class="rb-info">
+                    <div class="rb-name-row"><span class="rb-type-tag">Integration</span><span class="rb-name">{integration.name}</span></div>
+                    <span class="rb-meta">{integration.base_url} · {formatDate(integration.deleted_at)}</span>
+                </div>
+                <div class="rb-actions">
+                    <button class="btn-sm" disabled={!!restoringKey} on:click={() => restore('integration', integration.id)}>{restoringKey === `integration-${integration.id}` ? 'Restoring…' : 'Restore'}</button>
+                    <button class="btn-danger" on:click={() => permanentDelete('integration', integration.id)}>Delete Permanently</button>
+                </div>
+            </div>
         {/each}
 
     {/if}

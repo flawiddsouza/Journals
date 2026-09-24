@@ -102,6 +102,12 @@ open in it.
 | `evaluate_table_script` | Dry run against the real rows. Reports output and cost. Saves nothing. |
 | `set_table_script` | Save one script. Evaluates first, and re-checks dependents when the target is `customFns`. |
 | `edit_table_stats` | The stat cards and charts under the Stats tab: add, retitle, retype, resize, reorder and remove. A widget has to exist before `set_table_script` can fill it. |
+| `list_integrations` | The saved integrations: name, base address, the names of the headers each sends (never the values), and the Mini Apps allowed to use each. |
+| `create_integration` | Save a service for scripts to call by name, with the headers every request carries. |
+| `update_integration` | Rename, move the base address or change headers. A header given as null keeps its saved value. |
+| `delete_integration` | To the recycle bin, like the app. |
+| `revoke_integration_grant` | Take an integration away from a Mini App, which then asks again. |
+| `call_integration` | One request through an integration, to see what a service answers before writing a pull script. Anything but GET needs the write scope. |
 
 Every save takes the `revision` its get tool returned and is refused when the
 page changed since, and every save refuses view-only pages. Renaming, moving

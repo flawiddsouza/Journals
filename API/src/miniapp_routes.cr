@@ -433,6 +433,7 @@ post "/miniapp/templates/:id/apply-to-page" do |env|
 
   # Update page content and link (with history)
   update_page_content_with_history(db, page_id, env.auth_id, content)
+  revoke_integration_grants(page_id)
 
   # Upsert page link
   existing_link = db.query_one?("SELECT id FROM page_template_links WHERE page_id = ?", page_id, as: {id: Int64})
@@ -532,6 +533,7 @@ post "/miniapp/pages/:page_id/pull" do |env|
     end
     content = rev["content"]? || {files: nil, kv: nil}.to_json
     update_page_content_with_history(db, page_id, env.auth_id, content)
+    revoke_integration_grants(page_id)
     db.exec "UPDATE page_template_links SET last_revision_number=?, updated_at=CURRENT_TIMESTAMP WHERE page_id = ?", rev_to_pull, page_id
     env.response.content_type = "application/json"
     {success: true, revisionNumber: rev_to_pull}.to_json

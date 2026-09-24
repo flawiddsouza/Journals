@@ -78,6 +78,7 @@ function mentions(doc: TableDocument, name: string): string[] {
   for (const [column, code] of Object.entries(doc.totals ?? {})) if (has(code)) found.push(`total ${column}`)
   if (has(doc.rowStyle)) found.push('rowStyle')
   if (has(doc.startupScript)) found.push('startup')
+  if (has(doc.pullScript)) found.push('pull')
   if (has(doc.customFunctions)) found.push('customFns')
   for (const widget of doc.stats?.widgets ?? []) if (has(widget.expression)) found.push(`statsWidget ${widget.id}`)
   return found

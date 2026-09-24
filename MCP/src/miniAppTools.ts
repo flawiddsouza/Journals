@@ -15,10 +15,11 @@ const RUNTIME = [
   'How a mini app runs:',
   '- html, css and js are assembled into one document in a sandboxed iframe with no same-origin access. js runs as <script type="module">, so top-level await and import work.',
   '- Modules are extra files, .js or .css, at most 12, flat names. Import a .js module as ./name.js. A .css module is added to the page as a style tag.',
-  "- The only library is Vue 3: import { createApp } from 'vue'. Nothing else resolves, and external scripts, CDNs and network calls are not part of the contract.",
+  "- The only library is Vue 3: import { createApp } from 'vue'. Nothing else resolves, and external scripts, CDNs and direct network calls are not part of the contract.",
   '- Persistent storage is the global async Journals object: getItem(key), setItem(key, value), removeItem(key), clear(), keys(). Values are structured-cloned, so pass plain objects and arrays, never JSON strings.',
   '- Files: Journals.upload(file, filename?) resolves to the stored file name, not a URL. Journals.getFileUrl(name) resolves to a URL the iframe can load, which is needed because uploads require auth. Journals.deleteFile(name) removes one.',
   '- What Journals.setItem stores is the data this server shows and set_mini_app_data changes.',
+  "- Outside services go through Journals.integration(name), for an integration the user saved under Integrations: get(path), delete(path), post(path, body), put(path, body), patch(path, body), each resolving to { status, ok, headers, body, text(), json(), arrayBuffer(), blob() }, where body is the text, and throwing on a non-2xx status. A request body may be a string, bytes (an ArrayBuffer, a typed array, a Blob or a File) or an object, which is sent as JSON. The token is added by Journals. The first call on a page asks the user to allow it.",
 ].join('\n')
 
 const OPEN_TAB_WARNING =

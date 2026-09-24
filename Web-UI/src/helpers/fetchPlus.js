@@ -20,44 +20,47 @@ const request = function (method, url, data, headers = {}) {
         .then((res) => (res.ok ? res.json() : Promise.reject(res)))
         .catch((res) => {
             if (res.status === 401) {
-                // if response code is unauthorized
-                // Try to refresh token
-                return fetchPlus
-                    .post('/login', {
-                        username: localStorage.getItem('username'),
-                        password: localStorage.getItem('password'),
-                        refresh: true,
-                    })
-                    .then((response) => {
-                        if (response.hasOwnProperty('error')) {
-                            // if there's an error, perform logout + avoid infinite loop
-                            logoutAccount()
-                            return Promise.reject(res)
-                        } else {
-                            localStorage.setItem('token', response.token)
-                            fetchPlus.token = response.token
-                            // Update token in headers
-                            fetchPlus.headers['Token'] = response.token
-                            // Retry the original request with new token
-                            const retryBaseHeaders = isMultipart
-                                ? { Accept: 'application/json', Token: fetchPlus.headers['Token'] }
-                                : fetchPlus.headers
-                            return fetch(address, {
-                                method: method.toUpperCase(),
-                                body: isMultipart ? data : JSON.stringify(data),
-                                credentials: fetchPlus.credentials,
-                                headers: Object.assign(
-                                    {},
-                                    retryBaseHeaders,
-                                    headers,
-                                ),
-                            }).then((res2) =>
-                                res2.ok ? res2.json() : Promise.reject(res2),
-                            )
-                        }
-                    })
+                return refreshLogin(res).then(() => {
+                    // Retry the original request with new token
+                    const retryBaseHeaders = isMultipart
+                        ? { Accept: 'application/json', Token: fetchPlus.headers['Token'] }
+                        : fetchPlus.headers
+                    return fetch(address, {
+                        method: method.toUpperCase(),
+                        body: isMultipart ? data : JSON.stringify(data),
+                        credentials: fetchPlus.credentials,
+                        headers: Object.assign({}, retryBaseHeaders, headers),
+                    }).then((res2) =>
+                        res2.ok ? res2.json() : Promise.reject(res2),
+                    )
+                })
             }
             return Promise.reject(res)
+        })
+}
+
+/**
+ * A request answered 401: the token has expired. Logs in again with the saved
+ * credentials and resolves to the new token, which fetchPlus.headers now
+ * carries. When that fails it logs out and rejects with `failure`, the 401,
+ * so a caller never loops.
+ */
+export function refreshLogin(failure) {
+    return fetchPlus
+        .post('/login', {
+            username: localStorage.getItem('username'),
+            password: localStorage.getItem('password'),
+            refresh: true,
+        })
+        .then((response) => {
+            if (response.hasOwnProperty('error')) {
+                logoutAccount()
+                return Promise.reject(failure)
+            }
+            localStorage.setItem('token', response.token)
+            fetchPlus.token = response.token
+            fetchPlus.headers['Token'] = response.token
+            return response.token
         })
 }
 

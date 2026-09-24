@@ -698,9 +698,11 @@ import AddPageModal from './Modals/AddPageModal.svelte'
 import BacklinksPanel from './BacklinksPanel.svelte'
 import RecycleBin from './RecycleBin.svelte'
 import ConnectMcpModal from './Modals/ConnectMcpModal.svelte'
+import IntegrationsModal from './Modals/IntegrationsModal.svelte'
 
 let showRecycleBin = false
 let showConnectMcpModal = false
+let showIntegrationsModal = false
 
 let theme = getTheme()
 initTheme()
@@ -878,6 +880,9 @@ function handleRecycleBinRestored() {
             <div class="journal-sidebar-item journal-sidebar-action" on:click={() => (showConnectMcpModal = true)}>
                 Connect AI Apps
             </div>
+            <div class="journal-sidebar-item journal-sidebar-action" on:click={() => (showIntegrationsModal = true)}>
+                Integrations
+            </div>
             <div class="drawer-mobile-only">
                 <div class="drawer-section">
                     <div class="drawer-section-label">Profile</div>
@@ -1018,6 +1023,9 @@ function handleRecycleBinRestored() {
     {/if}
     {#if showConnectMcpModal}
         <ConnectMcpModal on:close-modal={() => (showConnectMcpModal = false)} />
+    {/if}
+    {#if showIntegrationsModal}
+        <IntegrationsModal on:close-modal={() => (showIntegrationsModal = false)} />
     {/if}
 
     {#if showChangePasswordModal}

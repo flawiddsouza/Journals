@@ -302,6 +302,11 @@ const pageTypeHelp = {
                         description:
                             'Builds summary values and charts from the table rows.',
                     },
+                    {
+                        name: 'Pull',
+                        description:
+                            'Runs the pull script from Configure Table, which can bring in rows from a service saved under Integrations in the sidebar. You see the rows it would add, change or remove, and only what you keep is saved.',
+                    },
                 ],
             },
         ],

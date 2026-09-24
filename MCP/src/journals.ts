@@ -170,3 +170,72 @@ export async function fetchUpload(username: string, filename: string): Promise<R
     headers: { Token: await mintToken(username) },
   })
 }
+
+/** An integration as the API lists it: never the header values, which stay on
+ *  the API side (integration_routes.cr). */
+export type Integration = {
+  id: number
+  name: string
+  baseUrl: string
+  headerNames: string[]
+  grants: { pageId: number; pageName: string }[]
+}
+
+export const listIntegrations = (username: string) => call<Integration[]>(username, 'GET', '/integrations')
+
+/** headers: name to value. On an update a null value keeps the saved one, and
+ *  a name left out is removed. */
+export type IntegrationInput = { name: string; baseUrl: string; headers: Record<string, string | null> }
+
+export const createIntegration = (username: string, input: IntegrationInput) =>
+  call<{ id: number }>(username, 'POST', '/integrations', input)
+
+export const updateIntegration = (username: string, id: number, input: IntegrationInput) =>
+  call<{ success: boolean }>(username, 'PUT', `/integrations/${id}`, input)
+
+/** A soft delete: it goes to the recycle bin with its saved headers. */
+export const deleteIntegration = (username: string, id: number) =>
+  call<{ success: boolean }>(username, 'DELETE', `/integrations/${id}`)
+
+export const revokeIntegrationGrant = (username: string, pageId: number, integrationId: number) =>
+  call<{ success: boolean }>(username, 'DELETE', `/integration-grants/${pageId}/${integrationId}`)
+
+export type IntegrationAnswer = { status: number; headers: Record<string, string>; bytes: Uint8Array }
+
+/** One request through an integration, sent the way the app sends it
+ *  (Web-UI/src/helpers/integrations.js): what to do in X-Integration-*
+ *  headers, the body as bytes. Resolves to the service's answer whatever its
+ *  status, and throws when the API refused the request or got no answer. */
+export async function requestThroughIntegration(
+  username: string,
+  request: { name: string; method: string; path: string; headers: Record<string, string>; body?: string },
+): Promise<IntegrationAnswer> {
+  const response = await fetch(`${config.apiUrl}/integration-requests`, {
+    method: 'POST',
+    headers: {
+      Token: await mintToken(username),
+      'Content-Type': 'application/octet-stream',
+      'X-Integration-Name': encodeURIComponent(request.name),
+      'X-Integration-Method': encodeURIComponent(request.method),
+      'X-Integration-Path': encodeURIComponent(request.path),
+      'X-Integration-Headers': encodeURIComponent(JSON.stringify(request.headers)),
+    },
+    body: request.body,
+  })
+  const status = response.headers.get('x-integration-status')
+  if (status === null) {
+    const text = await response.text()
+    let message = text.slice(0, 300)
+    try {
+      message = (JSON.parse(text) as { error?: string }).error ?? message
+    } catch {
+      // not JSON, keep the text
+    }
+    throw new ApiError(message, response.status)
+  }
+  return {
+    status: Number(status),
+    headers: JSON.parse(decodeURIComponent(response.headers.get('x-integration-headers') ?? '%7B%7D')),
+    bytes: new Uint8Array(await response.arrayBuffer()),
+  }
+}

@@ -23,6 +23,7 @@ export type ScriptTarget =
   | 'colStyle'
   | 'rowStyle'
   | 'startup'
+  | 'pull'
   | 'customFns'
   | 'statsWidget'
 
@@ -34,6 +35,7 @@ const SIGNATURES: Record<Exclude<ScriptTarget, 'customFns'>, string[]> = {
   colStyle: ['items', 'rowIndex', 'item', 'columnName'],
   rowStyle: ['items', 'rowIndex', 'item'],
   startup: ['rows'],
+  pull: ['rows', 'integration'],
   statsWidget: ['items'],
 }
 
@@ -43,6 +45,7 @@ const USES_CUSTOM_FUNCTIONS: Record<ScriptTarget, boolean> = {
   colStyle: true,
   rowStyle: true,
   startup: false,
+  pull: false,
   customFns: true,
   statsWidget: false,
 }
@@ -164,8 +167,10 @@ const HARNESS = `
   // it escapes the sandbox and takes the whole tool call with it.
   var prelude = input.usesCustomFunctions ? input.customFunctions + '\\n' : ''
   var fn
+  // A pull script is the body of an async function, so await is legal in it.
+  var Constructor = input.target === 'pull' ? (async function () {}).constructor : Function
   try {
-    fn = Function.apply(null, input.params.concat([prelude + input.code]))
+    fn = Constructor.apply(null, input.params.concat([prelude + input.code]))
   } catch (e) {
     return {
       wallMs: 0,
@@ -183,6 +188,11 @@ const HARNESS = `
     // their callers is decided by re-running the dependents, which set_table_script
     // does rather than this call.
     outputs.push({ rowIndex: -1, output: 'helpers compiled' })
+    limit = 0
+  } else if (input.target === 'pull') {
+    // It calls the person's integrations, which only the app can reach, so
+    // compiling is as far as a dry run goes.
+    outputs.push({ rowIndex: -1, output: 'compiles. It calls integrations, so only Pull in the app runs it and shows its diff' })
     limit = 0
   } else if (input.target === 'startup') {
     var rows = JSON.parse(JSON.stringify(items))
@@ -292,7 +302,7 @@ export function evaluateScript(
     // (tableComputeEngine.js:64), and stats widgets are handed enriched items
     // too (TableStats.svelte:41). Only the startup script sees raw rows, and
     // customFns is never invoked against rows at all.
-    enrich: target !== 'startup' && target !== 'customFns',
+    enrich: target !== 'startup' && target !== 'pull' && target !== 'customFns',
   }
 
   // Compiled and invoked in one runInContext so the timeout covers the user's

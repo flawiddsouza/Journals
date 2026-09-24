@@ -18,6 +18,12 @@ import MiniAppTemplates from '../MiniAppTemplates.svelte'
 import AIChatPanel from '../../components/AIChatPanel.svelte'
 import DataViewer from '../../components/DataViewer.svelte'
 import { baseURL } from '../../../config.js'
+import {
+    grantIntegration,
+    integrationClient,
+    listIntegrationGrants,
+    listIntegrations,
+} from '../../helpers/integrations.js'
 
 let iframe
 // Track the current blob URL set on the iframe so we can revoke it on rebuild
@@ -186,6 +192,9 @@ const aiSystemPrompt = `You are an assistant that generates or edits small, self
  - You can delete a previously uploaded file via Journals.deleteFile(pathOrUrl): Promise<boolean>.
  - Typical usage: const f = document.querySelector('input[type=file]').files[0]; const url = await Journals.upload(f); // url is a string.
 
+ Integrations:
+ - Outside services the user saved under Integrations are reached with Journals.integration(name), which has get(path), delete(path), post(path, body), put(path, body) and patch(path, body). path is relative to the integration's base address. Each resolves to { status, ok, headers, body, text(), json(), arrayBuffer(), blob() }, where body is the text, and throws on a non-2xx status. A request body may be a string, bytes (an ArrayBuffer, a typed array, a Blob or a File) or an object, which is sent as JSON. The saved token is added by Journals, never by your code. The first call asks the user to allow it.
+
  Assets:
  - Many media URLs require auth (cookies/headers) and cannot be loaded directly in the iframe via <img src>.
  - Use Journals.getFileUrl(pathOrUrl): Promise<string> to fetch the file from the parent with credentials and receive a blob URL to assign to src.
@@ -317,9 +326,56 @@ function parseContent(content) {
     }
 }
 
+// A Mini App can run code its owner did not write, from a template, so it
+// is asked about each integration once, and the answer is kept per page in
+// the API. Pulling a template takes the permission away again
+// (miniapp_routes.cr).
+let integrationGrants = null
+const integrationQuestions = new Map()
+const integrationsRefused = new Set()
+
+async function allowIntegration(name) {
+    integrationGrants ??= listIntegrationGrants(pageId).then(
+        (names) => new Set(names),
+        () => new Set(),
+    )
+    const granted = await integrationGrants
+    if (granted.has(name)) return
+    if (integrationsRefused.has(name)) {
+        throw new Error(`This Mini App is not allowed to use "${name}". Reload the page to be asked again.`)
+    }
+    if (!integrationQuestions.has(name)) {
+        const question = (async () => {
+            const integration = (await listIntegrations()).find((candidate) => candidate.name === name)
+            if (!integration) {
+                throw new Error(`There is no integration named "${name}". Add it under Integrations in the sidebar.`)
+            }
+            const allow = await showConfirm(
+                [
+                    `This Mini App wants to use your "${name}" integration.`,
+                    `It could then send any request to ${integration.baseUrl} with the headers saved there, such as a token. Allow it only if you trust this Mini App's code.`,
+                    'You can take this back under Integrations in the sidebar.',
+                ].join('\n\n'),
+                { confirmLabel: 'Allow', cancelLabel: "Don't allow" },
+            )
+            if (!allow) {
+                integrationsRefused.add(name)
+                throw new Error(`This Mini App is not allowed to use "${name}".`)
+            }
+            await grantIntegration(pageId, integration.id)
+            granted.add(name)
+        })()
+        integrationQuestions.set(name, question)
+        question.finally(() => integrationQuestions.delete(name)).catch(() => {})
+    }
+    await integrationQuestions.get(name)
+}
+
 function fetchPage(id) {
     // Don't fetch when we have an override (history preview) or missing id
     if (!id || pageContentOverride !== undefined) return
+    integrationGrants = null
+    integrationsRefused.clear()
     contentReady = false
     fetchPlus.get(`/pages/content/${id}`).then((resp) => {
         const raw = resp.content
@@ -417,7 +473,8 @@ function buildSrcdoc() {
             ev.data.type !== 'MiniAppUploadResponse' &&
             ev.data.type !== 'MiniAppFetchAssetResponse' &&
             ev.data.type !== 'MiniAppLoadLibraryResponse' &&
-            ev.data.type !== 'MiniAppDeleteResponse'
+            ev.data.type !== 'MiniAppDeleteResponse' &&
+            ev.data.type !== 'MiniAppIntegrationResponse'
         ) return;
         const { requestId, result } = ev.data;
         const resolver = pending.get(requestId);
@@ -466,6 +523,58 @@ function buildSrcdoc() {
         return new Promise(res => pending.set(requestId, res));
     }
 
+    function callIntegration(name, method, path, options){
+        const requestId = 'r'+(++seq);
+        const opts = options || {};
+        parent.postMessage({ type:'MiniAppIntegration', name, method, path, body: opts.body, headers: opts.headers || {}, requestId }, '*');
+        return new Promise(res => pending.set(requestId, res)).then(result => {
+            const answer = result && result.response;
+            const response = answer && makeResponse(answer);
+            if (result && result.error) {
+                const error = new Error(result.error);
+                if (response) error.response = response;
+                throw error;
+            }
+            return response;
+        });
+    }
+
+    // The answer as bytes, read the ways a fetch Response is, but synchronous.
+    // Mirrors integrationResponse in helpers/integrations.js.
+    function makeResponse(answer){
+        const contentType = answer.headers['content-type'] || '';
+        let text;
+        const decode = () => {
+            const match = /charset=([^;]+)/i.exec(contentType);
+            const charset = match ? match[1].trim().replace(/^"|"$/g, '') : 'utf-8';
+            try { return new TextDecoder(charset).decode(answer.bytes) }
+            catch (e) { return new TextDecoder().decode(answer.bytes) }
+        };
+        return {
+            status: answer.status,
+            ok: answer.status >= 200 && answer.status < 300,
+            headers: answer.headers,
+            get body(){ return this.text() },
+            text(){ if (text === undefined) text = decode(); return text },
+            json(){ return JSON.parse(this.text()) },
+            arrayBuffer(){ return answer.bytes.slice(0) },
+            blob(){ return new Blob([answer.bytes], { type: contentType }) }
+        };
+    }
+
+    // Same shape as integration(name) in a Table's pull script.
+    function integration(name){
+        const request = (method, path, options) => callIntegration(name, method, path, options);
+        return {
+            request,
+            get: (path, options) => request('GET', path, options),
+            delete: (path, options) => request('DELETE', path, options),
+            post: (path, body, options) => request('POST', path, Object.assign({}, options, { body })),
+            put: (path, body, options) => request('PUT', path, Object.assign({}, options, { body })),
+            patch: (path, body, options) => request('PATCH', path, Object.assign({}, options, { body })),
+        };
+    }
+
     function callLoadLibrary(name){
         const requestId = 'r'+(++seq);
         parent.postMessage({ type:'MiniAppLoadLibrary', name, requestId }, '*');
@@ -480,6 +589,7 @@ function buildSrcdoc() {
         async keys(){ return call('keys') },
         async upload(file, filename){ return callUpload(file, filename) },
         async deleteFile(pathOrUrl){ return callDelete(pathOrUrl) },
+        integration,
         async getFileUrl(url){
             const res = await callFetchAsset(url)
             if (!res || !res.buffer) return null
@@ -833,6 +943,39 @@ function handleStorageRequest(ev) {
         return
     }
 
+    if (msg.type === 'MiniAppIntegration') {
+        const source = ev.source
+        const reply = (result, transfer = []) =>
+            source.postMessage({ type: 'MiniAppIntegrationResponse', requestId: msg.requestId, result }, '*', transfer)
+        ;(async () => {
+            try {
+                if (pageContentOverride !== undefined) {
+                    throw new Error('Integrations are not available in a history preview.')
+                }
+                // The name that was allowed is the name that is called.
+                const name = String(msg.name ?? '')
+                await allowIntegration(name)
+                const response = await integrationClient(name).request(msg.method, msg.path, {
+                    body: msg.body,
+                    headers: msg.headers,
+                })
+                const bytes = response.arrayBuffer()
+                reply({ response: { status: response.status, headers: response.headers, bytes } }, [bytes])
+            } catch (e) {
+                const answer = e?.response
+                const bytes = answer?.arrayBuffer()
+                reply(
+                    {
+                        error: e?.message || String(e),
+                        response: answer ? { status: answer.status, headers: answer.headers, bytes } : undefined,
+                    },
+                    bytes ? [bytes] : [],
+                )
+            }
+        })()
+        return
+    }
+
     // Library loader: serve vendored ESM source code (whitelisted)
     if (msg.type === 'MiniAppLoadLibrary') {
         ;(async () => {
@@ -1026,6 +1169,11 @@ const imgUrl = await Journals.getFileUrl('/uploads/images/abc.png')
 // Then set it on an element: img.src = imgUrl
 // Delete an uploaded file by its returned URL/path
 await Journals.deleteFile('/uploads/images/abc.png')
+
+// Call a service saved under Integrations in the sidebar.
+// The first call asks you to allow it for this page.
+const answer = await Journals.integration('GitHub').get('/user/repos')
+const repos = answer.json()
 </code></pre>
                         <p>Available methods:</p>
                         <table
@@ -1111,6 +1259,20 @@ await Journals.deleteFile('/uploads/images/abc.png')
                                         by this page.</td
                                     >
                                     <td><code>boolean</code></td>
+                                </tr>
+                                <tr>
+                                    <td><code>integration(name)</code></td>
+                                    <td
+                                        >A service saved under Integrations:
+                                        <code>get</code>, <code>post</code>,
+                                        <code>put</code>, <code>patch</code> and
+                                        <code>delete</code> by path. Throws on
+                                        an error status.</td
+                                    >
+                                    <td
+                                        ><code>&#123; status, headers, text(), json(), arrayBuffer(), blob() &#125;</code
+                                        ></td
+                                    >
                                 </tr>
                             </tbody>
                         </table>
