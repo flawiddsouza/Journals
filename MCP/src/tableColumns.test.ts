@@ -52,6 +52,13 @@ describe('editColumns', () => {
     expect(result.scriptsToCheck).toEqual([{ column: 'Amount', change: 'renamed to Qty', mentionedIn: ['computed Double', 'total Amount'] }])
   })
 
+  test('renaming a computed column gives rows without its key no key, and moves the ones that have it', () => {
+    const doc = table()
+    delete doc.items[1]!.Double
+    editColumns(doc, { update: [{ column: 'Double', name: 'Twice' }] })
+    expect(doc.items).toEqual([{ Item: 'milk', Amount: '2', Twice: '' }, { Item: 'eggs', Amount: '3' }])
+  })
+
   test('a label that was set on purpose survives a rename', () => {
     const doc = table()
     doc.columns[1]!.label = 'How many'

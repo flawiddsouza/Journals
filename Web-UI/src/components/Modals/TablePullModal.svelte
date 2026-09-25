@@ -46,12 +46,18 @@ $: changed = changes.filter((change) => change.type === 'change')
 $: removed = changes.filter((change) => change.type === 'remove')
 
 // Columns the table stores, then anything the script wrote that the table
-// has no column for, so nothing it would save is out of sight.
+// has no column for, so nothing it would save is out of sight. Rows keep an
+// empty value under each computed column, which is not worth showing.
 $: shownColumns = (() => {
     const names = columns.filter((column) => column.type !== 'Computed').map((column) => column.name)
+    const computedNames = columns.filter((column) => column.type === 'Computed').map((column) => column.name)
     for (const change of changes) {
         for (const row of [change.before, change.after]) {
-            for (const key of Object.keys(row ?? {})) if (!names.includes(key)) names.push(key)
+            for (const [key, value] of Object.entries(row ?? {})) {
+                if (names.includes(key)) continue
+                if (computedNames.includes(key) && (value === '' || value === null || value === undefined)) continue
+                names.push(key)
+            }
         }
     }
     return names

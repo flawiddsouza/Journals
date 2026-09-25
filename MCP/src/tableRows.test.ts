@@ -82,13 +82,13 @@ describe('editRows', () => {
     expect(doc.items[1]).toEqual({ Item: `<b>eggs</b> from ${LINK}`, Amount: '4', Double: '' })
   })
 
-  test('new rows carry every column, and cell text becomes the HTML the app writes', () => {
+  test('new rows carry every stored column, and cell text becomes the HTML the app writes', () => {
     const doc = table()
     const summary = editRows(doc, { add: [{ Item: '**rice** & [[Recipes|42]]', Amount: 1.5 }, { Item: '<script>x</script>' }] })
     expect(summary).toEqual({ updated: 0, removed: 0, added: 2, firstAdded: 4 })
     expect(doc.items.slice(4)).toEqual([
-      { Item: `<b>rice</b> &amp; ${LINK}`, Amount: '1.5', Double: '' },
-      { Item: '&lt;script&gt;x&lt;/script&gt;', Amount: '', Double: '' },
+      { Item: `<b>rice</b> &amp; ${LINK}`, Amount: '1.5' },
+      { Item: '&lt;script&gt;x&lt;/script&gt;', Amount: '' },
     ])
   })
 
@@ -130,7 +130,7 @@ describe('editRows', () => {
   test('removing every row leaves one blank row, as the app does', () => {
     const doc = table()
     editRows(doc, { remove: [0, 1, 2, 3, 3] })
-    expect(doc.items).toEqual([{ Item: '', Amount: '', Double: '' }])
+    expect(doc.items).toEqual([{ Item: '', Amount: '' }])
   })
 
   test('the rest of the document is untouched', () => {

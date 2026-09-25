@@ -632,8 +632,11 @@ function getSelectionTextInfo(el) {
     return { atStart: atStart, atEnd: atEnd }
 }
 
+// A computed column's value comes from its expression, so rows hold no key for it.
 function emptyRow() {
-    return Object.fromEntries(columns.map((column) => [column.name, '']))
+    return Object.fromEntries(
+        columns.filter((column) => column.type !== 'Computed').map((column) => [column.name, '']),
+    )
 }
 
 function insertRow(rowIndex, insertAbove) {
@@ -881,10 +884,8 @@ function addColumn() {
     columns.push(column)
     columns = columns
     if (items.length === 0) {
-        items.push({
-            [column.name]: '',
-        })
-    } else {
+        items.push(emptyRow())
+    } else if (column.type !== 'Computed') {
         items.forEach((item) => {
             item[column.name] = ''
         })

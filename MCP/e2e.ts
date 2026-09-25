@@ -17,6 +17,12 @@ const CONTAINER = `journals-mcp-e2e-${process.pid}`
 const REPO = `${import.meta.dir}/..`
 // Only ever written into pages as the address of an upload. Nothing fetches it.
 const PUBLIC_API = 'https://api.journals.test'
+// The fake outside service (e2eService.ts). Its network sits in a range kept
+// for documentation, which the API's private address check lets through, so
+// integrations reach it the way they reach a real service.
+const SERVICE = 'https://service.test'
+const NETWORK = `journals-mcp-e2e-${process.pid}`
+const SERVICE_CONTAINER = `journals-mcp-e2e-service-${process.pid}`
 
 function docker(args: string[], inherit = false): string {
   const result = Bun.spawnSync(['docker', ...args], {
@@ -652,7 +658,7 @@ async function checks(base: string, api: string) {
         batch.data?.rowCount === 4 &&
         after.items.map((r: any) => r.Amount).join('|') ===
           `20|3|7 see <a data-page-id="${notes}" class="page-link" href="/page/${notes}" target="_blank" contenteditable="false">Notes</a>|&lt;i&gt;not italic&lt;/i&gt;` &&
-        after.items[2].Double === '' &&
+        !('Double' in after.items[2]) &&
         after.widths.Amount === '120px' &&
         after.columns[1].expression.endsWith('+ 1'),
       [batch.raw, after.items],
@@ -825,7 +831,7 @@ async function checks(base: string, api: string) {
   // ---- integrations over MCP: the same as the app can do, never a header value
   async function mcpIntegrationChecks() {
     const RO = roTok.access_token as string
-    const made = await call(T, 'create_integration', { name: 'Zen', baseUrl: 'https://api.github.com', headers: { 'X-Secret': 'mcp-shh' } })
+    const made = await call(T, 'create_integration', { name: 'Zen', baseUrl: SERVICE, headers: { 'X-Secret': 'mcp-shh' } })
     const listed = await call(T, 'list_integrations', {})
     const zen = (listed.data?.integrations ?? []).find((i: any) => i.name === 'Zen')
     ok(
@@ -836,7 +842,7 @@ async function checks(base: string, api: string) {
 
     const answer = await call(T, 'call_integration', { name: 'Zen', path: '/zen' })
     ok('call_integration returns the service status and text', !answer.err && answer.data?.status === 200 && typeof answer.data?.body === 'string', answer.text.slice(0, 300))
-    await call(T, 'create_integration', { name: 'McpAvatars', baseUrl: 'https://avatars.githubusercontent.com' })
+    await call(T, 'create_integration', { name: 'McpAvatars', baseUrl: SERVICE })
     const image = await call(T, 'call_integration', { name: 'McpAvatars', path: '/u/1?v=4' })
     ok('a binary answer is described, not dumped', image.data?.binary === true && image.data?.bytes > 0 && image.data?.body === undefined, image.text.slice(0, 300))
 
@@ -921,22 +927,22 @@ async function checks(base: string, api: string) {
     })
 
     const made = await call(jwt, 'POST', '/integrations', {
-      name: 'GitHub',
-      baseUrl: 'https://api.github.com/',
+      name: 'Service',
+      baseUrl: SERVICE + '/',
       headers: { 'X-Secret': 'shh' },
     })
     const id = ((await made.json()) as any).id as number
     const listed = await listOf(jwt)
     ok(
       'an integration is listed with its header names and never its values',
-      made.status === 200 && listed.length === 1 && listed[0].baseUrl === 'https://api.github.com' &&
+      made.status === 200 && listed.length === 1 && listed[0].baseUrl === SERVICE &&
         listed[0].headerNames.join() === 'X-Secret' && !JSON.stringify(listed).includes('shh'),
       listed,
     )
     ok("and not in another user's list", (await listOf(otherJwt)).length === 0)
     ok(
       'a second one with the same name is refused',
-      (await call(jwt, 'POST', '/integrations', { name: 'GitHub', baseUrl: 'https://example.com' })).status === 400,
+      (await call(jwt, 'POST', '/integrations', { name: 'Service', baseUrl: 'https://example.com' })).status === 400,
     )
     ok(
       'a header with no value is refused, since it would still be sent',
@@ -949,13 +955,13 @@ async function checks(base: string, api: string) {
 
     // A null value keeps the saved secret, a name left out drops it.
     await call(jwt, 'PUT', `/integrations/${id}`, {
-      name: 'GitHub',
-      baseUrl: 'https://api.github.com',
-      headers: { 'X-Secret': null, Accept: 'application/vnd.github+json' },
+      name: 'Service',
+      baseUrl: SERVICE,
+      headers: { 'X-Secret': null, Accept: 'application/json' },
     })
     ok('an edit that leaves a secret blank keeps it', (await listOf(jwt))[0].headerNames.sort().join() === 'Accept,X-Secret')
 
-    const zen = await request(jwt, { name: 'GitHub', method: 'GET', path: '/zen' })
+    const zen = await request(jwt, { name: 'Service', method: 'GET', path: '/zen' })
     const zenAnswer = await answerOf(zen)
     ok(
       'a request goes out over https and comes back as the service answered',
@@ -974,11 +980,11 @@ async function checks(base: string, api: string) {
       (zen.headers.get('access-control-expose-headers') ?? '').includes('X-Integration-Headers') &&
         ((await fetch(api + '/integration-requests', { method: 'OPTIONS' })).headers.get('access-control-allow-headers') ?? '').includes('X-Integration-Name'),
     )
-    const notFound = await answerOf(await request(jwt, { name: 'GitHub', path: '/this-does-not-exist-anywhere' }))
+    const notFound = await answerOf(await request(jwt, { name: 'Service', path: '/this-does-not-exist-anywhere' }))
     ok("the service's own error status is passed back, not raised", notFound.status === 404, notFound.status)
 
     // Bytes both ways: an image comes back as it was, and bytes sent arrive as they were.
-    await call(jwt, 'POST', '/integrations', { name: 'Avatars', baseUrl: 'https://avatars.githubusercontent.com' })
+    await call(jwt, 'POST', '/integrations', { name: 'Avatars', baseUrl: SERVICE })
     const avatar = await answerOf(await request(jwt, { name: 'Avatars', path: '/u/1?v=4' }))
     ok(
       'a binary answer comes back byte for byte',
@@ -986,7 +992,7 @@ async function checks(base: string, api: string) {
         [...avatar.bytes.slice(0, 4)].join() === '137,80,78,71',
       { status: avatar.status, type: avatar.headers['content-type'], first: [...avatar.bytes.slice(0, 4)] },
     )
-    await call(jwt, 'POST', '/integrations', { name: 'Echo', baseUrl: 'https://httpbin.org' })
+    await call(jwt, 'POST', '/integrations', { name: 'Echo', baseUrl: SERVICE })
     const echoed = await answerOf(
       await request(jwt, {
         name: 'Echo',
@@ -1008,12 +1014,12 @@ async function checks(base: string, api: string) {
     )
     ok(
       "another user cannot use it by name",
-      (await request(otherJwt, { name: 'GitHub', path: '/zen' })).status === 404,
+      (await request(otherJwt, { name: 'Service', path: '/zen' })).status === 404,
     )
     ok(
       'a path that leaves the base address is refused',
-      (await request(jwt, { name: 'GitHub', path: 'https://example.com/' })).status === 400 &&
-        (await request(jwt, { name: 'GitHub', path: 'zen' })).status === 400,
+      (await request(jwt, { name: 'Service', path: 'https://example.com/' })).status === 400 &&
+        (await request(jwt, { name: 'Service', path: 'zen' })).status === 400,
     )
 
     for (const [name, baseUrl] of [
@@ -1041,7 +1047,7 @@ async function checks(base: string, api: string) {
     const grantsListed = (await listOf(jwt)).find((i) => i.id === id).grants
     ok(
       'a grant shows on the page and under the integration',
-      granted.join() === 'GitHub' && grantsListed.length === 1 && grantsListed[0].pageName === 'Integrated',
+      granted.join() === 'Service' && grantsListed.length === 1 && grantsListed[0].pageName === 'Integrated',
       { granted, grantsListed },
     )
     const template = (await json(jwt, 'POST', '/miniapp/templates', { name: 'T', description: '', isPublic: false, pageId: app })) as any
@@ -1059,13 +1065,13 @@ async function checks(base: string, api: string) {
     await call(jwt, 'DELETE', `/integrations/${id}`)
     ok(
       'a deleted integration is gone from the list and cannot be called',
-      !(await listOf(jwt)).some((i) => i.id === id) && (await request(jwt, { name: 'GitHub', path: '/zen' })).status === 404,
+      !(await listOf(jwt)).some((i) => i.id === id) && (await request(jwt, { name: 'Service', path: '/zen' })).status === 404,
     )
     const binOf = async (token: string) => ((await (await call(token, 'GET', '/recycle-bin')).json()) as any).integrations as any[]
     const binned = await binOf(jwt)
     ok(
       'it waits in the Recycle Bin, without its header values',
-      binned.some((i) => i.id === id && i.name === 'GitHub') && !JSON.stringify(binned).includes('shh') && (await binOf(otherJwt)).length === 0,
+      binned.some((i) => i.id === id && i.name === 'Service') && !JSON.stringify(binned).includes('shh') && (await binOf(otherJwt)).length === 0,
       binned,
     )
     ok(
@@ -1076,7 +1082,7 @@ async function checks(base: string, api: string) {
     )
 
     // A new one under the same name, then the old one cannot come back beside it.
-    const replacement = ((await (await call(jwt, 'POST', '/integrations', { name: 'GitHub', baseUrl: 'https://api.github.com' })).json()) as any).id
+    const replacement = ((await (await call(jwt, 'POST', '/integrations', { name: 'Service', baseUrl: SERVICE })).json()) as any).id
     ok('its name can be used again', typeof replacement === 'number')
     const clash = await call(jwt, 'POST', `/recycle-bin/restore/integration/${id}`)
     ok('restoring it beside another of the same name is refused', clash.status === 409 && (await clash.text()).includes('already have'))
@@ -1088,7 +1094,7 @@ async function checks(base: string, api: string) {
     ok(
       'restoring brings it back with its saved headers, and it works again',
       restored.status === 200 && back?.headerNames.sort().join() === 'Accept,X-Secret' &&
-        (await request(jwt, { name: 'GitHub', path: '/zen' })).status === 200,
+        (await request(jwt, { name: 'Service', path: '/zen' })).status === 200,
       back,
     )
 
@@ -1105,12 +1111,37 @@ async function checks(base: string, api: string) {
 
 console.log('building the image (slow the first time, cached after)')
 docker(['build', '-q', '-t', IMAGE, '.'], true)
+const certs = mkdtempSync(join(tmpdir(), 'journals-e2e-'))
 try {
+  // The first documentation range free, so a second run, or one left behind by
+  // a killed run, does not stop this one.
+  const subnets = ['203.0.113.0/24', '198.51.100.0/24', '192.0.2.0/24']
+  for (const [i, subnet] of subnets.entries()) {
+    try {
+      docker(['network', 'create', '--subnet', subnet, NETWORK])
+      break
+    } catch (error) {
+      if (i === subnets.length - 1) throw error
+    }
+  }
+  // The API trusts only this certificate, so a call that slips past the fake
+  // to a real service fails instead of going out.
+  const serviceHost = new URL(SERVICE).hostname
+  docker([
+    'run', '--rm', '-v', `${certs}:/e2e`, 'crystallang/crystal:1.17',
+    'openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', `/CN=${serviceHost}`,
+    '-addext', `subjectAltName=DNS:${serviceHost}`, '-keyout', '/e2e/service.key', '-out', '/e2e/service.crt',
+  ])
+  docker([
+    'run', '-d', '--name', SERVICE_CONTAINER, '--network', NETWORK, '--network-alias', serviceHost,
+    '-v', `${certs}:/e2e:ro`, '-v', `${join(import.meta.dir, 'e2eService.ts')}:/e2eService.ts:ro`, 'oven/bun:1-alpine', 'bun', '/e2eService.ts',
+  ])
   // Ports are picked by Docker and bound to loopback, so a run cannot collide
   // with a dev server or be reached from the network.
   docker([
-    'run', '-d', '--name', CONTAINER, '-v', '/app/data',
+    'run', '-d', '--name', CONTAINER, '--network', NETWORK, '-v', '/app/data', '-v', `${certs}:/e2e:ro`,
     '-e', `JWT_SECRET=${SECRET}`, '-e', 'ALLOWED_ORIGINS=http://localhost', '-e', `JOURNALS_PUBLIC_API_URL=${PUBLIC_API}`,
+    '-e', 'SSL_CERT_FILE=/e2e/service.crt',
     '-p', '127.0.0.1::80', '-p', '127.0.0.1::9900', IMAGE,
   ])
   const portOf = (port: number) => docker(['port', CONTAINER, String(port)]).split('\n')[0]!.split(':').pop()
@@ -1120,15 +1151,20 @@ try {
   const up = async (url: string) => (await fetch(url).catch(() => null))?.ok ?? false
   let ready = false
   for (let i = 0; i < 60 && !ready; i++) {
-    ready = (await up(api + '/')) && (await up(base + '/.well-known/oauth-authorization-server'))
+    ready = (await up(api + '/')) && (await up(base + '/.well-known/oauth-authorization-server')) &&
+      docker(['logs', SERVICE_CONTAINER]).includes('ready')
     if (!ready) await Bun.sleep(500)
   }
-  if (!ready) throw new Error('the container did not come up:\n' + docker(['logs', '--tail', '30', CONTAINER]))
+  if (!ready) {
+    throw new Error('the containers did not come up:\n' + docker(['logs', '--tail', '30', CONTAINER]) + '\n' + docker(['logs', '--tail', '30', SERVICE_CONTAINER]))
+  }
 
   await checks(base, api)
   if (failed) console.log('\ncontainer log tail:\n' + docker(['logs', '--tail', '30', CONTAINER]))
 } finally {
-  Bun.spawnSync(['docker', 'rm', '-fv', CONTAINER])
+  Bun.spawnSync(['docker', 'rm', '-fv', CONTAINER, SERVICE_CONTAINER])
+  Bun.spawnSync(['docker', 'network', 'rm', NETWORK])
+  rmSync(certs, { recursive: true, force: true })
 }
 
 console.log(failed ? `\n${failed} FAILED` : '\nall passed')

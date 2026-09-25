@@ -127,7 +127,8 @@ export function editColumns(doc: TableDocument, edit: ColumnEdit): { columns: st
       const to = checkName(renamed, next.columns.filter((c) => c !== column).map((c) => c.name))
       const from = column.name
       for (const item of next.items) {
-        item[to] = item[from] ?? ''
+        // A computed column's value comes from its expression, so rows hold no key for it.
+        if (item[from] !== undefined || column.type !== 'Computed') item[to] = item[from] ?? ''
         delete item[from]
       }
       next.totals = moveKey(next.totals, from, to)

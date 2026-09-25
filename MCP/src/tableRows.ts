@@ -9,8 +9,8 @@ import { type TableDocument, isComputed } from './tableDoc'
  * A cell is the innerHTML of a contenteditable (tableCellEditor.js:52), the
  * same HTML a Flat Page line holds, so cells go through the same line form:
  * plain text with **bold**, [label](address) and [[Page name|id]]. A row is
- * keyed by column name and carries every column, as emptyRow() in
- * Table.svelte:625 makes it.
+ * keyed by column name and carries every column but the computed ones, as
+ * emptyRow() in Table.svelte:636 makes it.
  */
 
 export type CellValue = string | number | boolean | null
@@ -118,6 +118,10 @@ export type RowEdit = {
   addBefore?: number
 }
 
+// A computed column's value comes from its expression, so rows hold no key for it.
+const emptyRow = (doc: TableDocument) =>
+  Object.fromEntries(doc.columns.filter((c) => c.type !== 'Computed').map((c) => [c.name, '']))
+
 /**
  * Applies one batch to the document in place. Every row number means the table
  * as it was read, whatever else the batch does: updates land first, then
@@ -142,7 +146,7 @@ export function editRows(doc: TableDocument, edit: RowEdit): { updated: number; 
   if (edit.addBefore !== undefined && edit.addBefore !== count) inRange(edit.addBefore, 'addBefore row')
   const updates = update.map(({ row, values }) => ({ row, cells: toCells(doc, values) }))
   const additions = add.map((values) => ({
-    ...Object.fromEntries(doc.columns.map((c) => [c.name, ''])),
+    ...emptyRow(doc),
     ...toCells(doc, values),
   }))
 
@@ -158,8 +162,8 @@ export function editRows(doc: TableDocument, edit: RowEdit): { updated: number; 
   doc.items = doc.items.filter((_, index) => !removing.has(index))
   doc.items.splice(insertAt, 0, ...additions)
 
-  // The app never leaves a table without a row (Table.svelte:655).
-  if (!doc.items.length) doc.items.push(Object.fromEntries(doc.columns.map((c) => [c.name, ''])))
+  // The app never leaves a table without a row (Table.svelte:667).
+  if (!doc.items.length) doc.items.push(emptyRow(doc))
 
   return { updated: updates.length, removed: remove.length, added: additions.length, firstAdded: additions.length ? insertAt : null }
 }
