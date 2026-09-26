@@ -106,6 +106,15 @@ export const getPageContent = (username: string, pageId: number) =>
 export const putPageContent = (username: string, pageId: number, content: string, baseRevision: string) =>
   call<{ success: boolean; revision: string }>(username, 'PUT', `/pages/${pageId}`, { pageContent: content, baseRevision })
 
+/** A page's saved versions, newest first. Each is the content the page had
+ *  until the save made at created_at replaced it (routes.cr, PUT /pages).
+ *  created_at is UTC with no zone. */
+export const listPageHistory = (username: string, pageId: number) =>
+  call<{ id: number; created_at: string; pinned: number | null }[]>(username, 'GET', `/page-history/${pageId}`)
+
+export const getPageHistoryContent = (username: string, historyId: number) =>
+  call<{ content: string | null }>(username, 'GET', `/page-history/content/${historyId}`)
+
 /** The template a Mini App page was made from, if any. `templateId` is null
  *  for a page with no link (miniapp_routes.cr:450-481). */
 export const getMiniAppTemplate = (username: string, pageId: number) =>

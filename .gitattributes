@@ -1,0 +1,3 @@
+# Text files are stored and checked out with LF, whatever wrote them. Git
+# converts CRLF on add, so a Windows tool that writes CRLF cannot commit it.
+* text=auto eol=lf

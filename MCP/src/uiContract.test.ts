@@ -3,10 +3,12 @@ import { readFileSync } from 'node:fs'
 // The app's own modules, not copies.
 import { createTableComputeEngine } from '../../Web-UI/src/helpers/tableComputeEngine.js'
 import { createEmptyTaskListDocument, taskTextToItems } from '../../Web-UI/src/helpers/taskList.js'
+import { diffTableContent } from '../../Web-UI/src/helpers/tableHistoryDiff.js'
 import { evaluateScript } from './evaluate'
 import { linesOf } from './lines/edit'
 import { proseCodec } from './lines/prose'
 import { MAX_MODULES } from './miniApp'
+import { diffTableDocuments } from './pageHistory'
 import { PAGE_TYPES } from './pageTypes'
 import { COLUMN_OPTIONS } from './tableColumns'
 import { type TableDocument, parseTableDocument } from './tableDoc'
@@ -123,6 +125,57 @@ describe("the app's compute engine and the harness agree (evaluate.ts)", () => {
       expect(fromHarness).toEqual(fromApp)
     })
   }
+})
+
+describe("the app's table history view and get_page_history agree (pageHistory.ts)", () => {
+  const older: TableDocument = {
+    columns: [
+      { name: 'Item', label: '' },
+      { name: 'Qty', label: '' },
+      { name: 'Note', label: '' },
+    ],
+    items: [
+      { Item: 'Milk', Qty: '2', Note: '' },
+      { Item: 'Bread', Qty: '1', Note: 'wheat' },
+      { Item: 'Eggs', Qty: '12', Note: '' },
+      { Item: 'Apples', Qty: '6', Note: '' },
+    ],
+    totals: {},
+    stats: { widgets: [] },
+    startupScript: 'a\nb',
+  }
+  const newer: TableDocument = {
+    columns: [
+      { name: 'Qty', label: 'Quantity', align: 'Right' },
+      { name: 'Item', label: '' },
+      { name: 'Total', type: 'Computed', expression: "return item['Qty']" },
+    ],
+    items: [
+      { Item: 'Milk', Qty: '3', Total: '' },
+      { Item: 'Bread', Qty: '1' },
+      { Item: 'Apples', Qty: '6' },
+      { Item: '<b>Butter</b>', Qty: '1' },
+    ],
+    totals: {},
+    widths: { Item: '140px' },
+    startupScript: 'a\nc',
+  }
+
+  test('the same columns, rows and settings', () => {
+    const fromApp = diffTableContent(older, newer)
+    const ours = diffTableDocuments(older, newer)
+    expect(ours.rows).toEqual(fromApp.rows)
+    expect(ours.rowColumns).toEqual(fromApp.rowColumns)
+    expect(ours.columnsAdded).toEqual(fromApp.columnsAdded)
+    expect(ours.columnsRemoved).toEqual(fromApp.columnsRemoved)
+    expect(ours.columnsReordered).toBe(fromApp.columnsReordered)
+    // The app labels fields and settings for people; these carry their keys.
+    expect(ours.columnsChanged.map((c) => [c.name, c.fields.map((f) => [f.before, f.after])])).toEqual(
+      fromApp.columnsChanged.map((c: { name: string; fields: { before: string; after: string }[] }) => [c.name, c.fields.map((f) => [f.before, f.after])]),
+    )
+    expect(ours.settings.map((s) => [s.before, s.after])).toEqual(fromApp.settings.map((s: { before: string; after: string }) => [s.before, s.after]))
+    expect(ours.settingsOther).toHaveLength(fromApp.settingsOther.length)
+  })
 })
 
 describe("the app's task list helpers and the Task List codec agree (lines/prose.ts)", () => {

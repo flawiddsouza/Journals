@@ -20,8 +20,8 @@ let tablePullPageId = null
 import Modal from './Modal.svelte'
 import Portal from './Portal.svelte'
 import FlatPageHistoryPreview from './FlatPageHistoryPreview.svelte'
+import TableHistoryPreview from './TableHistoryPreview.svelte'
 import { createPageHistoryContentLoader } from '../helpers/pageHistoryContentLoader.js'
-import Table from './PageTypes/Table.svelte'
 import Spreadsheet from './PageTypes/Spreadsheet.svelte'
 import SpreadsheetV2 from './PageTypes/SpreadsheetV2.svelte'
 import DrawIO from './PageTypes/DrawIO.svelte'
@@ -95,7 +95,7 @@ async function viewPageHistoryItem(pageHistoryItem) {
         const result = await pageHistoryContentLoader.load(
             pageHistory,
             pageHistoryItem,
-            activePage.type === 'FlatPage' || activePage.type === 'FlatPageV2',
+            ['FlatPage', 'FlatPageV2', 'Table'].includes(activePage.type),
         )
         if (!result) return
 
@@ -544,7 +544,7 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                 </div>
                 {#if activePageHistoryItem}
                     <div class="page-history-content oy-a">
-                        {#if activePage.type === 'FlatPage' || activePage.type === 'FlatPageV2'}
+                        {#if ['FlatPage', 'FlatPageV2', 'Table'].includes(activePage.type)}
                             {#if pageHistoryItemViewLoading}
                                 <div class="page-history-message">
                                     Loading history...
@@ -553,6 +553,13 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                                 <div class="page-history-message">
                                     Could not load this history item.
                                 </div>
+                            {:else if activePage.type === 'Table'}
+                                <TableHistoryPreview
+                                    pageContent={pageHistoryItemViewPageContent}
+                                    pageContentOlder={pageHistoryItemViewPageContentOlder}
+                                    hasOlder={pageHistory.at(-1)?.id !==
+                                        activePageHistoryItem.id}
+                                />
                             {:else}
                                 <FlatPageHistoryPreview
                                     pageContent={pageHistoryItemViewPageContent}
@@ -564,13 +571,6 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                                         'Ubuntu'}"
                                 />
                             {/if}
-                        {/if}
-                        {#if activePage.type === 'Table'}
-                            <Table
-                                bind:pageContentOverride={
-                                    pageHistoryItemViewPageContent
-                                }
-                            ></Table>
                         {/if}
                         {#if activePage.type === 'Spreadsheet'}
                             <Spreadsheet

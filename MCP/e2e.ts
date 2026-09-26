@@ -216,9 +216,9 @@ async function checks(base: string, api: string) {
   const tools = await rpc(T, 'tools/list', {})
   const toolNames = (tools.result?.tools ?? []).map((t: any) => t.name).sort()
   ok(
-    'the tools are the documented twenty-eight',
+    'the tools are the documented thirty',
     toolNames.join() ===
-      'call_integration,create_file_download,create_file_upload,create_integration,create_page,delete_integration,delete_page,edit_page,edit_table_columns,edit_table_rows,edit_table_stats,evaluate_table_script,get_mini_app,get_page,get_table_config,get_table_rows,list_integrations,list_page_files,list_pages,list_sections,move_page,rename_page,revoke_integration_grant,search_pages,set_mini_app_data,set_mini_app_files,set_table_script,update_integration',
+      'call_integration,create_file_download,create_file_upload,create_integration,create_page,delete_integration,delete_page,edit_page,edit_table_columns,edit_table_rows,edit_table_stats,evaluate_table_script,get_mini_app,get_page,get_page_history,get_table_config,get_table_rows,list_integrations,list_page_files,list_pages,list_sections,move_page,rename_page,restore_page_history,revoke_integration_grant,search_pages,set_mini_app_data,set_mini_app_files,set_table_script,update_integration',
     toolNames,
   )
 
@@ -301,6 +301,7 @@ async function checks(base: string, api: string) {
   await conflictChecks()
   await pageChecks()
   await mcpIntegrationChecks()
+  await historyChecks()
   // Last: it takes T's access away.
   await connectionChecks()
   await integrationChecks()
@@ -674,6 +675,66 @@ async function checks(base: string, api: string) {
         reread.data.rows[0].values.Amount === `7 see [[Notes|${notes}]]` &&
         reread.data.rows[1].values.Amount === '<i>not italic</i>',
       reread.raw,
+    )
+  }
+
+  // ---- page history: what each save changed, and putting a version back
+  async function historyChecks() {
+    const historySec = (await json(jwt, 'POST', '/sections', { notebookId: nb, sectionName: 'History' })).insertedRowId as number
+    const made = await call(T, 'create_page', { name: 'Shopping', type: 'Table', section: historySec })
+    const shop = made.data?.id as number
+    const cols = await call(T, 'edit_table_columns', { page: shop, revision: (await call(T, 'get_table_rows', { page: shop })).data?.revision, add: [{ name: 'Item' }, { name: 'Qty' }] })
+    const filled = await call(T, 'edit_table_rows', { page: shop, revision: cols.data?.revision, add: [{ Item: 'Milk', Qty: 2 }, { Item: 'Eggs', Qty: 12 }, { Item: 'Bread', Qty: 1 }] })
+    await call(T, 'edit_table_rows', { page: shop, revision: filled.data?.revision, update: [{ row: 0, values: { Qty: 3 } }], remove: [1] })
+
+    const listed = await call(T, 'get_page_history', { page: shop })
+    const entries = listed.data?.entries ?? []
+    ok('get_page_history lists the saved versions, newest first', entries.length === 2 && entries[0].id > entries[1].id && !Number.isNaN(Date.parse(entries[0].replacedAt)), listed.raw)
+
+    const oneSave = await call(T, 'get_page_history', { page: shop, entry: entries[0].id })
+    ok(
+      'an entry shows what its save changed: the blank first row filled in, two added, cells as text',
+      oneSave.data?.comparedWith?.id === entries[1].id &&
+        oneSave.data.changes.rows.changes.map((c: any) => `${c.type}:${c.row}`).join() === 'changed:1,added:2,added:3' &&
+        oneSave.data.changes.rows.changes[0].cells.Item.before === '' &&
+        oneSave.data.changes.rows.changes[2].cells.Item === 'Bread',
+      oneSave.data?.changes,
+    )
+    const sinceThen = await call(T, 'get_page_history', { page: shop, entry: entries[0].id, compare: 'current' })
+    const kinds = (sinceThen.data?.changes?.rows?.changes ?? []).map((c: any) => `${c.type}:${c.row}`)
+    ok(
+      'compare current: a changed row with before and after, a removed row by its old number',
+      kinds.join() === 'changed:1,removed:2' && sinceThen.data.changes.rows.changes[0].cells.Qty.before === '2' && sinceThen.data.changes.rows.changes[0].cells.Qty.after === '3',
+      sinceThen.raw,
+    )
+    const oldest = await call(T, 'get_page_history', { page: shop, entry: entries[1].id })
+    ok('the oldest entry has nothing before it', !oldest.err && oldest.data?.changes === null && oldest.data.why.includes('oldest'), oldest.raw)
+    const elsewhere = await call(T, 'get_page_history', { page: notes, entry: entries[0].id })
+    ok("an entry of another page is refused", elsewhere.err && elsewhere.text.includes('no history entry'), elsewhere.text)
+    ok("another user's page history is not readable", (await call(T, 'get_page_history', { page: others })).err)
+
+    const revision = sinceThen.data?.revision
+    ok('restore_page_history without write scope refused', (await call(roTok.access_token, 'restore_page_history', { page: shop, entry: entries[0].id, revision })).err)
+    ok('restore_page_history with a stale revision refused', (await call(T, 'restore_page_history', { page: shop, entry: entries[0].id, revision: 'stale' })).err)
+    const kept = (await json(jwt, 'GET', `/page-history/content/${entries[0].id}`)).content
+    const restored = await call(T, 'restore_page_history', { page: shop, entry: entries[0].id, revision })
+    ok(
+      'restore puts the version back and keeps what was there as a new entry',
+      !restored.err && (await contentOf(shop)) === kept && (await historyOf(shop)) === 3 && restored.data?.revision === (await json(jwt, 'GET', `/pages/content/${shop}`)).revision,
+      restored.raw,
+    )
+    const again = await call(T, 'restore_page_history', { page: shop, entry: entries[0].id, revision: restored.data?.revision })
+    ok('restoring what the page already says is refused', again.err && again.text.includes('already'), again.text)
+
+    const diary = (await call(T, 'create_page', { name: 'Diary', type: 'FlatPageV2', section: historySec })).data?.id as number
+    const first = await call(T, 'edit_page', { page: diary, revision: (await call(T, 'get_page', { page: diary })).data?.revision, after: 0, text: 'one\ntwo\nthree' })
+    await call(T, 'edit_page', { page: diary, revision: first.data?.revision, start: 2, end: 2, text: 'TWO' })
+    const diaryEntries = (await call(T, 'get_page_history', { page: diary })).data?.entries ?? []
+    const lines = await call(T, 'get_page_history', { page: diary, entry: diaryEntries[0].id, compare: 'current' })
+    ok(
+      'a line page shows hunks with line numbers, the empty paragraph a new page starts with as line 4',
+      lines.data?.changes?.added === 1 && lines.data.changes.removed === 1 && lines.data.changes.text === '  1\tone\n- 2\ttwo\n+ 2\tTWO\n  3\tthree\n  4\t',
+      lines.data?.changes?.text,
     )
   }
 

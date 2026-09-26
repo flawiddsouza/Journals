@@ -14,8 +14,9 @@ JWT_SECRET=<same secret as the API> bun run index.ts
 ```
 
 `bun test` covers the script sandbox, the column profiling, the line codecs,
-table rows, columns and stats widgets, the text a search hit is shown as, and
-the Mini App document. It needs no API and no environment.
+table rows, columns and stats widgets, the text a search hit is shown as, the
+page history diffs, and the Mini App document. It needs no API and no
+environment.
 
 This server repeats things the app decides: which page types exist, what a
 saved table carries, how a computed column resolves. `src/uiContract.test.ts`
@@ -87,6 +88,8 @@ open in it.
 | `rename_page` | A new name for a page. |
 | `move_page` | To another section, into a page group or out of one. A page group takes the pages inside it along. |
 | `delete_page` | To the recycle bin, like the app. Nothing here empties the bin or restores from it. |
+| `get_page_history` | A page's saved versions, and what one changed: from the version before it, or up to the page now. A Table reports columns, rows and settings the way the app's history view does, a line page reports numbered hunks. |
+| `restore_page_history` | Put a page back to a saved version, like Restore in the app. What it said before becomes the newest entry. |
 | `list_page_files` | The files and images uploaded to a page, and whether the page still refers to each. |
 | `create_file_upload` | A one-time link to PUT a file to. The response carries the markup that shows it on a page. |
 | `create_file_download` | A one-time link to GET an uploaded file from. |

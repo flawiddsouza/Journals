@@ -2,6 +2,7 @@ import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { registerDocTools } from './docTools'
 import { registerFileTools } from './fileTools'
+import { registerHistoryTools } from './historyTools'
 import { registerIntegrationTools } from './integrationTools'
 import { evaluateScript, type ScriptTarget } from './evaluate'
 import { registerMiniAppTools } from './miniAppTools'
@@ -30,7 +31,7 @@ import {
 
 /**
  * The MCP server. The Table script tools are registered here; the rest live in
- * pageTools.ts, tableRowTools.ts, docTools.ts, miniAppTools.ts and fileTools.ts.
+ * pageTools.ts, tableRowTools.ts, docTools.ts, miniAppTools.ts, historyTools.ts and fileTools.ts.
  * Conventions follow streaks-and-todo/src/mcp.ts: snake_case names, zod
  * schemas, annotation hints.
  */
@@ -183,7 +184,7 @@ function buildServer(username: string, scopes: string[], origin: string) {
         'MiniApp: get_mini_app, then set_mini_app_files for the code and set_mini_app_data for what the app has stored.',
         'Table: get_table_rows reads the data, edit_table_rows changes it, edit_table_columns shapes the columns and edit_table_stats the stat cards and charts. For the JavaScript behind a table, get_table_config shows every script on the page plus per-column profiles. Always evaluate_table_script before set_table_script: it runs the candidate against the real rows and reports both the output and the cost, which is the only way to catch an expression that is correct but degrades the page.',
         'Integrations are saved services that pull scripts and Mini Apps call by name: list_integrations, create_integration, update_integration and delete_integration manage them, call_integration shows what a service answers, and revoke_integration_grant takes one away from a Mini App.',
-        'Every save needs the revision from the matching get tool and is refused if the page changed since, in the app or anywhere else, so read again after a refusal. Each save writes a page history entry, so it can be undone from the app.',
+        'Every save needs the revision from the matching get tool and is refused if the page changed since, in the app or anywhere else, so read again after a refusal. Each save writes a page history entry: get_page_history shows what a save changed, and restore_page_history puts an earlier version back.',
         CELL_HTML_NOTE,
       ].join(' '),
     },
@@ -455,6 +456,7 @@ function buildServer(username: string, scopes: string[], origin: string) {
   )
 
   registerPageTools(server, { username, canWrite })
+  registerHistoryTools(server, { username, canWrite })
   registerTableRowTools(server, { username, canWrite })
   registerDocTools(server, { username, canWrite })
   registerMiniAppTools(server, { username, canWrite })

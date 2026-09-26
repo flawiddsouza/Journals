@@ -16,7 +16,7 @@ import { type TableDocument, isComputed } from './tableDoc'
 export type CellValue = string | number | boolean | null
 export type RowValues = Record<string, CellValue>
 
-const cellText = (html: unknown): string => {
+export const cellText = (html: unknown): string => {
   const source = String(html ?? '')
   return htmlToLine(source) ?? htmlToText(source)
 }
