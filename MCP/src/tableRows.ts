@@ -1,7 +1,7 @@
 import { evaluateScript } from './evaluate'
 import { htmlToLine, htmlToText, lineToHtml } from './lines/flat'
 import { CodecError } from './lines/inline'
-import { type TableDocument, isComputed } from './tableDoc'
+import { type TableColumn, type TableDocument, isComputed } from './tableDoc'
 
 /**
  * Reading and changing the rows of a Table page.
@@ -11,6 +11,13 @@ import { type TableDocument, isComputed } from './tableDoc'
  * plain text with **bold**, [label](address) and [[Page name|id]]. A row is
  * keyed by column name and carries every column but the computed ones, as
  * emptyRow() in Table.svelte:636 makes it.
+ *
+ * An "Input (Plain Text)" column is the exception. The app edits it as
+ * contenteditable="plaintext-only", so a cell holds escaped text with real line
+ * breaks and no markup, and its scripts split it on "\n". Those cells are read
+ * and written as that text.
+ *
+ * Rows are numbered from 1, as the app and the page history number them.
  */
 
 export type CellValue = string | number | boolean | null
@@ -20,6 +27,20 @@ export const cellText = (html: unknown): string => {
   const source = String(html ?? '')
   return htmlToLine(source) ?? htmlToText(source)
 }
+
+const isPlainText = (column: TableColumn) => column.type === 'Input (Plain Text)'
+
+export const columnText = (column: TableColumn, html: unknown) => (isPlainText(column) ? htmlToText(String(html ?? '')) : cellText(html))
+
+// The HTML the app's plaintext-only editor leaves: the text escaped, line breaks
+// kept as they are. A <br> written in the line form's way is a line break too.
+const plainTextToHtml = (text: string) =>
+  text
+    .replace(/\r\n?/g, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 
 export type ReadOptions = {
   start?: number
@@ -40,11 +61,12 @@ export function readRows(doc: TableDocument, options: ReadOptions) {
   const needle = options.search?.trim().toLowerCase()
   const matching = doc.items
     .map((_, index) => index)
-    .filter((index) => !needle || stored.some((c) => cellText(doc.items[index]?.[c.name]).toLowerCase().includes(needle)))
+    .filter((index) => !needle || stored.some((c) => columnText(c, doc.items[index]?.[c.name]).toLowerCase().includes(needle)))
 
   const limit = options.limit ?? 100
-  const start = options.start ?? 0
-  const from = Math.min(Math.max(0, start < 0 ? matching.length + start : start), matching.length)
+  // start counts from 1, or from the end when negative.
+  const start = options.start ?? 1
+  const from = Math.min(Math.max(0, start < 0 ? matching.length + start : start - 1), matching.length)
   const window = matching.slice(from, from + limit)
 
   const computed = new Map<string, Map<number, string>>()
@@ -78,11 +100,11 @@ export function readRows(doc: TableDocument, options: ReadOptions) {
     rowCount: doc.items.length,
     ...(needle ? { matched: matching.length } : {}),
     columns: doc.columns.map((c) => ({ name: c.name, ...(isComputed(c) ? { computed: true } : {}) })),
-    start: from,
+    start: from + 1,
     rows: window.map((index) => ({
-      row: index,
+      row: index + 1,
       values: Object.fromEntries(
-        shown.map((c) => [c.name, isComputed(c) ? (computed.get(c.name)?.get(index) ?? '') : cellText(doc.items[index]?.[c.name])]),
+        shown.map((c) => [c.name, isComputed(c) ? (computed.get(c.name)?.get(index) ?? '') : columnText(c, doc.items[index]?.[c.name])]),
       ),
     })),
     ...(totals ? { totals } : {}),
@@ -105,6 +127,10 @@ function toCells(doc: TableDocument, values: RowValues): Record<string, string> 
       throw new CodecError(`${name} is a computed column, so it has no stored value to set. Change what it shows with set_table_script.`)
     }
     const text = value === null ? '' : String(value)
+    if (isPlainText(column)) {
+      cells[name] = plainTextToHtml(text)
+      continue
+    }
     if (/[\r\n]/.test(text)) throw new CodecError(`A cell value is one line. Use <br> for a line break inside the cell ${name}.`)
     cells[name] = lineToHtml(text)
   }
@@ -123,15 +149,15 @@ const emptyRow = (doc: TableDocument) =>
   Object.fromEntries(doc.columns.filter((c) => c.type !== 'Computed').map((c) => [c.name, '']))
 
 /**
- * Applies one batch to the document in place. Every row number means the table
- * as it was read, whatever else the batch does: updates land first, then
- * removals, then the new rows go in.
+ * Applies one batch to the document in place. Row numbers count from 1, and
+ * every one means the table as it was read, whatever else the batch does:
+ * updates land first, then removals, then the new rows go in.
  */
 export function editRows(doc: TableDocument, edit: RowEdit): { updated: number; removed: number; added: number; firstAdded: number | null } {
   const count = doc.items.length
   const inRange = (row: number, what: string) => {
-    if (!Number.isInteger(row) || row < 0 || row >= count) {
-      throw new CodecError(`${what} ${row} does not exist. Rows are numbered 0 to ${count - 1}, as get_table_rows reports them.`)
+    if (!Number.isInteger(row) || row < 1 || row > count) {
+      throw new CodecError(`${what} ${row} does not exist. Rows are numbered 1 to ${count}, as get_table_rows reports them.`)
     }
   }
   const update = edit.update ?? []
@@ -143,8 +169,9 @@ export function editRows(doc: TableDocument, edit: RowEdit): { updated: number; 
   // Everything is checked before anything changes, so a bad batch changes nothing.
   for (const { row } of update) inRange(row, 'Row')
   for (const row of remove) inRange(row, 'Row')
-  if (edit.addBefore !== undefined && edit.addBefore !== count) inRange(edit.addBefore, 'addBefore row')
-  const updates = update.map(({ row, values }) => ({ row, cells: toCells(doc, values) }))
+  // One past the last row adds at the bottom, as leaving addBefore out does.
+  if (edit.addBefore !== undefined && edit.addBefore !== count + 1) inRange(edit.addBefore, 'addBefore row')
+  const updates = update.map(({ row, values }) => ({ row: row - 1, cells: toCells(doc, values) }))
   const additions = add.map((values) => ({
     ...emptyRow(doc),
     ...toCells(doc, values),
@@ -152,12 +179,12 @@ export function editRows(doc: TableDocument, edit: RowEdit): { updated: number; 
 
   for (const { row, cells } of updates) doc.items[row] = { ...doc.items[row], ...cells }
 
-  const removing = new Set(remove)
+  const removing = new Set(remove.map((row) => row - 1))
   // A new table is one blank row, which is the app's placeholder and not data.
   // Rows added to it take its place instead of landing under a gap.
   const blank = (row: Record<string, string> | undefined) => Object.values(row ?? {}).every((cell) => !cellText(cell))
   if (additions.length && count === 1 && blank(doc.items[0])) removing.add(0)
-  const at = edit.addBefore ?? count
+  const at = edit.addBefore === undefined ? count : edit.addBefore - 1
   const insertAt = at - [...removing].filter((row) => row < at).length
   doc.items = doc.items.filter((_, index) => !removing.has(index))
   doc.items.splice(insertAt, 0, ...additions)
@@ -165,5 +192,5 @@ export function editRows(doc: TableDocument, edit: RowEdit): { updated: number; 
   // The app never leaves a table without a row (Table.svelte:667).
   if (!doc.items.length) doc.items.push(emptyRow(doc))
 
-  return { updated: updates.length, removed: remove.length, added: additions.length, firstAdded: additions.length ? insertAt : null }
+  return { updated: updates.length, removed: remove.length, added: additions.length, firstAdded: additions.length ? insertAt + 1 : null }
 }

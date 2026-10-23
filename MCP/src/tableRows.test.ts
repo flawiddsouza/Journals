@@ -27,24 +27,25 @@ describe('readRows', () => {
     expect(result.rowCount).toBe(4)
     expect(result.columns).toEqual([{ name: 'Item' }, { name: 'Amount' }, { name: 'Double', computed: true }])
     expect(result.rows).toEqual([
-      { row: 0, values: { Item: 'milk', Amount: '2', Double: '4' } },
-      { row: 1, values: { Item: '**eggs** from [[Recipes|42]]', Amount: '**3**', Double: '6' } },
+      { row: 1, values: { Item: 'milk', Amount: '2', Double: '4' } },
+      { row: 2, values: { Item: '**eggs** from [[Recipes|42]]', Amount: '**3**', Double: '6' } },
       // Styling the cell form cannot express reads as its text.
-      { row: 2, values: { Item: 'bread', Amount: 'n/a', Double: 'NaN' } },
-      { row: 3, values: { Item: 'oat milk', Amount: '5', Double: '10' } },
+      { row: 3, values: { Item: 'bread', Amount: 'n/a', Double: 'NaN' } },
+      { row: 4, values: { Item: 'oat milk', Amount: '5', Double: '10' } },
     ])
   })
 
   test('windows, from either end', () => {
-    expect(readRows(table(), { start: 1, limit: 2 }).rows.map((r) => r.row)).toEqual([1, 2])
-    expect(readRows(table(), { start: -1 }).rows.map((r) => r.row)).toEqual([3])
+    expect(readRows(table(), { start: 2, limit: 2 }).rows.map((r) => r.row)).toEqual([2, 3])
+    expect(readRows(table(), { start: 2, limit: 2 }).start).toBe(2)
+    expect(readRows(table(), { start: -1 }).rows.map((r) => r.row)).toEqual([4])
     expect(readRows(table(), { start: 99 }).rows).toEqual([])
   })
 
   test('search keeps real row numbers and says how many matched', () => {
     const result = readRows(table(), { search: 'MILK' })
     expect(result.matched).toBe(2)
-    expect(result.rows.map((r) => r.row)).toEqual([0, 3])
+    expect(result.rows.map((r) => r.row)).toEqual([1, 4])
     // Computed values are still right for a row that is not first in the window.
     expect(result.rows[1]!.values.Double).toBe('10')
   })
@@ -52,7 +53,7 @@ describe('readRows', () => {
   test('choosing columns, and a computed column left out is not run', () => {
     const doc = table()
     doc.columns[2]!.expression = 'while(true){}'
-    expect(readRows(doc, { columns: ['Item'], limit: 1 }).rows).toEqual([{ row: 0, values: { Item: 'milk' } }])
+    expect(readRows(doc, { columns: ['Item'], limit: 1 }).rows).toEqual([{ row: 1, values: { Item: 'milk' } }])
     expect(() => readRows(doc, { columns: ['Nope'] })).toThrow(/This table has: Item, Amount, Double/)
   })
 
@@ -78,14 +79,14 @@ describe('readRows', () => {
 describe('editRows', () => {
   test('update touches only the named cells', () => {
     const doc = table()
-    editRows(doc, { update: [{ row: 1, values: { Amount: 4 } }] })
+    editRows(doc, { update: [{ row: 2, values: { Amount: 4 } }] })
     expect(doc.items[1]).toEqual({ Item: `<b>eggs</b> from ${LINK}`, Amount: '4', Double: '' })
   })
 
   test('new rows carry every stored column, and cell text becomes the HTML the app writes', () => {
     const doc = table()
     const summary = editRows(doc, { add: [{ Item: '**rice** & [[Recipes|42]]', Amount: 1.5 }, { Item: '<script>x</script>' }] })
-    expect(summary).toEqual({ updated: 0, removed: 0, added: 2, firstAdded: 4 })
+    expect(summary).toEqual({ updated: 0, removed: 0, added: 2, firstAdded: 5 })
     expect(doc.items.slice(4)).toEqual([
       { Item: `<b>rice</b> &amp; ${LINK}`, Amount: '1.5' },
       { Item: '&lt;script&gt;x&lt;/script&gt;', Amount: '' },
@@ -95,31 +96,37 @@ describe('editRows', () => {
   test('row numbers mean the table as it was read, whatever else the batch does', () => {
     const doc = table()
     const summary = editRows(doc, {
-      update: [{ row: 3, values: { Amount: '6' } }],
-      remove: [0, 2],
+      update: [{ row: 4, values: { Amount: '6' } }],
+      remove: [1, 3],
       add: [{ Item: 'new' }],
-      addBefore: 3,
+      addBefore: 4,
     })
     expect(doc.items.map((r) => [r.Item, r.Amount])).toEqual([[`<b>eggs</b> from ${LINK}`, '<b>3</b>'], ['new', ''], ['oat milk', '6']])
-    expect(summary.firstAdded).toBe(1)
+    expect(summary.firstAdded).toBe(2)
+    // One past the last row is the bottom.
+    const bottom = table()
+    expect(editRows(bottom, { add: [{ Item: 'last' }], addBefore: 5 }).firstAdded).toBe(5)
+    expect(bottom.items[4]!.Item).toBe('last')
   })
 
   test('a bad batch changes nothing', () => {
     const doc = table()
     const before = JSON.stringify(doc)
-    expect(() => editRows(doc, { update: [{ row: 0, values: { Amount: '9' } }, { row: 4, values: { Amount: '9' } }] })).toThrow(/Row 4 does not exist. Rows are numbered 0 to 3/)
+    expect(() => editRows(doc, { update: [{ row: 1, values: { Amount: '9' } }, { row: 5, values: { Amount: '9' } }] })).toThrow(/Row 5 does not exist. Rows are numbered 1 to 4/)
+    expect(() => editRows(doc, { remove: [0] })).toThrow(/Row 0 does not exist/)
+    expect(() => editRows(doc, { add: [{ Item: 'x' }], addBefore: 6 })).toThrow(/addBefore row 6/)
     expect(() => editRows(doc, { add: [{ Item: 'ok' }, { Price: '1' }] })).toThrow(/No column named Price/)
-    expect(() => editRows(doc, { update: [{ row: 0, values: { Double: '1' } }] })).toThrow(/computed column/)
+    expect(() => editRows(doc, { update: [{ row: 1, values: { Double: '1' } }] })).toThrow(/computed column/)
     expect(() => editRows(doc, { add: [{ Item: 'two\nlines' }] })).toThrow(/one line/)
     expect(() => editRows(doc, { add: [{ Item: '[x](javascript:alert(1))' }] })).toThrow(/http/)
     expect(() => editRows(doc, {})).toThrow(/Nothing to change/)
-    expect(() => editRows(doc, { remove: [0], addBefore: 1 })).toThrow(/addBefore/)
+    expect(() => editRows(doc, { remove: [1], addBefore: 1 })).toThrow(/addBefore/)
     expect(JSON.stringify(doc)).toBe(before)
   })
 
   test("adding to a new table replaces the app's blank placeholder row", () => {
     const doc: TableDocument = { columns: [{ name: 'A' }, { name: 'B' }], items: [{ A: '', B: '<br>' }] }
-    expect(editRows(doc, { add: [{ A: '1' }, { A: '2' }] }).firstAdded).toBe(0)
+    expect(editRows(doc, { add: [{ A: '1' }, { A: '2' }] }).firstAdded).toBe(1)
     expect(doc.items).toEqual([{ A: '1', B: '' }, { A: '2', B: '' }])
     // A single row with something in it is data, and stays.
     const real: TableDocument = { columns: [{ name: 'A' }], items: [{ A: 'x' }] }
@@ -129,7 +136,7 @@ describe('editRows', () => {
 
   test('removing every row leaves one blank row, as the app does', () => {
     const doc = table()
-    editRows(doc, { remove: [0, 1, 2, 3, 3] })
+    editRows(doc, { remove: [1, 2, 3, 4, 4] })
     expect(doc.items).toEqual([{ Item: '', Amount: '' }])
   })
 
@@ -138,5 +145,39 @@ describe('editRows', () => {
     editRows(doc, { add: [{ Item: 'x' }] })
     const fresh = table()
     expect({ ...doc, items: [] }).toEqual({ ...fresh, items: [] })
+  })
+})
+
+describe('plain-text columns', () => {
+  // As the app's plaintext-only editor saves them: escaped text, real line breaks.
+  const daily = (): TableDocument => ({
+    columns: [
+      { name: 'Note', type: 'Input (Plain Text)' },
+      { name: 'Count', type: 'Computed', expression: "return item['Note'].split('\\n').filter((l) => l.trim()).length" },
+    ],
+    items: [{ Note: '✅WW3: [BE] Planning &amp; Review (4h)\nInterview (1h)' }],
+  })
+
+  test('read as the text, with real line breaks and nothing escaped', () => {
+    expect(readRows(daily(), {}).rows).toEqual([{ row: 1, values: { Note: '✅WW3: [BE] Planning & Review (4h)\nInterview (1h)', Count: '2' } }])
+  })
+
+  test('written as the app writes them, so scripts that split on line breaks see every line', () => {
+    const doc = daily()
+    editRows(doc, { update: [{ row: 1, values: { Note: 'JHub: **review** <b> & more (2h)\n✅WW3: [BE] Planning & Review (4h)' } }] })
+    expect(doc.items[0]!.Note).toBe('JHub: **review** &lt;b&gt; &amp; more (2h)\n✅WW3: [BE] Planning &amp; Review (4h)')
+    expect(readRows(doc, {}).rows[0]!.values.Count).toBe('2')
+    // A <br> in the line form's way is a line break too.
+    editRows(doc, { update: [{ row: 1, values: { Note: 'one<br>two<br/>three' } }] })
+    expect(doc.items[0]!.Note).toBe('one\ntwo\nthree')
+    expect(readRows(doc, {}).rows[0]!.values.Count).toBe('3')
+  })
+
+  test('a read written back leaves the cell as it was', () => {
+    const doc = daily()
+    const before = doc.items[0]!.Note
+    const text = readRows(doc, {}).rows[0]!.values.Note!
+    editRows(doc, { update: [{ row: 1, values: { Note: text } }] })
+    expect(doc.items[0]!.Note).toBe(before)
   })
 })

@@ -227,6 +227,7 @@ async function checks(base: string, api: string) {
   ok('list_pages: own tables once each, group child as "Group > Page", nobody else\'s', names.join('|') === 'Group > InRoGroup|Locked|Open|ReadOnly', names)
   const cfg = await call(T, 'get_table_config', { page: open })
   ok('get_table_config returns revision, profiles, sample', !!cfg.data?.revision && cfg.data.profiles.length === 2 && cfg.data.sample.length > 0, cfg.raw)
+  ok('sample rows carry their number from 1, as get_table_rows does', cfg.data?.sample?.every((s: any) => s.row >= 1 && s.row <= 3 && !('rowIndex' in s)), cfg.data?.sample)
   const evaluateTool = (tools.result?.tools ?? []).find((t: any) => t.name === 'evaluate_table_script')
   ok(
     'the script contracts come with get_table_config, not with every tool listing',
@@ -244,6 +245,13 @@ async function checks(base: string, api: string) {
     code: "return dbl(Number(String(item['Amount']).replace(/<[^>]*>/g,'')))",
   })
   ok('evaluate_table_script runs over the real rows', ev.data?.rowsEvaluated === 3 && ev.data.sample.map((s: any) => s.output).join() === '2,4,6', ev.raw)
+  ok('its sample numbers rows from 1', ev.data?.sample?.map((s: any) => s.row).join() === '1,2,3', ev.data?.sample)
+  const picked = await call(T, 'evaluate_table_script', { page: open, target: 'computed', column: 'Double', code: 'if (rowIndex === 1) throw new Error("second"); return rowIndex', rows: [3] })
+  ok(
+    'rows picks rows by that number, and an error names its row the same way',
+    picked.data?.sample?.map((s: any) => `${s.row}:${s.output}`).join() === '3:2' && picked.data.errors?.[0]?.row === 2 && picked.data.errors[0].message === 'second',
+    picked.raw,
+  )
   const leak = await call(roTok.access_token, 'evaluate_table_script', {
     page: open,
     target: 'computed',
@@ -628,15 +636,15 @@ async function checks(base: string, api: string) {
       rows.raw,
     )
     ok('get_table_rows on a Flat Page points at get_page', (await call(T, 'get_table_rows', { page: notes })).text.includes('get_page'))
-    ok('search narrows rows and keeps their numbers', (await call(T, 'get_table_rows', { page: open, search: '3' })).data?.rows?.[0]?.row === 2)
+    ok('search narrows rows and keeps their numbers', (await call(T, 'get_table_rows', { page: open, search: '3' })).data?.rows?.[0]?.row === 3)
 
     const revision = rows.data?.revision
     const stored = await contentOf(open)
     ok('edit_table_rows without write scope refused', (await call(roTok.access_token, 'edit_table_rows', { page: open, revision, add: [{ Amount: '9' }] })).err)
     ok('edit_table_rows with a stale revision refused', (await call(T, 'edit_table_rows', { page: open, revision: 'stale', add: [{ Amount: '9' }] })).err)
-    const badBatch = await call(T, 'edit_table_rows', { page: open, revision, update: [{ row: 0, values: { Amount: '5' } }], add: [{ Price: '1' }] })
+    const badBatch = await call(T, 'edit_table_rows', { page: open, revision, update: [{ row: 1, values: { Amount: '5' } }], add: [{ Price: '1' }] })
     ok('one bad column refuses the whole batch, page untouched', badBatch.err && badBatch.text.includes('No column named Price') && (await contentOf(open)) === stored, badBatch.text)
-    const computedCell = await call(T, 'edit_table_rows', { page: open, revision, update: [{ row: 0, values: { Double: '1' } }] })
+    const computedCell = await call(T, 'edit_table_rows', { page: open, revision, update: [{ row: 1, values: { Double: '1' } }] })
     ok('a computed column cannot be set', computedCell.err && computedCell.text.includes('computed'), computedCell.text)
     const foreignCell = await call(T, 'edit_table_rows', { page: open, revision, add: [{ Amount: `[[Theirs|${others}]]` }] })
     ok("a cell linking to another user's page refused, page untouched", foreignCell.err && (await contentOf(open)) === stored, foreignCell.text)
@@ -648,8 +656,8 @@ async function checks(base: string, api: string) {
     const batch = await call(T, 'edit_table_rows', {
       page: open,
       revision,
-      update: [{ row: 1, values: { Amount: 20 } }],
-      remove: [0],
+      update: [{ row: 2, values: { Amount: 20 } }],
+      remove: [1],
       add: [{ Amount: `7 see [[Notes|${notes}]]` }, { Amount: '<i>not italic</i>' }],
     })
     const after = JSON.parse(await contentOf(open))
@@ -671,7 +679,7 @@ async function checks(base: string, api: string) {
     ok(
       'the new rows read back, computed column included',
       reread.data?.revision === batch.data?.revision &&
-        reread.data.rows.map((r: any) => r.row).join() === '2,3' &&
+        reread.data.rows.map((r: any) => r.row).join() === '3,4' &&
         reread.data.rows[0].values.Amount === `7 see [[Notes|${notes}]]` &&
         reread.data.rows[1].values.Amount === '<i>not italic</i>',
       reread.raw,
@@ -685,7 +693,7 @@ async function checks(base: string, api: string) {
     const shop = made.data?.id as number
     const cols = await call(T, 'edit_table_columns', { page: shop, revision: (await call(T, 'get_table_rows', { page: shop })).data?.revision, add: [{ name: 'Item' }, { name: 'Qty' }] })
     const filled = await call(T, 'edit_table_rows', { page: shop, revision: cols.data?.revision, add: [{ Item: 'Milk', Qty: 2 }, { Item: 'Eggs', Qty: 12 }, { Item: 'Bread', Qty: 1 }] })
-    await call(T, 'edit_table_rows', { page: shop, revision: filled.data?.revision, update: [{ row: 0, values: { Qty: 3 } }], remove: [1] })
+    await call(T, 'edit_table_rows', { page: shop, revision: filled.data?.revision, update: [{ row: 1, values: { Qty: 3 } }], remove: [2] })
 
     const listed = await call(T, 'get_page_history', { page: shop })
     const entries = listed.data?.entries ?? []
@@ -725,6 +733,20 @@ async function checks(base: string, api: string) {
     )
     const again = await call(T, 'restore_page_history', { page: shop, entry: entries[0].id, revision: restored.data?.revision })
     ok('restoring what the page already says is refused', again.err && again.text.includes('already'), again.text)
+
+    const log = (await call(T, 'create_page', { name: 'Log', type: 'Table', section: historySec })).data?.id as number
+    const logCols = await call(T, 'edit_table_columns', { page: log, revision: (await call(T, 'get_table_rows', { page: log })).data?.revision, add: [{ name: 'Note', type: 'Input (Plain Text)' }] })
+    const logAdded = await call(T, 'edit_table_rows', { page: log, revision: logCols.data?.revision, add: [{ Note: 'one & [two]\nthree' }] })
+    const logRead = await call(T, 'get_table_rows', { page: log })
+    ok(
+      'a plain-text column is written as the app writes it, with real line breaks, and read back as that text',
+      !logAdded.err && JSON.parse(await contentOf(log)).items[0].Note === 'one &amp; [two]\nthree' && logRead.data?.rows?.[0]?.row === 1 && logRead.data.rows[0].values.Note === 'one & [two]\nthree',
+      logAdded.raw + logRead.raw,
+    )
+    await call(T, 'edit_table_rows', { page: log, revision: logRead.data?.revision, update: [{ row: 1, values: { Note: 'one & [two]\nthree\nfour' } }] })
+    const logEntries = (await call(T, 'get_page_history', { page: log })).data?.entries ?? []
+    const logChange = (await call(T, 'get_page_history', { page: log, entry: logEntries[0].id, compare: 'current' })).data?.changes?.rows?.changes?.[0]?.cells?.Note
+    ok('page history shows a plain-text cell as its text', logChange?.before === 'one & [two]\nthree' && logChange?.after === 'one & [two]\nthree\nfour', JSON.stringify(logChange))
 
     const diary = (await call(T, 'create_page', { name: 'Diary', type: 'FlatPageV2', section: historySec })).data?.id as number
     const first = await call(T, 'edit_page', { page: diary, revision: (await call(T, 'get_page', { page: diary })).data?.revision, after: 0, text: 'one\ntwo\nthree' })

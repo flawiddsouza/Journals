@@ -26,8 +26,40 @@ const pageContentFlatPageV2 = {
     2: tiptapContent('Snapshot middle'),
     1: tiptapContent('Snapshot oldest'),
 }
+const tableContent = (...notes) =>
+    JSON.stringify({
+        columns: [
+            {
+                name: 'Note',
+                label: 'Note',
+                type: '',
+                wrap: '',
+                align: '',
+                autocomplete: '',
+            },
+        ],
+        items: notes.map((Note) => ({ Note })),
+        totals: {},
+        widths: {},
+        rowStyle: '',
+        startupScript: '',
+        pullScript: '',
+        customFunctions: '',
+        note: '',
+    })
+const pageContentTable = {
+    3: tableContent('one', 'two', 'three'),
+    2: tableContent('one', 'two'),
+    1: tableContent('one'),
+}
+// The page as it is now: the save after version 3 added a fourth row.
+const pageContentCurrentTable = tableContent('one', 'two', 'three', 'four')
 const pageContent =
-    pageType === 'FlatPageV2' ? pageContentFlatPageV2 : pageContentFlatPage
+    pageType === 'FlatPageV2'
+        ? pageContentFlatPageV2
+        : pageType === 'Table'
+          ? pageContentTable
+          : pageContentFlatPage
 
 window.pageHistoryRequests = []
 window.pageHistoryContentDelays = {}
@@ -43,6 +75,8 @@ window.fetch = async (input) => {
     const url = new URL(typeof input === 'string' ? input : input.url)
     window.pageHistoryRequests.push(url.pathname)
     if (url.pathname === '/page-history/42') return json(pageHistory)
+    if (url.pathname === '/pages/content/42')
+        return json({ content: pageContentCurrentTable })
 
     const match = url.pathname.match(/^\/page-history\/content\/(\d+)$/)
     if (match) {

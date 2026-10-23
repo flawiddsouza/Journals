@@ -164,7 +164,10 @@ serves a file only to its owner.
 ### Table rows
 
 A cell holds the same HTML a Flat Page line does, so cells use the same line
-form, and what is written is escaped the same way. A row number is a position:
+form, and what is written is escaped the same way. An "Input (Plain Text)"
+column is the exception: the app edits it as plain text, so its cells are read
+and written as text with real line breaks, which its scripts split on. A row
+number is a position counted from 1, as the app and the page history count:
 it is only good at the revision it was read at, and every number in one
 `edit_table_rows` batch means the table as it was read. A bad row or column
 refuses the whole batch. Computed columns are evaluated only for the rows being

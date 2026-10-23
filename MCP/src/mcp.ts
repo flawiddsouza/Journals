@@ -173,6 +173,13 @@ function dependentsOf(doc: TableDocument): {
   return out
 }
 
+// Tool output numbers rows from 1, as get_table_rows and the app do. Inside a
+// script rowIndex counts from 0, so it is that number - 1. A message about the
+// whole script, not one row, has no row.
+const ROW_NOTE = 'Rows are numbered from 1, as get_table_rows numbers them; inside a script, rowIndex is that number - 1.'
+const rowOf = (rowIndex: number) => (rowIndex >= 0 ? rowIndex + 1 : null)
+const withRow = <T extends { rowIndex: number }>({ rowIndex, ...rest }: T) => ({ row: rowOf(rowIndex), ...rest })
+
 function buildServer(username: string, scopes: string[], origin: string) {
   const server = new McpServer(
     { name: 'journals', version: '0.1.0' },
@@ -201,6 +208,7 @@ function buildServer(username: string, scopes: string[], origin: string) {
         'Also returns a profile per column (distinct counts, inferred kind, how many values fail to parse) and a deliberately chosen sample of rows, including the empty, longest and unparseable ones.',
         'It returns a sample, not the data: use get_table_rows to read rows. For writing a script the profile answers more than the rows would.',
         'contracts says, per script target, how the app calls the script and what it has to return. Read it before writing one.',
+        ROW_NOTE,
         CELL_HTML_NOTE,
       ].join(' '),
       inputSchema: z.object({ page: pageSchema }),
@@ -224,7 +232,7 @@ function buildServer(username: string, scopes: string[], origin: string) {
           note: doc.note ?? '',
           statsWidgets: doc.stats?.widgets ?? [],
           profiles,
-          sample: chooseSample(doc.columns, doc.items, profiles),
+          sample: chooseSample(doc.columns, doc.items, profiles).map(withRow),
           contracts: CONTRACTS,
         }
       }),
@@ -236,9 +244,10 @@ function buildServer(username: string, scopes: string[], origin: string) {
       title: 'Dry run a script against the real rows',
       description: [
         'Compiles a candidate script and runs it over the page\'s actual rows. Saves nothing.',
-        'Reports what it produced (distinct outputs with counts, a row sample, every error with its row index) and what it cost (wall time, dependency entries registered, and whether per-row cost grows with rowIndex).',
+        'Reports what it produced (distinct outputs with counts, a row sample, every error with its row) and what it cost (wall time, dependency entries registered, and whether per-row cost grows with rowIndex).',
         'That last flag is the point: an expression like items.slice(0, rowIndex).reduce(...) returns correct numbers while registering O(n squared) dependency entries, which degrades the page as you scroll. Nothing in the app surfaces this.',
         'Run this before every set_table_script. How each target is called and what it has to return is under contracts in get_table_config.',
+        ROW_NOTE + ' An error about the whole script has row null.',
       ].join(' '),
       inputSchema: z.object({
         page: pageSchema,
@@ -249,7 +258,7 @@ function buildServer(username: string, scopes: string[], origin: string) {
         rows: z
           .array(z.number().int())
           .optional()
-          .describe('Specific row indices to report individually'),
+          .describe('Specific rows to report individually, numbered from 1 as get_table_rows numbers them'),
       }),
       annotations: readOnly,
     },
@@ -257,8 +266,8 @@ function buildServer(username: string, scopes: string[], origin: string) {
       run(async () => {
         const { doc } = await loadTable(username, page)
         resolveTarget(doc, target, column, widgetId, false)
-        const result = evaluateScript(doc, target, code, column ?? null, { rows })
-        return { ...result }
+        const result = evaluateScript(doc, target, code, column ?? null, { rows: rows?.map((row) => row - 1) })
+        return { ...result, errors: result.errors.map(withRow), sample: result.sample.map(withRow) }
       }),
   )
 

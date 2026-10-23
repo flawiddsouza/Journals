@@ -12,7 +12,7 @@ import { assertLinksExist, assertWritable, loadTable, mutates, pageSchema, readO
  */
 
 const CELL_FORM =
-  'A cell is one line of text. **bold**, *italic*, ~~strike~~, `code`, [label](https://address), [[Page name|id]] and <br> for a line break work in it, and a backslash keeps a character literal (\\*). Numbers and dates are just text: write them the way the rest of the column does, because the table\'s scripts parse that text.'
+  'A cell is one line of text. **bold**, *italic*, ~~strike~~, `code`, [label](https://address), [[Page name|id]] and <br> for a line break work in it, and a backslash keeps a character literal (\\*). In an "Input (Plain Text)" column (see get_table_config) a cell is plain text instead: markup is not applied, nothing is escaped, and a line break is a real line break, which is what that column\'s scripts split on. Numbers and dates are just text: write them the way the rest of the column does, because the table\'s scripts parse that text.'
 
 const DEFAULT_LIMIT = 100
 
@@ -39,12 +39,12 @@ export function registerTableRowTools(server: McpServer, { username, canWrite }:
       description: [
         'Rows of a Table page, as text keyed by column name, with each row\'s number. Computed columns come back with the value their script produces for that row, or "#ERROR ..." when it throws.',
         'Large tables come back in windows: pass start and limit, or a negative start to read from the end (-20 is the last 20 rows). search keeps only rows where a stored column contains the text, case-insensitively, and the window then applies to the matches; each row still carries its real number.',
-        'Row numbers are positions, starting at 0. They change when rows are added or removed, so take them from a read made at the same revision as the edit.',
+        'Row numbers are positions, starting at 1 as in the app and the page history. They change when rows are added or removed, so take them from a read made at the same revision as the edit.',
         CELL_FORM,
       ].join(' '),
       inputSchema: z.object({
         page: pageSchema,
-        start: z.number().int().optional().describe('First row to return, 0-based. Negative counts from the end. Default 0'),
+        start: z.number().int().optional().describe('First row to return, counting from 1. Negative counts from the end. Default 1'),
         limit: z.number().int().min(1).max(500).optional().describe(`How many rows to return. Default ${DEFAULT_LIMIT}`),
         search: z.string().optional().describe('Only rows where some stored column contains this text'),
         columns: z.array(z.string()).optional().describe('Only these columns. Default all. Leaving computed columns out skips running their scripts'),
@@ -83,7 +83,7 @@ export function registerTableRowTools(server: McpServer, { username, canWrite }:
           .optional(),
         remove: z.array(z.number().int()).optional().describe('Row numbers to delete'),
         add: z.array(valuesSchema).optional().describe('New rows, each a map of column name to cell text'),
-        addBefore: z.number().int().optional().describe('Insert the new rows above this row number instead of at the bottom'),
+        addBefore: z.number().int().optional().describe('Insert the new rows above this row number instead of at the bottom; one past the last row also means the bottom'),
       }),
       annotations: { ...mutates, destructiveHint: true, idempotentHint: false },
     },

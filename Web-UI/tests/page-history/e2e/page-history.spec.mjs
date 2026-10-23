@@ -174,3 +174,34 @@ test('FlatPage v2 ignores a late response from an earlier selection', async ({
     await page.waitForTimeout(250)
     await expect(preview).not.toContainText('newest')
 })
+
+test('Table history shows what the newest save changed, against the page as it is now', async ({
+    page,
+}) => {
+    await openHistory(page, '?type=Table')
+    await page.getByRole('button', { name: 'View' }).nth(0).click()
+
+    const preview = page.locator('.table-history-preview')
+    await expect(preview.locator('.table-history-meta')).toHaveText(
+        'Compared with the version before it: 1 row added.',
+    )
+
+    await preview.getByRole('button', { name: 'Since this version' }).click()
+    await expect(preview.locator('.table-history-meta')).toHaveText(
+        'Changed since this version: 1 row added.',
+    )
+    await expect(preview).toContainText('four')
+
+    // The oldest version has no Changes view, but can still be compared with now.
+    await page.getByRole('button', { name: 'View' }).nth(2).click()
+    await expect(
+        preview.getByRole('button', { name: 'Changes', exact: true }),
+    ).toHaveCount(0)
+    await expect(preview.locator('.table-history-meta')).toHaveText(
+        'This is the oldest saved version, so there is no version before it to compare with.',
+    )
+    await preview.getByRole('button', { name: 'Since this version' }).click()
+    await expect(preview.locator('.table-history-meta')).toHaveText(
+        'Changed since this version: 3 rows added.',
+    )
+})

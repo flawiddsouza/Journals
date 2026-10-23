@@ -49,6 +49,8 @@ let pageHistoryItemViewPageContent = null
 let pageHistoryItemViewPageContentOlder = ''
 let pageHistoryItemViewLoading = false
 let pageHistoryItemViewError = false
+// The page as it is now, for comparing a version with it. Null while loading.
+let pageHistoryContentCurrent = null
 let lastActivePageId = null
 
 const unsubEventStore = eventStore.subscribe((event) => {
@@ -72,6 +74,13 @@ $: if (showPageHistoryModal && activePage) {
     fetchPlus.get(`/page-history/${activePage.id}`).then((response) => {
         pageHistory = response
     })
+    pageHistoryContentCurrent = null
+    if (activePage.type === 'Table') {
+        const pageId = activePage.id
+        fetchPlus.get(`/pages/content/${pageId}`).then((response) => {
+            if (activePage?.id === pageId) pageHistoryContentCurrent = response.content ?? ''
+        })
+    }
 }
 
 function fetchPageUploads(page) {
@@ -489,6 +498,7 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                                     on:click={() =>
                                         viewPageHistoryItem(pageHistoryItem)}
                                     style="cursor: pointer;"
+                                    title="The page as it was until this save"
                                 >
                                     {format(
                                         pageHistoryItem.created_at + 'Z',
@@ -559,6 +569,7 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                                     pageContentOlder={pageHistoryItemViewPageContentOlder}
                                     hasOlder={pageHistory.at(-1)?.id !==
                                         activePageHistoryItem.id}
+                                    pageContentCurrent={pageHistoryContentCurrent}
                                 />
                             {:else}
                                 <FlatPageHistoryPreview

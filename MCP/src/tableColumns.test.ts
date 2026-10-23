@@ -37,7 +37,7 @@ describe('a never-saved table', () => {
     expect(doc.items).toEqual([{ Date: '', Amount: '' }])
     expect(doc.widths).toEqual({ Amount: '90px' })
     editRows(doc, { add: [{ Date: '01-May-26', Amount: 5 }] })
-    expect(readRows(doc, {}).rows).toEqual([{ row: 0, values: { Date: '01-May-26', Amount: '5' } }])
+    expect(readRows(doc, {}).rows).toEqual([{ row: 1, values: { Date: '01-May-26', Amount: '5' } }])
   })
 })
 
@@ -101,7 +101,7 @@ describe('editColumns', () => {
     editColumns(doc, { update: [{ column: 'Double', type: '' }] })
     expect(doc.columns[2]).toMatchObject({ name: 'Double', type: '' })
     expect(doc.columns[2]).not.toHaveProperty('expression')
-    editRows(doc, { update: [{ row: 0, values: { Double: '9' } }] })
+    editRows(doc, { update: [{ row: 1, values: { Double: '9' } }] })
     expect(doc.items[0]!.Double).toBe('9')
   })
 

@@ -5,7 +5,7 @@ import { LINE_CODECS } from './lines/codecs'
 import { linesOf } from './lines/edit'
 import { diffPageLines, diffTableDocuments, textDiff } from './pageHistory'
 import { startupHint, parseTableDocument } from './tableDoc'
-import { cellText } from './tableRows'
+import { cellText, columnText } from './tableRows'
 import { ToolError, assertWritable, loadPage, mutates, pageSchema, readOnly, revisionSchema, run, savePage, writeDenied } from './toolkit'
 
 /**
@@ -47,8 +47,13 @@ function tableChanges(olderContent: string | null, newerContent: string | null, 
   const newer = parseTableDocument(newerContent)
   const diff = diffTableDocuments(older, newer)
   const stored = (doc: typeof older) => doc.columns.filter((c) => c.type !== 'Computed').map((c) => c.name)
-  const filled = (row: Record<string, string>, names: string[]) =>
-    Object.fromEntries(names.map((name) => [name, cellText(row[name])]).filter(([, text]) => text))
+  // A cell reads as get_table_rows reads it, so a plain-text column comes back as its text.
+  const textIn = (doc: typeof older, name: string, html: unknown) => {
+    const column = doc.columns.find((c) => c.name === name)
+    return column ? columnText(column, html) : cellText(html)
+  }
+  const filled = (doc: typeof older, row: Record<string, string>) =>
+    Object.fromEntries(stored(doc).map((name) => [name, textIn(doc, name, row[name])]).filter(([, text]) => text))
 
   const rows = windowOf(diff.rows, start, limit)
   return {
@@ -66,11 +71,11 @@ function tableChanges(olderContent: string | null, newerContent: string | null, 
       start: rows.start,
       end: rows.end,
       changes: rows.shown.map((r) => {
-        if (r.type === 'add') return { type: 'added', row: r.rowNumber, cells: filled(r.after, stored(newer)) }
-        if (r.type === 'remove') return { type: 'removed', row: r.rowNumber, cells: filled(r.before, stored(older)) }
+        if (r.type === 'add') return { type: 'added', row: r.rowNumber, cells: filled(newer, r.after) }
+        if (r.type === 'remove') return { type: 'removed', row: r.rowNumber, cells: filled(older, r.before) }
         const cells = Object.fromEntries(
           diff.rowColumns
-            .map((name) => [name, { before: cellText(r.before[name]), after: cellText(r.after[name]) }] as const)
+            .map((name) => [name, { before: textIn(older, name, r.before[name]), after: textIn(newer, name, r.after[name]) }] as const)
             .filter(([, cell]) => cell.before !== cell.after),
         )
         return { type: 'changed', row: r.rowNumber, cells }
