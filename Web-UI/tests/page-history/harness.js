@@ -26,13 +26,15 @@ const pageContentFlatPageV2 = {
     2: tiptapContent('Snapshot middle'),
     1: tiptapContent('Snapshot oldest'),
 }
+// ?plain makes Note an "Input (Plain Text)" column, whose cells hold real line breaks.
+const plainText = new URLSearchParams(location.search).has('plain')
 const tableContent = (...notes) =>
     JSON.stringify({
         columns: [
             {
                 name: 'Note',
                 label: 'Note',
-                type: '',
+                type: plainText ? 'Input (Plain Text)' : '',
                 wrap: '',
                 align: '',
                 autocomplete: '',
@@ -47,13 +49,22 @@ const tableContent = (...notes) =>
         customFunctions: '',
         note: '',
     })
-const pageContentTable = {
-    3: tableContent('one', 'two', 'three'),
-    2: tableContent('one', 'two'),
-    1: tableContent('one'),
-}
-// The page as it is now: the save after version 3 added a fourth row.
-const pageContentCurrentTable = tableContent('one', 'two', 'three', 'four')
+const pageContentTable = plainText
+    ? {
+          3: tableContent('one\ntwo', 'keep\nme'),
+          2: tableContent('one', 'keep\nme'),
+          1: tableContent('one', 'keep\nme'),
+      }
+    : {
+          3: tableContent('one', 'two', 'three'),
+          2: tableContent('one', 'two'),
+          1: tableContent('one'),
+      }
+// The page as it is now: the save after version 3 added a fourth row, or a
+// third line to the plain-text note.
+const pageContentCurrentTable = plainText
+    ? tableContent('one\ntwo\nthree', 'keep\nme')
+    : tableContent('one', 'two', 'three', 'four')
 const pageContent =
     pageType === 'FlatPageV2'
         ? pageContentFlatPageV2

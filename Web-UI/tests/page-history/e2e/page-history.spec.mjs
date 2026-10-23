@@ -205,3 +205,25 @@ test('Table history shows what the newest save changed, against the page as it i
         'Changed since this version: 3 rows added.',
     )
 })
+
+test('Table history keeps the line breaks of a plain-text column', async ({
+    page,
+}) => {
+    await openHistory(page, '?type=Table&plain')
+    await page.getByRole('button', { name: 'View' }).nth(0).click()
+
+    const preview = page.locator('.table-history-preview')
+    const rows = preview.locator('tbody tr')
+    // The edited note, word by word, and the unchanged one, each on its own lines.
+    await expect(
+        preview.locator('.table-history-plain-text').first(),
+    ).toHaveText('one\ntwo', { useInnerText: true })
+    await expect(
+        rows.filter({ hasText: 'keep' }).locator('.table-history-plain-text'),
+    ).toHaveText('keep\nme', { useInnerText: true })
+
+    await preview.getByRole('button', { name: 'Since this version' }).click()
+    await expect(
+        preview.locator('.table-history-plain-text').first(),
+    ).toHaveText('one\ntwo\nthree', { useInnerText: true })
+})

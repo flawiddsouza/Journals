@@ -74,10 +74,15 @@ $: columnLabel = (name) => {
 }
 
 const parser = new DOMParser()
+// A <br> is a line break in the text, so an edit that only moves a line shows.
 const asText = (value) =>
     value === undefined || value === null || value === ''
         ? ''
-        : (parser.parseFromString(String(value), 'text/html').body.textContent ?? '').trim()
+        : (parser.parseFromString(String(value).replace(/<br\s*\/?>/gi, '\n'), 'text/html').body.textContent ?? '').trim()
+
+// A plain-text column stores real line breaks, which the table shows as <br>
+// (getColumnValue in Table.svelte), so the history shows them the same way.
+const isPlainText = (column) => column?.type === 'Input (Plain Text)'
 
 // A cell's edit word by word, or null when no word survived it, in which case
 // the old and new values read better whole.
@@ -91,7 +96,10 @@ function cellWords(before, after) {
 // edited one is compared as text, and one whose text survived had only its
 // formatting changed.
 function cellOf(row, column) {
-    const html = (source) => source?.[column.name] ?? ''
+    const html = (source) => {
+        const value = source?.[column.name] ?? ''
+        return isPlainText(column) ? String(value).replace(/\n/g, '<br>') : value
+    }
     if (row.type === 'add') return { kind: 'plain', html: column.side === 'older' ? '' : html(row.after) }
     if (row.type === 'remove') return { kind: 'plain', html: column.side === 'newer' ? '' : html(row.before) }
     if (column.side === 'newer') return { kind: 'plain', html: html(row.after) }
@@ -222,6 +230,7 @@ $: summary = [
                                         {@const cell = cellOf(row, column)}
                                         <td
                                             class="table-history-column-{column.side} table-history-cell-{cell.kind}"
+                                            class:table-history-plain-text={isPlainText(column)}
                                             style={column.align ? `text-align: ${column.align.toLowerCase()}` : ''}
                                         >
                                             {#if cell.kind === 'edit'}
@@ -398,6 +407,11 @@ $: summary = [
     font-weight: normal;
     opacity: 0.75;
     white-space: nowrap;
+}
+
+/* An edit is shown as text, so its line breaks need keeping. */
+.table-history-plain-text :is(ins, del, span) {
+    white-space: pre-wrap;
 }
 
 .table-history-cell-formatting {
