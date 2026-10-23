@@ -108,15 +108,17 @@ export type ColumnProfile = {
 const DISTINCT_CAP = 500
 const TOP_VALUES_MAX = 12
 
+// The app keeps the expression when a column switches back to Input. Its
+// type alone decides whether the cell displays a calculation or stored data.
+export function isComputed(column: TableColumn): boolean {
+  return column.type === 'Computed'
+}
+
 /**
  * Bounded whatever the row count. Over a few thousand rows "8 distinct values"
  * or "31 rows do not parse as numbers" is information that no sample conveys,
  * at any sample size.
  */
-export function isComputed(column: TableColumn): boolean {
-  return column.type === 'Computed' || Boolean(column.expression)
-}
-
 export function profileColumn(
   column: TableColumn,
   items: Record<string, string>[],

@@ -173,6 +173,12 @@ it is only good at the revision it was read at, and every number in one
 refuses the whole batch. Computed columns are evaluated only for the rows being
 returned.
 
+A column is computed only when its type is `Computed`. The app can leave an
+old expression saved after switching back to Input; that column's cells are
+still read, searched, profiled and edited as stored values.
+Explicitly setting a stored type with `edit_table_columns` discards any saved
+expression on that column; changing its other options preserves the expression.
+
 Column changes follow what the app does, with two differences: a rename
 carries the column's total and width along, which the app drops, and a removal
 takes them away, which the app leaves behind. Scripts are never rewritten. A

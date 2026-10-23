@@ -22,6 +22,22 @@ const table = (): TableDocument => ({
 })
 
 describe('readRows', () => {
+  test.each([undefined, '', 'Input (Plain Text)'] as const)('a stored column with type %s stays readable, searchable and editable with an old formula', (type) => {
+    const expression = 'throw new Error("inactive formula ran")'
+    const doc: TableDocument = { columns: [{ name: 'Value', type, expression }], items: [{ Value: 'before' }] }
+    const before = JSON.stringify(doc)
+    const result = readRows(doc, {})
+    expect(result.columns).toEqual([{ name: 'Value' }])
+    expect(result.rows).toEqual([{ row: 1, values: { Value: 'before' } }])
+    expect(readRows(doc, { search: 'BEFORE' }).matched).toBe(1)
+    expect(JSON.stringify(doc)).toBe(before)
+
+    editRows(doc, { update: [{ row: 1, values: { Value: 'after' } }], add: [{ Value: 'new' }] })
+    expect(doc.items).toEqual([{ Value: 'after' }, { Value: 'new' }])
+    expect(readRows(doc, {}).rows.map((row) => row.values.Value)).toEqual(['after', 'new'])
+    expect(doc.columns[0]!.expression).toBe(expression)
+  })
+
   test('cells as text, computed columns as what they show', () => {
     const result = readRows(table(), {})
     expect(result.rowCount).toBe(4)

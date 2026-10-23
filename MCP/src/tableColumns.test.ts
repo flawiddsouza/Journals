@@ -105,6 +105,18 @@ describe('editColumns', () => {
     expect(doc.items[0]!.Double).toBe('9')
   })
 
+  test.each(['', 'Input (Plain Text)'] as const)('explicitly setting stored type %s clears an old expression without losing cells', (type) => {
+    const doc = table()
+    doc.columns[0]!.expression = 'return "old formula"'
+    editColumns(doc, { update: [{ column: 'Item', label: 'Product' }] })
+    expect(doc.columns[0]!.expression).toBe('return "old formula"')
+    editColumns(doc, { update: [{ column: 'Item', type }] })
+    expect(doc.columns[0]).not.toHaveProperty('expression')
+    expect(doc.items.map((row) => row.Item)).toEqual(['milk', 'eggs'])
+    editRows(doc, { update: [{ row: 1, values: { Item: 'rice' } }] })
+    expect(readRows(doc, { columns: ['Item'] }).rows[0]!.values.Item).toBe('rice')
+  })
+
   test('a bad batch changes nothing', () => {
     const doc = table()
     const before = JSON.stringify(doc)

@@ -684,6 +684,48 @@ async function checks(base: string, api: string) {
         reread.data.rows[1].values.Amount === '<i>not italic</i>',
       reread.raw,
     )
+
+    // The app changes the type without deleting an old expression. Seed the
+    // same saved state, then use the MCP tools to read and edit its cells.
+    const recovered = (await call(T, 'create_page', { name: 'Recovered inputs', type: 'Table', section: sec })).data?.id as number
+    const expression = 'throw new Error("inactive formula ran")'
+    const recoveredDoc = {
+      columns: [{ name: 'Default', expression }, { name: 'Input', type: '', expression }, { name: 'Plain', type: 'Input (Plain Text)', expression }],
+      items: [{ Default: 'before default', Input: 'before input', Plain: 'before\nplain' }], totals: {},
+    }
+    await json(jwt, 'PUT', `/pages/${recovered}`, {
+      pageContent: JSON.stringify(recoveredDoc),
+      baseRevision: (await call(T, 'get_table_config', { page: recovered })).data?.revision,
+    })
+    const recoveredRows = await call(T, 'get_table_rows', { page: recovered, search: 'before' })
+    ok('stored columns with old formulas read and search their stored cells',
+      !recoveredRows.err && recoveredRows.data?.matched === 1 && recoveredRows.data.columns.every((column: any) => !column.computed) &&
+        JSON.stringify(recoveredRows.data.rows[0].values) === JSON.stringify(recoveredDoc.items[0]), recoveredRows.raw)
+    const recoveredConfig = await call(T, 'get_table_config', { page: recovered })
+    ok('stored columns with old formulas are profiled from their stored cells',
+      !recoveredConfig.err && recoveredConfig.data?.profiles.every((profile: any) => profile.kind === 'text' && profile.nonEmpty === 1 && !profile.computed), recoveredConfig.raw)
+    const recoveredHistory = await historyOf(recovered)
+    const values = { Default: 'after default', Input: 'after input', Plain: 'after\nplain' }
+    const recoveredEdit = await call(T, 'edit_table_rows', {
+      page: recovered, revision: recoveredRows.data?.revision,
+      update: [{ row: 1, values }], add: [{ Default: 'added' }],
+    })
+    const recoveredSaved = JSON.parse(await contentOf(recovered))
+    const recoveredReread = await call(T, 'get_table_rows', { page: recovered })
+    ok('stored columns with old formulas accept edits and additions through the API',
+      !recoveredEdit.err && !recoveredReread.err && recoveredReread.data?.revision === recoveredEdit.data?.revision &&
+        JSON.stringify(recoveredSaved.items) === JSON.stringify([values, { Default: 'added', Input: '', Plain: '' }]) &&
+        recoveredSaved.columns.every((column: any) => column.expression === expression) &&
+        JSON.stringify(recoveredReread.data.rows[0].values) === JSON.stringify(values) &&
+        (await historyOf(recovered)) === recoveredHistory + 1, [recoveredEdit.raw, recoveredReread.raw])
+    const recoveredType = await call(T, 'edit_table_columns', {
+      page: recovered, revision: recoveredReread.data?.revision, update: [{ column: 'Input', type: '' }],
+    })
+    const recoveredTypeSaved = JSON.parse(await contentOf(recovered))
+    ok('explicitly choosing a stored type still clears the old expression and keeps its cells',
+      !recoveredType.err && !('expression' in recoveredTypeSaved.columns[1]) &&
+        recoveredTypeSaved.columns[0].expression === expression && recoveredTypeSaved.columns[2].expression === expression &&
+        JSON.stringify(recoveredTypeSaved.items) === JSON.stringify(recoveredSaved.items), recoveredType.raw)
   }
 
   // ---- page history: what each save changed, and putting a version back

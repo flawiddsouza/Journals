@@ -1,5 +1,5 @@
 import { CodecError } from './lines/inline'
-import { type TableColumn, type TableDocument, isComputed } from './tableDoc'
+import { type TableColumn, type TableDocument } from './tableDoc'
 
 /**
  * Adding, changing, removing and ordering the columns of a Table page, the way
@@ -118,8 +118,9 @@ export function editColumns(doc: TableDocument, edit: ColumnEdit): { columns: st
 
   for (const { column: name, name: renamed, width, ...options } of update) {
     const column = find(nowCalled(name))
-    if (options.type !== undefined && isComputed(column)) {
-      // Back to a stored column: without its expression it holds what is typed.
+    if (options.type !== undefined) {
+      // Both offered types store cells. An explicit type choice also clears
+      // an expression left behind by the app's type switch.
       delete column.expression
     }
     Object.assign(column, options)

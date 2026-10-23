@@ -44,14 +44,22 @@ describe('profileColumn', () => {
     expect(profile.topValues).toBeUndefined()
   })
 
+  test('a stored column with an old formula is profiled from its cells', () => {
+    for (const type of [undefined, '', 'Input (Plain Text)'] as const) {
+      const profile = profileColumn({ name: 'A', type, expression: 'return 999' }, items)
+      expect(profile).toMatchObject({ kind: 'numeric', nonEmpty: 5, min: 3, max: 10 })
+      expect(profile.computed).toBeUndefined()
+    }
+  })
+
   test('distinct counting is bounded', () => {
     const many = Array.from({ length: 600 }, (_, i) => ({ A: `v${i}` }))
     expect(profileColumn({ name: 'A' }, many).distinct).toBe('500+')
   })
 })
 
-test('chooseSample picks the rows that break expressions, not just the first ones', () => {
-  const columns = [{ name: 'A' }]
+test('chooseSample includes awkward stored values even when an old expression remains', () => {
+  const columns = [{ name: 'A', expression: 'return 999' }]
   const items = Array.from({ length: 50 }, (_, i) => ({ A: String(i) }))
   items[20] = { A: '' }
   items[30] = { A: 'not a number' }

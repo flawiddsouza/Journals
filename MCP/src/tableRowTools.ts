@@ -23,7 +23,7 @@ const columnOptions = {
   type: z
     .enum(COLUMN_OPTIONS.type)
     .optional()
-    .describe("'' is a normal cell, 'Input (Plain Text)' drops formatting on entry. A computed column is made by set_table_script, not here. Setting type on a computed column turns it back into a stored one and discards its script"),
+    .describe("'' is a normal cell, 'Input (Plain Text)' drops formatting on entry. A computed column is made by set_table_script, not here. Setting either stored type discards any saved expression on that column"),
   autocomplete: z.enum(COLUMN_OPTIONS.autocomplete).optional().describe("'Yes' suggests the column's existing values while typing"),
   filterable: z.enum(COLUMN_OPTIONS.filterable).optional().describe("'Yes' gives the column a filter button in the app. Which values are filtered is chosen in the app and is not saved"),
   width: z.string().optional().describe("A length like 120px or 12em. '' means automatic"),
