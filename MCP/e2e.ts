@@ -748,6 +748,80 @@ async function checks(base: string, api: string) {
     const logChange = (await call(T, 'get_page_history', { page: log, entry: logEntries[0].id, compare: 'current' })).data?.changes?.rows?.changes?.[0]?.cells?.Note
     ok('page history shows a plain-text cell as its text', logChange?.before === 'one & [two]\nthree' && logChange?.after === 'one & [two]\nthree\nfour', JSON.stringify(logChange))
 
+    // An older writer stored <br> in plain-text cells. Converting that spelling
+    // to the editor's newline leaves the visible note unchanged.
+    const logLegacy = JSON.parse(await contentOf(log))
+    logLegacy.items[0].Note = logLegacy.items[0].Note.replace(/\n/g, '<br>')
+    await json(jwt, 'PUT', `/pages/${log}`, {
+      pageContent: JSON.stringify(logLegacy),
+      baseRevision: (await call(T, 'get_table_rows', { page: log })).data?.revision,
+    })
+    await call(T, 'edit_table_rows', {
+      page: log,
+      revision: (await call(T, 'get_table_rows', { page: log })).data?.revision,
+      update: [{ row: 1, values: { Note: 'one & [two]\nthree\nfour' } }],
+    })
+    const logConvertedEntries = (await call(T, 'get_page_history', { page: log })).data?.entries ?? []
+    const logConverted = await call(T, 'get_page_history', { page: log, entry: logConvertedEntries[0].id, compare: 'current' })
+    ok(
+      'page history ignores a plain-text line-break storage conversion',
+      !logConverted.err && logConverted.data?.changes?.rows?.changed === 0 && logConverted.data.changes.rows.changes.length === 0 &&
+        JSON.parse(await contentOf(log)).items[0].Note === 'one &amp; [two]\nthree\nfour',
+      logConverted.raw,
+    )
+
+    const logCalculated = JSON.parse(await contentOf(log))
+    logCalculated.items[0].Note = logCalculated.items[0].Note.replace(/\n/g, '<br>')
+    logCalculated.columns.push({ name: 'Entries', type: 'Computed', expression: "return item.Note.split('\\n').length" })
+    logCalculated.columns[0].style = "return item.Entries > 1 ? 'color: green' : 'color: red'"
+    logCalculated.totals.Entries = 'return items.reduce((sum, row) => sum + row.Entries, 0)'
+    await json(jwt, 'PUT', `/pages/${log}`, {
+      pageContent: JSON.stringify(logCalculated),
+      baseRevision: (await call(T, 'get_table_rows', { page: log })).data?.revision,
+    })
+    await call(T, 'edit_table_rows', {
+      page: log,
+      revision: (await call(T, 'get_table_rows', { page: log })).data?.revision,
+      update: [{ row: 1, values: { Note: 'one & [two]\nthree\nfour' } }],
+    })
+    const calculatedEntries = (await call(T, 'get_page_history', { page: log })).data?.entries ?? []
+    const calculatedHistory = await call(T, 'get_page_history', { page: log, entry: calculatedEntries[0].id, compare: 'current' })
+    const calculatedCells = calculatedHistory.data?.changes?.rows?.changes?.[0]?.cells
+    ok(
+      'page history exposes calculated values, formatting and totals when the note text is unchanged',
+      !calculatedHistory.err && calculatedHistory.data?.changes?.rows?.changed === 1 &&
+        calculatedCells?.Entries?.before === '1' && calculatedCells.Entries.after === '3' &&
+        calculatedCells.Note.before === calculatedCells.Note.after &&
+        calculatedCells.Note.beforeStyle.includes('color: red') && calculatedCells.Note.afterStyle.includes('color: green') &&
+        calculatedHistory.data.changes.totals[0].before === '1' && calculatedHistory.data.changes.totals[0].after === '3',
+      calculatedHistory.raw,
+    )
+
+    const emptyTotals = (await call(T, 'create_page', { name: 'Empty totals', type: 'Table', section: historySec })).data?.id as number
+    const emptyTotalsDoc = { columns: [{ name: 'Value' }], items: [], totals: { Value: 'return items.length' } }
+    await json(jwt, 'PUT', `/pages/${emptyTotals}`, {
+      pageContent: JSON.stringify(emptyTotalsDoc),
+      baseRevision: (await call(T, 'get_page_history', { page: emptyTotals })).data?.revision,
+    })
+    await call(T, 'edit_table_rows', {
+      page: emptyTotals,
+      revision: (await call(T, 'get_table_rows', { page: emptyTotals })).data?.revision,
+      add: [{ Value: 'one' }],
+    })
+    const emptyTotalsEntries = (await call(T, 'get_page_history', { page: emptyTotals })).data?.entries ?? []
+    const emptyTotalsHistory = await call(T, 'get_page_history', { page: emptyTotals, entry: emptyTotalsEntries[0].id, compare: 'current' })
+    ok('page history preserves zero totals for an empty snapshot',
+      !emptyTotalsHistory.err && emptyTotalsHistory.data?.changes?.totals?.[0]?.before === '0' && emptyTotalsHistory.data.changes.totals[0].after === '1', emptyTotalsHistory.raw)
+
+    const logRunaway = JSON.parse(await contentOf(log))
+    logRunaway.columns.find((column: any) => column.name === 'Entries').expression = 'while (true) {}'
+    await json(jwt, 'PUT', `/pages/${log}`, {
+      pageContent: JSON.stringify(logRunaway), baseRevision: calculatedHistory.data?.revision,
+    })
+    const runawayEntries = (await call(T, 'get_page_history', { page: log })).data?.entries ?? []
+    const runawayHistory = await call(T, 'get_page_history', { page: log, entry: runawayEntries[0].id, compare: 'current' })
+    ok('page history refuses an unfinished calculation rather than claiming no changes', runawayHistory.err && runawayHistory.text.includes('too long'), runawayHistory.raw)
+
     const diary = (await call(T, 'create_page', { name: 'Diary', type: 'FlatPageV2', section: historySec })).data?.id as number
     const first = await call(T, 'edit_page', { page: diary, revision: (await call(T, 'get_page', { page: diary })).data?.revision, after: 0, text: 'one\ntwo\nthree' })
     await call(T, 'edit_page', { page: diary, revision: first.data?.revision, start: 2, end: 2, text: 'TWO' })

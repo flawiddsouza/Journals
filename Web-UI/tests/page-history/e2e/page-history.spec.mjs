@@ -202,6 +202,81 @@ test('Current version shows what the newest save changed, and has no Restore or 
     await expect(preview).not.toContainText('four')
 })
 
+test('Table history ignores plain-text line-break storage conversions', async ({ page }) => {
+    await openHistory(page, '?type=Table&plain&storage-only')
+    await page.getByRole('button', { name: 'View' }).nth(1).click()
+    const preview = page.locator('.table-history-preview')
+    await expect(preview.locator('.table-history-meta')).toHaveText('Same as the version before it.')
+    await expect(preview.locator('.table-history-grid')).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'View' }).nth(0).click()
+    await expect(preview.locator('.table-history-meta')).toHaveText(
+        'Compared with the version before it: 1 row changed.',
+    )
+    await expect(preview.locator('ins')).toContainText('three')
+})
+
+test('Table history includes calculated changes when the note looks identical', async ({ page }) => {
+    await openHistory(page, '?type=Table&plain&storage-only&calculated')
+    await page.getByRole('button', { name: 'View' }).nth(1).click()
+    const preview = page.locator('.table-history-preview')
+    await expect(preview.locator('.table-history-meta')).toHaveText('Compared with the version before it: 2 rows changed.')
+    await expect(preview.getByRole('columnheader', { name: 'Entries calculated' })).toBeVisible()
+    const rows = preview.locator('tbody tr')
+    await expect(rows).toHaveCount(2)
+    await expect(rows.first().locator('del')).toHaveText('1')
+    await expect(rows.first().locator('ins')).toHaveText('2')
+    await expect(rows.first().locator('.table-history-cell-plain').first()).toHaveText('one\ntwo', { useInnerText: true })
+    expect(await page.evaluate(() => window.pageHistoryRequests)).not.toEqual(expect.arrayContaining(['/page-history/restore/3']))
+})
+
+test('Table formatting changes render both original appearances', async ({ page }) => {
+    await openHistory(page, '?type=Table&formatting')
+    await page.getByRole('button', { name: 'View' }).nth(1).click()
+    const preview = page.locator('.table-history-preview')
+    await expect(preview.locator('.table-history-cell-before em')).toHaveText('same words')
+    await expect(preview.locator('.table-history-cell-after strong')).toHaveText('same words')
+    await expect(preview.locator('.table-history-cell-before')).toContainText('Before')
+    await expect(preview.locator('.table-history-cell-after')).toContainText('After')
+    await expect(preview.locator('.table-history-cell-before em')).toHaveCSS('font-style', 'italic')
+    await expect(preview.locator('.table-history-cell-after strong')).toHaveCSS('font-weight', '700')
+})
+
+test('a non-terminating calculation stays cancellable when choosing another version', async ({ page }) => {
+    await openHistory(page, '?type=Table&hanging')
+    await page.getByRole('button', { name: 'View' }).nth(1).click()
+    const preview = page.locator('.table-history-preview')
+    await expect(preview).toContainText('Comparing versions...')
+    await page.getByRole('button', { name: 'View' }).nth(2).click()
+    await expect(preview.locator('.table-history-meta')).toHaveText('Compared with the version before it: 1 row added.')
+})
+
+test('a calculation timeout reports the failed comparison instead of no changes', async ({ page }) => {
+    await openHistory(page, '?type=Table&hanging')
+    await page.getByRole('button', { name: 'View' }).nth(1).click()
+    const preview = page.locator('.table-history-preview')
+    await expect(preview.getByRole('alert')).toHaveText('The calculations took too long to compare.', { timeout: 10000 })
+    await expect(preview.getByRole('button', { name: 'Try again' })).toBeVisible()
+    await expect(preview).not.toContainText('Same as the version before it.')
+})
+
+test('Table styles, total values and settings show their before and after', async ({ page }) => {
+    await openHistory(page, '?type=Table&styled')
+    await page.getByRole('button', { name: 'View' }).nth(1).click()
+    const preview = page.locator('.table-history-preview')
+    const before = preview.locator('.table-history-grid .table-history-cell-before .table-history-cell-value').first()
+    const after = preview.locator('.table-history-grid .table-history-cell-after .table-history-cell-value').first()
+    await expect(before).toHaveCSS('color', 'rgb(255, 0, 0)')
+    await expect(after).toHaveCSS('color', 'rgb(0, 128, 0)')
+    await expect(before).toHaveCSS('font-size', '12px')
+    await expect(after).toHaveCSS('font-size', '18px')
+    await expect(preview.locator('.table-history-total .table-history-cell-before .table-history-cell-value')).toHaveText('2')
+    await expect(preview.locator('.table-history-total .table-history-cell-after .table-history-cell-value')).toHaveText('3')
+    const widths = preview.locator('.table-history-setting').filter({ hasText: 'Column widths' })
+    await expect(widths.locator('del')).toContainText('100px')
+    await expect(widths.locator('ins')).toContainText('150px')
+})
+
 test('Table history keeps the line breaks of a plain-text column', async ({
     page,
 }) => {

@@ -52,6 +52,80 @@ describe('diffTableContent', () => {
         expect(diffTableContent(older, newer).rows).toEqual([])
     })
 
+    it('ignores a plain-text line-break storage conversion and keeps both original rows', () => {
+        const columns = [{ name: 'Note', type: 'Input (Plain Text)' }]
+        const older = table(columns, [{ Note: 'first<br>second' }])
+        const newer = table(columns, [{ Note: 'first\nsecond' }])
+        const diff = diffTableContent(older, newer)
+        expect(diff.rows).toEqual([])
+        expect(diff.rowsAligned).toEqual([
+            { type: 'same', before: older.items[0], after: newer.items[0], rowNumber: 1 },
+        ])
+    })
+
+    it('still counts real line-break edits and rich-text cell changes', () => {
+        const plain = [{ name: 'Note', type: 'Input (Plain Text)' }]
+        expect(diffTableContent(
+            table(plain, [{ Note: 'first second' }]),
+            table(plain, [{ Note: 'first\nsecond' }]),
+        ).rows).toHaveLength(1)
+        expect(diffTableContent(
+            table(['Note'], [{ Note: 'first<br>second' }]),
+            table(['Note'], [{ Note: 'first\nsecond' }]),
+        ).rows).toHaveLength(1)
+    })
+
+    it('shows calculated changes even when the stored notes display identically', () => {
+        const columns = [
+            { name: 'Note', type: 'Input (Plain Text)' },
+            { name: 'Entries', type: 'Computed', expression: "return item.Note.split('\\n').length" },
+            { name: 'Doubled', type: 'Computed', expression: 'return twice(item.Entries)' },
+        ]
+        const older = table(columns, [{ Note: 'one<br>two' }], { customFunctions: 'function twice(n) { return n * 2 }' })
+        const newer = table(columns, [{ Note: 'one\ntwo' }], { customFunctions: older.customFunctions })
+        const original = JSON.stringify([older, newer])
+        const diff = diffTableContent(older, newer)
+        expect(diff.rows.map((row) => row.rowNumber)).toEqual([1])
+        expect(diff.cellsOlder.get(older.items[0]).Note.html).toBe(diff.cellsNewer.get(newer.items[0]).Note.html)
+        expect(diff.cellsOlder.get(older.items[0]).Entries.html).toBe('1')
+        expect(diff.cellsNewer.get(newer.items[0]).Entries.html).toBe('2')
+        expect(diff.cellsOlder.get(older.items[0]).Doubled.html).toBe('2')
+        expect(diff.cellsNewer.get(newer.items[0]).Doubled.html).toBe('4')
+        expect(JSON.stringify([older, newer])).toBe(original)
+    })
+
+    it('keeps row alignment when an insertion changes following running totals', () => {
+        const columns = ['Amount', { name: 'Running', type: 'Computed', expression: 'return items.slice(0, rowIndex + 1).reduce((sum, row) => sum + Number(row.Amount), 0)' }]
+        const older = table(columns, [{ Amount: '10' }, { Amount: '20' }])
+        const newer = table(columns, [{ Amount: '5' }, { Amount: '10' }, { Amount: '20' }])
+        const diff = diffTableContent(older, newer)
+        expect(diff.rows.map((row) => [row.type, row.rowNumber])).toEqual([['add', 1], ['change', 2], ['change', 3]])
+        expect(diff.rows[1].before).toEqual({ Amount: '10' })
+        expect(diff.cellsOlder.get(diff.rows[1].before).Running.html).toBe('10')
+        expect(diff.cellsNewer.get(diff.rows[1].after).Running.html).toBe('15')
+    })
+
+    it('compares row styles, column styles, markup, totals and setting values', () => {
+        const columns = [{ name: 'Note', style: "return item.Note.includes('strong') ? 'color: green' : 'color: red'" }]
+        const older = table(columns, [{ Note: '<em>same</em>' }], { rowStyle: "return 'font-size: 12px'", totals: { Note: 'return items.length' }, widths: { Note: '100px' } })
+        const newer = table(columns, [{ Note: '<strong>same</strong>' }], { rowStyle: "return 'font-size: 18px'", totals: { Note: 'return items.length * 2' }, widths: { Note: '150px' } })
+        const diff = diffTableContent(older, newer)
+        expect(diff.rows).toHaveLength(1)
+        expect(diff.cellsOlder.get(older.items[0]).Note.style).toContain('font-size: 12px; color: red')
+        expect(diff.cellsNewer.get(newer.items[0]).Note.style).toContain('font-size: 18px; color: green')
+        expect(diff.totalsChanged).toEqual([{ name: 'Note', before: '1', after: '2' }])
+        expect(diff.settingsOtherValues.find((setting) => setting.label === 'Column widths')).toMatchObject({ before: expect.stringContaining('100px'), after: expect.stringContaining('150px') })
+    })
+
+    it('uses empty HTML for null calculated values and preserves literal null text', () => {
+        const older = table([{ name: 'Value', type: 'Computed', expression: 'return null' }], [{}])
+        const newer = table([{ name: 'Value', type: 'Computed', expression: "return 'null'" }], [{}])
+        const diff = diffTableContent(older, newer)
+        expect(diff.cellsOlder.get(older.items[0]).Value.html).toBe('')
+        expect(diff.cellsNewer.get(newer.items[0]).Value.html).toBe('null')
+        expect(diff.rows).toHaveLength(1)
+    })
+
     it('names the column fields that changed and notices reordering', () => {
         const older = table([{ name: 'A', type: 'Computed', expression: '1' }, 'B'], [])
         const newer = table(['B', { name: 'A', type: 'Computed', expression: '2' }], [])

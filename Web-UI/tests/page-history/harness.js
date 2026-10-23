@@ -28,6 +28,11 @@ const pageContentFlatPageV2 = {
 }
 // ?plain makes Note an "Input (Plain Text)" column, whose cells hold real line breaks.
 const plainText = new URLSearchParams(location.search).has('plain')
+const storageOnly = new URLSearchParams(location.search).has('storage-only')
+const calculated = new URLSearchParams(location.search).has('calculated')
+const formatting = new URLSearchParams(location.search).has('formatting')
+const hanging = new URLSearchParams(location.search).has('hanging')
+const styled = new URLSearchParams(location.search).has('styled')
 const tableContent = (...notes) =>
     JSON.stringify({
         columns: [
@@ -39,6 +44,10 @@ const tableContent = (...notes) =>
                 align: '',
                 autocomplete: '',
             },
+            ...(calculated || hanging ? [{
+                name: 'Entries', label: 'Entries', type: 'Computed',
+                expression: "return item.Note.split('\\n').length",
+            }] : []),
         ],
         items: notes.map((Note) => ({ Note })),
         totals: {},
@@ -49,10 +58,16 @@ const tableContent = (...notes) =>
         customFunctions: '',
         note: '',
     })
-const pageContentTable = plainText
+const pageContentTable = formatting
+    ? {
+          3: tableContent('<strong>same words</strong>'),
+          2: tableContent('<em>same words</em>'),
+          1: tableContent('same words'),
+      }
+    : plainText
     ? {
           3: tableContent('one\ntwo', 'keep\nme'),
-          2: tableContent('one', 'keep\nme'),
+          2: storageOnly ? tableContent('one<br>two', 'keep<br>me') : tableContent('one', 'keep\nme'),
           1: tableContent('one', 'keep\nme'),
       }
     : {
@@ -60,6 +75,22 @@ const pageContentTable = plainText
           2: tableContent('one', 'two'),
           1: tableContent('one'),
       }
+if (hanging) {
+    const content = JSON.parse(pageContentTable[3])
+    content.columns.find((column) => column.name === 'Entries').expression = 'while (true) {}'
+    pageContentTable[3] = JSON.stringify(content)
+}
+if (styled) {
+    for (const id of [1, 2, 3]) {
+        const content = JSON.parse(pageContentTable[id])
+        content.columns[0].style = id === 3 ? "return 'color: green'" : "return 'color: red'"
+        content.rowStyle = id === 3 ? "return 'font-size: 18px'" : "return 'font-size: 12px'"
+        content.widths.Note = id === 3 ? '150px' : '100px'
+        content.totals.Note = 'return items.length'
+        pageContentTable[id] = JSON.stringify(content)
+    }
+}
+
 // The page as it is now: the save after version 3 added a fourth row, or a
 // third line to the plain-text note.
 const pageContentCurrentTable = plainText

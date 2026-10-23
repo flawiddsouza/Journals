@@ -6,6 +6,8 @@ import { linesOf } from './lines/edit'
 import { diffPageLines, diffTableDocuments, textDiff } from './pageHistory'
 import { startupHint, parseTableDocument } from './tableDoc'
 import { cellText, columnText } from './tableRows'
+import { htmlToText } from './lines/flat'
+import { TableHistoryCalculationError } from './tableHistorySnapshot'
 import { ToolError, assertWritable, loadPage, mutates, pageSchema, readOnly, revisionSchema, run, savePage, writeDenied } from './toolkit'
 
 /**
@@ -45,15 +47,20 @@ function windowOf<T>(items: T[], start: number | undefined, limit: number | unde
 function tableChanges(olderContent: string | null, newerContent: string | null, start?: number, limit?: number) {
   const older = parseTableDocument(olderContent)
   const newer = parseTableDocument(newerContent)
-  const diff = diffTableDocuments(older, newer)
-  const stored = (doc: typeof older) => doc.columns.filter((c) => c.type !== 'Computed').map((c) => c.name)
+  const diff = (() => {
+    try { return diffTableDocuments(older, newer) }
+    catch (error) {
+      if (error instanceof TableHistoryCalculationError) throw new ToolError(error.message)
+      throw error
+    }
+  })()
   // A cell reads as get_table_rows reads it, so a plain-text column comes back as its text.
   const textIn = (doc: typeof older, name: string, html: unknown) => {
     const column = doc.columns.find((c) => c.name === name)
-    return column ? columnText(column, html) : cellText(html)
+    return column?.type === 'Computed' ? htmlToText(String(html ?? '')) : column ? columnText(column, html) : cellText(html)
   }
-  const filled = (doc: typeof older, row: Record<string, string>) =>
-    Object.fromEntries(stored(doc).map((name) => [name, textIn(doc, name, row[name])]).filter(([, text]) => text))
+  const filled = (doc: typeof older, row: Record<string, string>, cells: typeof diff.cellsOlder) =>
+    Object.fromEntries(doc.columns.map(({ name }) => [name, textIn(doc, name, cells.get(row)?.[name]?.html)]).filter(([, text]) => text))
 
   const rows = windowOf(diff.rows, start, limit)
   return {
@@ -61,6 +68,7 @@ function tableChanges(olderContent: string | null, newerContent: string | null, 
       added: diff.columnsAdded,
       removed: diff.columnsRemoved,
       changed: diff.columnsChanged,
+      calculated: newer.columns.filter((column) => column.type === 'Computed').map((column) => column.name),
       ...(diff.columnsReordered ? { orderNow: newer.columns.map((c) => c.name) } : {}),
     },
     rows: {
@@ -71,17 +79,27 @@ function tableChanges(olderContent: string | null, newerContent: string | null, 
       start: rows.start,
       end: rows.end,
       changes: rows.shown.map((r) => {
-        if (r.type === 'add') return { type: 'added', row: r.rowNumber, cells: filled(newer, r.after) }
-        if (r.type === 'remove') return { type: 'removed', row: r.rowNumber, cells: filled(older, r.before) }
+        if (r.type === 'add') return { type: 'added', row: r.rowNumber, cells: filled(newer, r.after, diff.cellsNewer) }
+        if (r.type === 'remove') return { type: 'removed', row: r.rowNumber, cells: filled(older, r.before, diff.cellsOlder) }
         const cells = Object.fromEntries(
           diff.rowColumns
-            .map((name) => [name, { before: textIn(older, name, r.before[name]), after: textIn(newer, name, r.after[name]) }] as const)
-            .filter(([, cell]) => cell.before !== cell.after),
+            .flatMap((name) => {
+              const before = diff.cellsOlder.get(r.before)![name]!
+              const after = diff.cellsNewer.get(r.after)![name]!
+              if (before.html === after.html && before.style === after.style) return []
+              return [[name, {
+                before: textIn(older, name, before.html), after: textIn(newer, name, after.html),
+                beforeHtml: before.html, afterHtml: after.html, beforeStyle: before.style, afterStyle: after.style,
+              }] as const]
+            }),
         )
         return { type: 'changed', row: r.rowNumber, cells }
       }),
     },
-    settings: diff.settings.map((s) => ({ setting: s.setting, diff: textDiff(String(s.before), String(s.after)) })),
+    totals: diff.totalsChanged.map((total) => ({
+      column: total.name, before: cellText(total.before), after: cellText(total.after), beforeHtml: total.before, afterHtml: total.after,
+    })),
+    settings: [...diff.settings, ...diff.settingsOtherValues].map((s) => ({ setting: s.setting, diff: textDiff(String(s.before), String(s.after)) })),
     alsoChanged: diff.settingsOther,
   }
 }
@@ -109,7 +127,7 @@ export function registerHistoryTools(server: McpServer, { username, canWrite }: 
         'The Page History of any page, as the app keeps it: every save keeps the page as it read before, up to 100 entries plus pinned ones.',
         'Without entry it lists the entries, newest first. An entry is the page as it read until replacedAt.',
         'With entry it shows what differs from the entry before it, which is what one save changed. compare "current" shows instead what changed from that entry to the page now, which is what restore_page_history would undo.',
-        `Changes are shown for ${DIFFED_TYPES.join(', ')} pages. A Table reports columns, rows and settings, and rows are compared on the columns both versions have, so a column added or removed is reported once as a column. A line page reports hunks: " ", "-" or "+", the line number, a tab and the line, where a removed line carries its old number. Long results come in windows of changed rows or hunks.`,
+        `Changes are shown for ${DIFFED_TYPES.join(', ')} pages. A Table compares stored and calculated cells, formatting, totals and settings using each snapshot's saved data and formulas. Changed cells include their displayed text, HTML and styles before and after. Rows are aligned on stored columns, so an added or removed column is reported once as a column. Calculations have a five-second execution budget and never run startup or pull scripts. A line page reports hunks: " ", "-" or "+", the line number, a tab and the line, where a removed line carries its old number. Long results come in windows of changed rows or hunks.`,
       ].join('\n'),
       inputSchema: z.object({
         page: pageSchema,

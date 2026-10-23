@@ -162,6 +162,53 @@ const HARNESS = `
   var evaluated = 1
   var started = Date.now()
 
+  // A history snapshot shares one compute cache across cells, styles and
+  // totals, in the same order as the table preview. Evaluating each column
+  // separately changes the result of circular dependencies.
+  if (input.target === 'history') {
+    var displayFns = new Map()
+    var enrichedCache = new Map()
+    var historySeen = {}
+    function html(value) { return value == null ? '' : String(value) }
+    function enrichedAt(index) {
+      if (enrichedCache.has(index)) return enrichedCache.get(index)
+      var enriched = Object.assign({}, items[index])
+      for (var name in computedByName) enriched[name] = computeCell(index, name, historySeen)
+      enrichedCache.set(index, enriched)
+      return enriched
+    }
+    function display(code, args) {
+      if (!code) return ''
+      try {
+        var source = input.customFunctions + '\\n' + code
+        if (!displayFns.has(source)) displayFns.set(source, new Function('items', 'rowIndex', 'item', 'columnName', source))
+        var fn = displayFns.get(source)
+        return html(fn.apply(undefined, args))
+      } catch (e) { return 'error evaluating given expression' }
+    }
+    function style(code, index, name) {
+      return code ? display(code, [items, index, enrichedAt(index), name]) : ''
+    }
+    var cells = items.map(function (row, index) {
+      var rowStyle = style(input.rowStyle, index, null)
+      return Object.fromEntries(columns.map(function (column) {
+        var value = column.type === 'Computed'
+          ? column.expression ? html(computeCell(index, column.name, historySeen)) : ''
+          : column.type === 'Input (Plain Text)' ? html(row[column.name]).replace(/\\n/g, '<br>') : html(row[column.name])
+        return [column.name, {
+          html: value,
+          style: (column.wrap === 'No' ? 'white-space: nowrap' : 'word-break: break-word') +
+            '; text-align: ' + (column.align || 'left') + '; ' + rowStyle + '; ' + style(column.style, index, column.name),
+        }]
+      }))
+    })
+    var totals = Object.fromEntries(columns.filter(function (column) { return input.totals && input.totals[column.name] }).map(function (column) {
+      return [column.name, display(input.totals[column.name], [items.map(function (_, index) { return enrichedAt(index) }), null, null, column.name])]
+    }))
+    return { history: { cells: cells, totals: totals }, wallMs: Date.now() - started,
+      outputs: [], errors: [], rowsEvaluated: items.length, depCount: depCount, depsPerRow: [], compiled: true }
+  }
+
   // Constructing the function is where a syntax error surfaces, and a syntax
   // error is the likeliest thing a candidate expression has. Catch it here or
   // it escapes the sandbox and takes the whole tool call with it.
@@ -260,6 +307,7 @@ const HARNESS = `
 `
 
 type HarnessResult = {
+  history?: { cells: Record<string, { html: string; style: string }>[]; totals: Record<string, string> }
   wallMs: number
   outputs: { rowIndex: number; output: string }[]
   errors: { rowIndex: number; message: string }[]
@@ -305,6 +353,16 @@ export function evaluateScript(
     enrich: target !== 'startup' && target !== 'pull' && target !== 'customFns',
   }
 
+  const result = runHarness(input, options.timeoutMs ?? DEFAULT_TIMEOUT_MS, doc.items.length)
+  return summarise(target, doc, result, rowCap, options)
+}
+
+/** Display calculations only, with one cache and one execution budget. */
+export function evaluateTableHistory(doc: TableDocument, timeoutMs: number) {
+  return runHarness({ ...doc, target: 'history', customFunctions: doc.customFunctions ?? '', enrich: true }, timeoutMs, doc.items.length)
+}
+
+function runHarness(input: unknown, timeoutMs: number, rowsTotal: number): HarnessResult {
   // Compiled and invoked in one runInContext so the timeout covers the user's
   // code actually running, not just its construction. The context holds
   // nothing but the input: no require, no process, no fetch.
@@ -313,7 +371,6 @@ export function evaluateScript(
   // items.constructor.constructor, and with it process.env and JWT_SECRET.
   // The sandbox object has no prototype for the same reason: it is the
   // script's `this`.
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const sandbox = Object.assign(Object.create(null), { __input: JSON.stringify(input) })
   // afterEvaluate: what the script queues, a promise callback or the rest of
   // an async function, runs inside runInContext and under its timeout. By
@@ -339,7 +396,7 @@ export function evaluateScript(
         {
           rowIndex: -1,
           message: timedOut
-            ? `did not finish within ${timeoutMs}ms over ${doc.items.length} rows`
+            ? `did not finish within ${timeoutMs}ms over ${rowsTotal} rows`
             : String((error as Error)?.message ?? error),
         },
       ],
@@ -353,7 +410,7 @@ export function evaluateScript(
     }
   }
 
-  return summarise(target, doc, result, rowCap, options)
+  return result
 }
 
 function summarise(

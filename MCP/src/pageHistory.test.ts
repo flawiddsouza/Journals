@@ -33,6 +33,38 @@ describe('textDiff', () => {
 })
 
 describe('diffTableDocuments', () => {
+  test('calculated changes survive visually identical stored text and keep the inputs intact', () => {
+    const columns = [{ name: 'Note', type: 'Input (Plain Text)' as const }, { name: 'Entries', type: 'Computed' as const, expression: "return item.Note.split('\\n').length" }]
+    const older = { columns, items: [{ Note: 'one<br>two' }] }
+    const newer = { columns, items: [{ Note: 'one\ntwo' }] }
+    const original = JSON.stringify([older, newer])
+    const diff = diffTableDocuments(older, newer)
+    expect(diff.rows).toHaveLength(1)
+    expect(diff.cellsOlder.get(older.items[0]!)?.Entries?.html).toBe('1')
+    expect(diff.cellsNewer.get(newer.items[0]!)?.Entries?.html).toBe('2')
+    expect(JSON.stringify([older, newer])).toBe(original)
+  })
+
+  test('a non-terminating saved calculation has a bounded comparison', () => {
+    for (const expression of ['while (true) {}', 'Promise.resolve().then(() => { while (true) {} }); return 1']) {
+      const doc = { columns: [{ name: 'Value', type: 'Computed' as const, expression }], items: [{}] }
+      expect(() => diffTableDocuments(doc, doc, 30)).toThrow('too long')
+    }
+    const empty = { columns: [{ name: 'Value' }], items: [], totals: { Value: 'while (true) {}' } }
+    expect(() => diffTableDocuments(empty, empty, 30)).toThrow('too long')
+  })
+
+  test('plain-text line-break conversions match the app without hiding real edits', () => {
+    const columns = [{ name: 'Note', type: 'Input (Plain Text)' as const }]
+    const older = { columns, items: [{ Note: 'first<br>second' }] }
+    expect(diffTableDocuments(older, { columns, items: [{ Note: 'first\nsecond' }] }).rows).toEqual([])
+    expect(diffTableDocuments(older, { columns, items: [{ Note: 'first\nchanged' }] }).rows).toHaveLength(1)
+    expect(diffTableDocuments(
+      { columns: [{ name: 'Note' }], items: older.items },
+      { columns: [{ name: 'Note' }], items: [{ Note: 'first\nsecond' }] },
+    ).rows).toHaveLength(1)
+  })
+
   test('rows are numbered in the version they are in', () => {
     const columns = [{ name: 'Item' }]
     const diff = diffTableDocuments(

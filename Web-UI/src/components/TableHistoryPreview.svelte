@@ -2,8 +2,10 @@
 // A saved version of a Table, shown as what changed since the version before
 // it, with the whole table a click away.
 import { diffLines, diffWordsWithSpace } from 'diff'
+import { onDestroy } from 'svelte'
 import Table from './PageTypes/Table.svelte'
 import { diffTableContent, parseTableContent, rowsForDisplay } from '../helpers/tableHistoryDiff.js'
+import { createTableHistoryDiffLoader } from '../helpers/tableHistoryDiffLoader.js'
 
 export let pageContent = ''
 export let pageContentOlder = ''
@@ -16,10 +18,48 @@ const ROWS_PER_PAGE = 200
 let view = 'changes'
 let rowsShown = ROWS_PER_PAGE
 let gapsOpen = new Set()
+let diff = diffTableContent(parseTableContent(''), parseTableContent(''))
+let comparisonPending = false
+let comparisonVisible = false
+let comparisonError = ''
+let comparisonRequest = 0
+let comparisonIndicator
+const comparisonLoader = createTableHistoryDiffLoader()
+
+async function compareVersions(older, newer) {
+    const request = ++comparisonRequest
+    comparisonPending = true
+    comparisonVisible = false
+    comparisonError = ''
+    clearTimeout(comparisonIndicator)
+    comparisonIndicator = setTimeout(() => {
+        if (request === comparisonRequest) comparisonVisible = true
+    }, 150)
+    try {
+        const result = await comparisonLoader.load(older, newer)
+        if (!result || request !== comparisonRequest) return
+        if (result.error) comparisonError = result.error
+        else diff = result.diff
+    } catch {
+        if (request === comparisonRequest) comparisonError = 'Could not compare these versions.'
+    } finally {
+        if (request === comparisonRequest) {
+            clearTimeout(comparisonIndicator)
+            comparisonPending = false
+            comparisonVisible = false
+        }
+    }
+}
+
+onDestroy(() => {
+    comparisonRequest++
+    clearTimeout(comparisonIndicator)
+    comparisonLoader.cancel()
+})
 
 $: tableNewer = parseTableContent(pageContent)
 $: tableOlder = parseTableContent(pageContentOlder)
-$: diff = diffTableContent(tableOlder, tableNewer)
+$: if (hasOlder) compareVersions(tableOlder, tableNewer)
 $: if (diff) {
     rowsShown = ROWS_PER_PAGE
     gapsOpen = new Set()
@@ -32,7 +72,7 @@ $: display = rowsForDisplay(diff.rowsAligned, {
     gapsOpen,
     isChange: (row) =>
         row.type !== 'same' ||
-        gridColumnsChanged.some((column) => asText((column.side === 'newer' ? row.after : row.before)?.[column.name])),
+        gridColumnsChanged.some((column) => asText((column.side === 'newer' ? diff.cellsNewer.get(row.after) : diff.cellsOlder.get(row.before))?.[column.name]?.html)),
 })
 
 $: added = diff.rows.filter((row) => row.type === 'add').length
@@ -40,25 +80,21 @@ $: changed = diff.rows.filter((row) => row.type === 'change').length
 $: removed = diff.rows.filter((row) => row.type === 'remove').length
 $: hasColumnChanges =
     diff.columnsAdded.length || diff.columnsRemoved.length || diff.columnsChanged.length || diff.columnsReordered
-$: hasChanges = diff.rows.length || hasColumnChanges || diff.settings.length || diff.settingsOther.length
+$: hasChanges = diff.rows.length || hasColumnChanges || diff.settings.length || diff.settingsOther.length || diff.totalsChanged.length
 
-// The stored columns as the page has them now, then the ones whose stored
-// values it lost. A computed column holds no value to compare, so one that
-// stays computed is only listed above. side says which version's values a
-// column shows, and note is what the header says happened to it.
-const isComputed = (column) => column?.type === 'Computed'
+// Keep calculated columns in the grid too. side chooses which snapshot a new
+// or removed column displays; shared columns compare both rendered cells.
 $: gridColumns = [
-    ...tableNewer.columns.filter((column) => !isComputed(column)).map((column) => {
-        if (diff.rowColumns.includes(column.name)) return { ...column, side: 'both', note: '' }
-        const columnOlder = tableOlder.columns.find((c) => c.name === column.name)
-        return { ...column, side: 'newer', note: columnOlder ? 'was computed' : 'new' }
+    ...tableNewer.columns.map((column) => {
+        if (diff.rowColumns.includes(column.name)) return { ...column, side: 'both', note: column.type === 'Computed' ? 'calculated' : '' }
+        return { ...column, side: 'newer', note: 'new' }
     }),
     ...tableOlder.columns
-        .filter((column) => !isComputed(column) && !diff.rowColumns.includes(column.name))
+        .filter((column) => !diff.rowColumns.includes(column.name))
         .map((column) => ({
             ...column,
             side: 'older',
-            note: diff.columnsRemoved.includes(column.name) ? 'removed' : 'now computed',
+            note: 'removed',
         })),
 ]
 $: columnLabel = (name) => {
@@ -89,21 +125,22 @@ function cellWords(before, after) {
 // edited one is compared as text, and one whose text survived had only its
 // formatting changed.
 function cellOf(row, column) {
-    const html = (source) => {
-        const value = source?.[column.name] ?? ''
-        return isPlainText(column) ? String(value).replace(/\n/g, '<br>') : value
+    const empty = { html: '', style: '' }
+    const before = diff.cellsOlder.get(row.before)?.[column.name] ?? empty
+    const after = diff.cellsNewer.get(row.after)?.[column.name] ?? empty
+    if (row.type === 'add') return { kind: 'plain', ...(column.side === 'older' ? empty : after) }
+    if (row.type === 'remove') return { kind: 'plain', ...(column.side === 'newer' ? empty : before) }
+    if (column.side === 'newer') return { kind: 'plain', ...after }
+    if (column.side === 'older') return { kind: 'plain', ...before }
+    if (before.html === after.html && before.style === after.style) return { kind: 'plain', ...after }
+    const textBefore = asText(before.html)
+    const textAfter = asText(after.html)
+    // Show the actual old and new appearance when styling or rich markup is
+    // involved. Plain text retains the existing word-by-word highlights.
+    if (before.style !== after.style || textBefore === textAfter || /<(?!br\b)[a-z]/i.test(before.html + after.html)) {
+        return { kind: 'versions', before, after }
     }
-    if (row.type === 'add') return { kind: 'plain', html: column.side === 'older' ? '' : html(row.after) }
-    if (row.type === 'remove') return { kind: 'plain', html: column.side === 'newer' ? '' : html(row.before) }
-    if (column.side === 'newer') return { kind: 'plain', html: html(row.after) }
-    if (column.side === 'older') return { kind: 'plain', html: html(row.before) }
-    const before = html(row.before)
-    const after = html(row.after)
-    if (before === after) return { kind: 'plain', html: after }
-    const textBefore = asText(before)
-    const textAfter = asText(after)
-    if (textBefore === textAfter) return { kind: 'formatting', html: after }
-    return { kind: 'edit', before: textBefore, after: textAfter, words: cellWords(textBefore, textAfter) }
+    return { kind: 'edit', before: textBefore, after: textAfter, words: cellWords(textBefore, textAfter), style: after.style }
 }
 
 // A column option left blank means what the column form offers first
@@ -133,6 +170,7 @@ $: summary = [
     changed && plural(changed, 'row changed', 'rows changed'),
     removed && plural(removed, 'row removed', 'rows removed'),
     hasColumnChanges && 'columns changed',
+    diff.totalsChanged.length && 'totals changed',
     (diff.settings.length || diff.settingsOther.length) && 'settings changed',
 ].filter(Boolean)
 </script>
@@ -151,6 +189,11 @@ $: summary = [
         {#key pageContent}
             <Table pageContentOverride={pageContent} />
         {/key}
+    {:else if comparisonPending}
+        {#if comparisonVisible}<p class="table-history-meta">Comparing versions...</p>{/if}
+    {:else if comparisonError}
+        <p class="table-history-meta" role="alert">{comparisonError}</p>
+        <button type="button" class="btn-sm" on:click={() => compareVersions(tableOlder, tableNewer)}>Try again</button>
     {:else if !hasChanges}
         <p class="table-history-meta">Same as the version before it.</p>
     {:else}
@@ -220,7 +263,7 @@ $: summary = [
                                         <td
                                             class="table-history-column-{column.side} table-history-cell-{cell.kind}"
                                             class:table-history-plain-text={isPlainText(column)}
-                                            style={column.align ? `text-align: ${column.align.toLowerCase()}` : ''}
+                                            style={cell.style || ''}
                                         >
                                             {#if cell.kind === 'edit'}
                                                 {#if cell.words}
@@ -230,9 +273,17 @@ $: summary = [
                                                     {#if cell.before && cell.after}<span class="table-history-arrow" aria-hidden="true">→</span>{/if}
                                                     {#if cell.after}<ins>{cell.after}</ins>{/if}
                                                 {/if}
+                                            {:else if cell.kind === 'versions'}
+                                                <div class="table-history-cell-version table-history-cell-before">
+                                                    <span class="table-history-version-label">Before</span>
+                                                    <div class="table-history-cell-value" style={cell.before.style}>{@html cell.before.html}</div>
+                                                </div>
+                                                <div class="table-history-cell-version table-history-cell-after">
+                                                    <span class="table-history-version-label">After</span>
+                                                    <div class="table-history-cell-value" style={cell.after.style}>{@html cell.after.html}</div>
+                                                </div>
                                             {:else}
                                                 {@html cell.html}
-                                                {#if cell.kind === 'formatting'}<span class="table-history-note">formatting</span>{/if}
                                             {/if}
                                         </td>
                                     {/each}
@@ -249,17 +300,31 @@ $: summary = [
             {/if}
         {/if}
 
+        {#if diff.totalsChanged.length}
+            <h3 class="table-history-title">Totals</h3>
+            {#each diff.totalsChanged as total}
+                <div class="table-history-setting table-history-total">
+                    <span class="table-history-name">{columnLabel(total.name)}</span>
+                    <div class="table-history-cell-version table-history-cell-before">
+                        <span class="table-history-version-label">Before</span>
+                        <div class="table-history-cell-value">{@html total.before}</div>
+                    </div>
+                    <div class="table-history-cell-version table-history-cell-after">
+                        <span class="table-history-version-label">After</span>
+                        <div class="table-history-cell-value">{@html total.after}</div>
+                    </div>
+                </div>
+            {/each}
+        {/if}
+
         {#if diff.settings.length || diff.settingsOther.length}
             <h3 class="table-history-title">Settings</h3>
-            {#each diff.settings as setting}
+            {#each [...diff.settings, ...diff.settingsOtherValues] as setting}
                 <div class="table-history-setting">
                     <span class="table-history-name">{setting.label}</span>
                     <pre class="table-history-code">{#each settingLines(setting) as part}{#if part.removed}<del>{part.value}</del>{:else if part.added}<ins>{part.value}</ins>{:else}<span>{part.value}</span>{/if}{/each}</pre>
                 </div>
             {/each}
-            {#if diff.settingsOther.length}
-                <p>Also changed: {diff.settingsOther.join(', ')}.</p>
-            {/if}
         {/if}
     {/if}
 </div>
@@ -399,13 +464,29 @@ $: summary = [
 }
 
 /* An edit is shown as text, so its line breaks need keeping. */
-.table-history-plain-text :is(ins, del, span) {
+.table-history-cell-edit :is(ins, del, span) {
     white-space: pre-wrap;
 }
 
-.table-history-cell-formatting {
-    outline: 2px solid var(--history-changed);
-    outline-offset: -2px;
+.table-history-cell-version {
+    border-left: 0.2em solid var(--history-added);
+    padding-left: 0.5em;
+}
+
+.table-history-cell-before {
+    border-left-color: var(--history-removed);
+    margin-bottom: 0.65em;
+}
+
+.table-history-version-label {
+    display: block;
+    font-size: 0.85em;
+    opacity: 0.75;
+    margin-bottom: 0.2em;
+}
+
+.table-history-cell-value {
+    min-height: 1.25em;
 }
 
 .table-history-gap > td {

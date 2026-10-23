@@ -88,7 +88,7 @@ open in it.
 | `rename_page` | A new name for a page. |
 | `move_page` | To another section, into a page group or out of one. A page group takes the pages inside it along. |
 | `delete_page` | To the recycle bin, like the app. Nothing here empties the bin or restores from it. |
-| `get_page_history` | A page's saved versions, and what one changed: from the version before it, or up to the page now. A Table reports columns, rows and settings the way the app's history view does, a line page reports numbered hunks. |
+| `get_page_history` | A page's saved versions, and what one changed: from the version before it, or up to the page now. A Table includes stored and calculated cells, formatting, totals and settings, with values before and after. Calculations use each snapshot's saved data and formulas; startup and pull scripts do not run. A line page reports numbered hunks. |
 | `restore_page_history` | Put a page back to a saved version, like Restore in the app. What it said before becomes the newest entry. |
 | `list_page_files` | The files and images uploaded to a page, and whether the page still refers to each. |
 | `create_file_upload` | A one-time link to PUT a file to. The response carries the markup that shows it on a page. |

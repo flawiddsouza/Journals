@@ -1,5 +1,6 @@
 import { diffArrays, diffLines } from 'diff'
-import { type TableColumn, type TableDocument, isComputed } from './tableDoc'
+import { type TableDocument } from './tableDoc'
+import { createTableHistorySnapshot, TABLE_HISTORY_TIMEOUT_MS } from './tableHistorySnapshot'
 
 /**
  * What changed between two saved versions of a page, for get_page_history.
@@ -50,7 +51,7 @@ function diffRowKinds(before: Row[], after: Row[]): RowChange[] {
   return changes
 }
 
-const COLUMN_FIELDS = ['label', 'type', 'expression', 'wrap', 'align', 'autocomplete', 'filterable'] as const
+const COLUMN_FIELDS = ['label', 'type', 'expression', 'wrap', 'align', 'autocomplete', 'filterable', 'style'] as const
 const TEXT_SETTINGS = ['note', 'startupScript', 'pullScript', 'customFunctions', 'rowStyle'] as const
 const OTHER_SETTINGS = ['totals', 'stats', 'widths'] as const
 
@@ -67,11 +68,9 @@ export type TableRowChange =
   | { type: 'remove'; before: Row; rowNumber: number }
   | { type: 'change'; before: Row; after: Row; rowNumber: number }
 
-/** tableHistoryDiff.js diffTableContent. Rows are compared on the non-computed
- *  columns both versions have, so a column added or removed shows once, as a
- *  column. rowNumber is 1-based: in newer for an added or changed row, in
- *  older for a removed one. */
-export function diffTableDocuments(older: TableDocument, newer: TableDocument) {
+/** Align on stored cells, then compare every shared cell's value and style.
+ *  rowNumber is 1-based, in newer for additions/changes and older for removals. */
+export function diffTableDocuments(older: TableDocument, newer: TableDocument, timeoutMs = TABLE_HISTORY_TIMEOUT_MS) {
   const olderNames = older.columns.map((column) => column.name)
   const newerNames = newer.columns.map((column) => column.name)
   const columnsAdded = newerNames.filter((name) => !olderNames.includes(name))
@@ -93,19 +92,28 @@ export function diffTableDocuments(older: TableDocument, newer: TableDocument) {
   const sharedNewer = newerNames.filter((name) => olderNames.includes(name))
   const columnsReordered = sharedOlder.some((name, index) => sharedNewer[index] !== name)
 
-  const computed = (name: string) => [...older.columns, ...newer.columns].some((c: TableColumn) => c.name === name && isComputed(c))
-  const rowColumns = sharedNewer.filter((name) => !computed(name))
-  const project = (row: Row) => Object.fromEntries(rowColumns.map((name) => [name, row?.[name] ?? '']))
+  const computed = (name: string) => [...older.columns, ...newer.columns].some((c) => c.name === name && c.type === 'Computed')
+  const rowColumns = sharedNewer
+  const rowColumnsStored = rowColumns.filter((name) => !computed(name))
+  const deadline = Date.now() + timeoutMs
+  const snapshotOlder = createTableHistorySnapshot(older, deadline)
+  const snapshotNewer = createTableHistorySnapshot(newer, deadline)
+  const cellsOlder = snapshotOlder.cells
+  const cellsNewer = snapshotNewer.cells
+  const project = (row: Row, cells: typeof cellsOlder) => Object.fromEntries(rowColumnsStored.map((name) =>
+    [name, cells.get(row)![name]!.html],
+  ))
 
   const rows: TableRowChange[] = []
   let olderIndex = 0
   let newerIndex = 0
-  for (const change of diffRowKinds(older.items.map(project), newer.items.map(project))) {
-    if (change.type === 'same') {
-      olderIndex++
-      newerIndex++
-    } else if (change.type === 'change') {
-      rows.push({ type: 'change', before: older.items[olderIndex++]!, after: newer.items[newerIndex++]!, rowNumber: newerIndex })
+  for (const change of diffRowKinds(older.items.map((row) => project(row, cellsOlder)), newer.items.map((row) => project(row, cellsNewer)))) {
+    if (change.type === 'same' || change.type === 'change') {
+      const before = older.items[olderIndex++]!
+      const after = newer.items[newerIndex++]!
+      if (rowColumns.some((name) => !same(cellsOlder.get(before)![name], cellsNewer.get(after)![name]))) {
+        rows.push({ type: 'change', before, after, rowNumber: newerIndex })
+      }
     } else if (change.type === 'remove') {
       rows.push({ type: 'remove', before: older.items[olderIndex++]!, rowNumber: olderIndex })
     } else {
@@ -119,8 +127,14 @@ export function diffTableDocuments(older: TableDocument, newer: TableDocument) {
     after: newer[setting] ?? '',
   }))
   const settingsOther = OTHER_SETTINGS.filter((key) => !same(older[key], newer[key]))
+  const settingsOtherValues = settingsOther.map((key) => ({
+    setting: key, before: JSON.stringify(older[key] ?? {}, null, 2), after: JSON.stringify(newer[key] ?? {}, null, 2),
+  }))
+  const totalsChanged = [...new Set([...Object.keys(snapshotOlder.totals), ...Object.keys(snapshotNewer.totals)])]
+    .filter((name) => snapshotOlder.totals[name] !== snapshotNewer.totals[name])
+    .map((name) => ({ name, before: snapshotOlder.totals[name] ?? '', after: snapshotNewer.totals[name] ?? '' }))
 
-  return { columnsAdded, columnsRemoved, columnsChanged, columnsReordered, rows, rowColumns, settings, settingsOther }
+  return { columnsAdded, columnsRemoved, columnsChanged, columnsReordered, rows, rowColumns, settings, settingsOther, settingsOtherValues, cellsOlder, cellsNewer, totalsChanged }
 }
 
 /** A script or note before and after, as "-", "+" and " " lines. */

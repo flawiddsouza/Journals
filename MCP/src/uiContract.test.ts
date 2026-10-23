@@ -1,14 +1,16 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, spyOn, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 // The app's own modules, not copies.
 import { createTableComputeEngine } from '../../Web-UI/src/helpers/tableComputeEngine.js'
 import { createEmptyTaskListDocument, taskTextToItems } from '../../Web-UI/src/helpers/taskList.js'
 import { diffTableContent } from '../../Web-UI/src/helpers/tableHistoryDiff.js'
+import { TABLE_HISTORY_TIMEOUT_MS as UI_HISTORY_TIMEOUT_MS } from '../../Web-UI/src/helpers/tableHistoryDiffLoader.js'
 import { evaluateScript } from './evaluate'
 import { linesOf } from './lines/edit'
 import { proseCodec } from './lines/prose'
 import { MAX_MODULES } from './miniApp'
 import { diffTableDocuments } from './pageHistory'
+import { TABLE_HISTORY_TIMEOUT_MS } from './tableHistorySnapshot'
 import { PAGE_TYPES } from './pageTypes'
 import { COLUMN_OPTIONS } from './tableColumns'
 import { type TableDocument, parseTableDocument } from './tableDoc'
@@ -128,6 +130,94 @@ describe("the app's compute engine and the harness agree (evaluate.ts)", () => {
 })
 
 describe("the app's table history view and get_page_history agree (pageHistory.ts)", () => {
+  test('empty table totals remain values, including when the last row is removed', () => {
+    const common = { columns: [{ name: 'Value' }], totals: { Value: 'return items.length' } }
+    const older = { ...common, items: [{ Value: 'one' }] }
+    const newer = { ...common, items: [] }
+    const ours = diffTableDocuments(older, newer)
+    expect(ours.totalsChanged).toEqual([{ name: 'Value', before: '1', after: '0' }])
+    expect(ours.totalsChanged).toEqual(diffTableContent(older, newer).totalsChanged)
+    expect(diffTableDocuments(newer, older).totalsChanged).toEqual([{ name: 'Value', before: '0', after: '1' }])
+  })
+
+  test('stored columns with leftover expressions still align inserted rows', () => {
+    const columns = [{ name: 'Value', expression: 'return 9' }]
+    const older = { columns, items: [{ Value: 'a' }, { Value: 'b' }] }
+    const newer = { columns, items: [{ Value: 'new' }, ...older.items] }
+    const ours = diffTableDocuments(older, newer)
+    expect(ours.rows).toEqual([{ type: 'add', after: { Value: 'new' }, rowNumber: 1 }])
+    expect(ours.rows).toEqual(diffTableContent(older, newer).rows)
+  })
+
+  test('styles and mutually dependent formulas use one snapshot cache', () => {
+    const older: TableDocument = {
+      columns: [
+        { name: 'A', type: 'Computed', expression: "return 'a' + item.B" },
+        { name: 'B', type: 'Computed', expression: "return 'b' + item.A", style: "return item.B === 'bnull' ? 'color: red' : 'color: blue'" },
+      ],
+      items: [{}], totals: { B: 'return items[0].B' },
+      rowStyle: "return columnName === null ? 'font-weight: bold' : ''",
+    }
+    const newer = { ...older, columns: older.columns.map((column) => ({ ...column, expression: column.expression!.replace("'b'", "'B'") })) }
+    const fromApp = diffTableContent(older, newer)
+    const ours = diffTableDocuments(older, newer)
+    expect(ours.cellsOlder.get(older.items[0]!)?.B?.html).toBe('bnull')
+    expect(ours.cellsOlder.get(older.items[0]!)?.B?.style).toContain('font-weight: bold; color: red')
+    expect(ours.cellsOlder).toEqual(fromApp.cellsOlder)
+    expect(ours.cellsNewer).toEqual(fromApp.cellsNewer)
+    expect(ours.totalsChanged).toEqual([{ name: 'B', before: 'bnull', after: 'Bnull' }])
+  })
+
+  test('empty and failed formulas match the preview without invoking load scripts', () => {
+    const doc: TableDocument = {
+      columns: [
+        { name: 'Empty', type: 'Computed' },
+        { name: 'Null', type: 'Computed', expression: 'return null' },
+        { name: 'Failed', type: 'Computed', expression: 'return (' },
+      ], items: [{}], totals: { Empty: 'return null', Failed: 'throw new Error("failed")' },
+      startupScript: 'while (true) {}', pullScript: 'while (true) {}',
+    }
+    const errors = spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const fromApp = diffTableContent(doc, doc)
+      const ours = diffTableDocuments(doc, doc)
+      expect(ours.cellsOlder).toEqual(fromApp.cellsOlder)
+      expect(ours.totalsChanged).toEqual([])
+      expect(ours.cellsOlder.get(doc.items[0]!)?.Empty?.html).toBe('')
+      expect(ours.cellsOlder.get(doc.items[0]!)?.Null?.html).toBe('')
+      expect(ours.cellsOlder.get(doc.items[0]!)?.Failed?.html).toBe('error evaluating given expression')
+    } finally { errors.mockRestore() }
+  })
+
+  test('calculated cells, styles, totals and execution budgets match', () => {
+    expect(TABLE_HISTORY_TIMEOUT_MS).toBe(UI_HISTORY_TIMEOUT_MS)
+    const columns = [
+      { name: 'Note', type: 'Input (Plain Text)' as const, style: "return item.Entries === 2 ? 'color: green' : 'color: red'" },
+      { name: 'Entries', type: 'Computed' as const, expression: "return item.Note.split('\\n').length" },
+      { name: 'Doubled', type: 'Computed' as const, expression: 'return twice(item.Entries)' },
+    ]
+    const common = { columns, rowStyle: "return Object.keys(item).includes('Doubled') && items[0].Entries === undefined ? 'font-weight: bold' : ''", customFunctions: 'function twice(n) { return n * 2 }', totals: { Doubled: 'return items.reduce((sum, row) => sum + row.Doubled, 0)' } }
+    const older = { ...common, items: [{ Note: 'one<br>two' }] }
+    const newer = { ...common, items: [{ Note: 'one\ntwo' }] }
+    const fromApp = diffTableContent(older, newer)
+    const ours = diffTableDocuments(older, newer)
+    expect(ours.rows).toEqual(fromApp.rows)
+    expect(ours.cellsOlder).toEqual(fromApp.cellsOlder)
+    expect(ours.cellsNewer).toEqual(fromApp.cellsNewer)
+    expect(ours.totalsChanged).toEqual(fromApp.totalsChanged)
+    expect(ours.cellsNewer.get(newer.items[0]!)?.Entries?.html).toBe('2')
+    expect(ours.cellsNewer.get(newer.items[0]!)?.Note?.style).toContain('font-weight: bold; color: green')
+  })
+
+  test('plain-text line-break storage conversions are not edits on either side', () => {
+    const columns = [{ name: 'Note', type: 'Input (Plain Text)' as const }]
+    const older = { columns, items: [{ Note: 'first<br>second' }] }
+    for (const note of ['first\nsecond', 'first\nchanged']) {
+      const newer = { columns, items: [{ Note: note }] }
+      expect(diffTableDocuments(older, newer).rows).toEqual(diffTableContent(older, newer).rows)
+    }
+  })
+
   const older: TableDocument = {
     columns: [
       { name: 'Item', label: '' },
