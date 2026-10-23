@@ -49,8 +49,6 @@ let pageHistoryItemViewPageContent = null
 let pageHistoryItemViewPageContentOlder = ''
 let pageHistoryItemViewLoading = false
 let pageHistoryItemViewError = false
-// The page as it is now, for comparing a version with it. Null while loading.
-let pageHistoryContentCurrent = null
 let lastActivePageId = null
 
 const unsubEventStore = eventStore.subscribe((event) => {
@@ -65,8 +63,16 @@ const unsubEventStore = eventStore.subscribe((event) => {
 })
 onDestroy(unsubEventStore)
 
+// A history entry is the page as it read until a save replaced it, so what the
+// newest save changed only shows against the page as it is now. That is the
+// Current version entry listed above the saved ones.
+const CURRENT_VERSION = 'current'
+$: pageHistoryVersions = pageHistory.length ? [{ id: CURRENT_VERSION }, ...pageHistory] : []
+
 const pageHistoryContentLoader = createPageHistoryContentLoader((id) =>
-    fetchPlus.get(`/page-history/content/${id}`),
+    id === CURRENT_VERSION
+        ? fetchPlus.get(`/pages/content/${activePage.id}`)
+        : fetchPlus.get(`/page-history/content/${id}`),
 )
 onDestroy(() => pageHistoryContentLoader.cancel())
 
@@ -74,13 +80,6 @@ $: if (showPageHistoryModal && activePage) {
     fetchPlus.get(`/page-history/${activePage.id}`).then((response) => {
         pageHistory = response
     })
-    pageHistoryContentCurrent = null
-    if (activePage.type === 'Table') {
-        const pageId = activePage.id
-        fetchPlus.get(`/pages/content/${pageId}`).then((response) => {
-            if (activePage?.id === pageId) pageHistoryContentCurrent = response.content ?? ''
-        })
-    }
 }
 
 function fetchPageUploads(page) {
@@ -102,7 +101,7 @@ async function viewPageHistoryItem(pageHistoryItem) {
 
     try {
         const result = await pageHistoryContentLoader.load(
-            pageHistory,
+            pageHistoryVersions,
             pageHistoryItem,
             ['FlatPage', 'FlatPageV2', 'Table'].includes(activePage.type),
         )
@@ -489,7 +488,7 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
             <div class:page-history-container={activePageHistoryItem}>
                 <div class="page-history-sidebar oy-a">
                     <table>
-                        {#each pageHistory as pageHistoryItem}
+                        {#each pageHistoryVersions as pageHistoryItem}
                             <tr
                                 class:active={activePageHistoryItem?.id ===
                                     pageHistoryItem.id}
@@ -498,12 +497,18 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                                     on:click={() =>
                                         viewPageHistoryItem(pageHistoryItem)}
                                     style="cursor: pointer;"
-                                    title="The page as it was until this save"
+                                    title={pageHistoryItem.id === CURRENT_VERSION
+                                        ? 'The page as it is now'
+                                        : 'The page as it was until this save'}
                                 >
-                                    {format(
-                                        pageHistoryItem.created_at + 'Z',
-                                        'DD-MM-YYYY hh:mm:ss A',
-                                    )}
+                                    {#if pageHistoryItem.id === CURRENT_VERSION}
+                                        Current version
+                                    {:else}
+                                        {format(
+                                            pageHistoryItem.created_at + 'Z',
+                                            'DD-MM-YYYY hh:mm:ss A',
+                                        )}
+                                    {/if}
                                 </td>
                                 <td>
                                     <button
@@ -514,6 +519,10 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                                             )}>View</button
                                     >
                                 </td>
+                                {#if pageHistoryItem.id === CURRENT_VERSION}
+                                    <td></td>
+                                    <td></td>
+                                {:else}
                                 <td>
                                     <button
                                         class="btn-sm"
@@ -540,6 +549,7 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                                             : 'Pin'}</button
                                     >
                                 </td>
+                                {/if}
                                 <td
                                     >{pageHistoryItem.pinned &&
                                     pageHistoryItem.pinned == 1
@@ -567,9 +577,8 @@ $: if ((activePage?.id ?? null) !== lastActivePageId) {
                                 <TableHistoryPreview
                                     pageContent={pageHistoryItemViewPageContent}
                                     pageContentOlder={pageHistoryItemViewPageContentOlder}
-                                    hasOlder={pageHistory.at(-1)?.id !==
+                                    hasOlder={pageHistoryVersions.at(-1)?.id !==
                                         activePageHistoryItem.id}
-                                    pageContentCurrent={pageHistoryContentCurrent}
                                 />
                             {:else}
                                 <FlatPageHistoryPreview

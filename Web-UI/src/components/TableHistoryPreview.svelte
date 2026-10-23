@@ -1,8 +1,6 @@
 <script>
 // A saved version of a Table, shown as what changed since the version before
-// it, with the whole table a click away. A version is the page as it read until
-// the next save, so what the newest save changed is only visible against the
-// page as it is now: "Since this version" compares with that.
+// it, with the whole table a click away.
 import { diffLines, diffWordsWithSpace } from 'diff'
 import Table from './PageTypes/Table.svelte'
 import { diffTableContent, parseTableContent, rowsForDisplay } from '../helpers/tableHistoryDiff.js'
@@ -11,21 +9,16 @@ export let pageContent = ''
 export let pageContentOlder = ''
 // False for the oldest version, which has nothing before it.
 export let hasOlder = true
-// The page as it is now, or null while it loads.
-export let pageContentCurrent = null
 
 // Changed rows are many after an import or a pull, so they come in pages.
 const ROWS_PER_PAGE = 200
 
-let view = hasOlder ? 'changes' : 'table'
-// Picking the oldest version keeps the view open, and it has no Changes.
-$: if (!hasOlder && view === 'changes') view = 'table'
+let view = 'changes'
 let rowsShown = ROWS_PER_PAGE
 let gapsOpen = new Set()
 
-$: since = view === 'since' && pageContentCurrent !== null
-$: tableNewer = parseTableContent(since ? pageContentCurrent : pageContent)
-$: tableOlder = parseTableContent(since ? pageContent : pageContentOlder)
+$: tableNewer = parseTableContent(pageContent)
+$: tableOlder = parseTableContent(pageContentOlder)
 $: diff = diffTableContent(tableOlder, tableNewer)
 $: if (diff) {
     rowsShown = ROWS_PER_PAGE
@@ -145,27 +138,23 @@ $: summary = [
 </script>
 
 <div class="table-history-preview">
-    <div class="table-history-views" role="group" aria-label="Show">
-        {#if hasOlder}
+    {#if hasOlder}
+        <div class="table-history-views" role="group" aria-label="Show">
             <button type="button" class="btn-sm" aria-pressed={view === 'changes'} on:click={() => (view = 'changes')}>Changes</button>
-        {/if}
-        <button type="button" class="btn-sm" aria-pressed={view === 'since'} disabled={pageContentCurrent === null} on:click={() => (view = 'since')}>Since this version</button>
-        <button type="button" class="btn-sm" aria-pressed={view === 'table'} on:click={() => (view = 'table')}>Whole table</button>
-    </div>
-    {#if !hasOlder && view === 'table'}
-        <p class="table-history-meta">This is the oldest saved version, so there is no version before it to compare with.</p>
+            <button type="button" class="btn-sm" aria-pressed={view === 'table'} on:click={() => (view = 'table')}>Whole table</button>
+        </div>
+    {:else}
+        <p class="table-history-meta">This is the oldest saved version, so there is nothing to compare it with.</p>
     {/if}
 
-    {#if view === 'since' && pageContentCurrent === null}
-        <p class="table-history-meta">Loading the page as it is now...</p>
-    {:else if view === 'table'}
+    {#if !hasOlder || view === 'table'}
         {#key pageContent}
             <Table pageContentOverride={pageContent} />
         {/key}
     {:else if !hasChanges}
-        <p class="table-history-meta">{since ? 'The page has not changed since this version.' : 'Same as the version before it.'}</p>
+        <p class="table-history-meta">Same as the version before it.</p>
     {:else}
-        <p class="table-history-meta">{since ? 'Changed since this version' : 'Compared with the version before it'}: {summary.join(', ')}.</p>
+        <p class="table-history-meta">Compared with the version before it: {summary.join(', ')}.</p>
 
         {#if hasColumnChanges}
             <h3 class="table-history-title">Columns</h3>

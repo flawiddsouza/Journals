@@ -86,8 +86,16 @@ window.fetch = async (input) => {
     const url = new URL(typeof input === 'string' ? input : input.url)
     window.pageHistoryRequests.push(url.pathname)
     if (url.pathname === '/page-history/42') return json(pageHistory)
+    // The page as it is now, which the Current version entry shows.
     if (url.pathname === '/pages/content/42')
-        return json({ content: pageContentCurrentTable })
+        return json({
+            content:
+                pageType === 'FlatPageV2'
+                    ? tiptapContent('Snapshot current')
+                    : pageType === 'Table'
+                      ? pageContentCurrentTable
+                      : flatPageContent('current'),
+        })
 
     const match = url.pathname.match(/^\/page-history\/content\/(\d+)$/)
     if (match) {
