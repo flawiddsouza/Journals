@@ -14,6 +14,7 @@ let pageItemContextMenu = {
 }
 let pageContextMenuHasOpenModal = false
 let showAddPageModal = false
+let tabsElement = null
 
 $: fetchPages(pageId)
 
@@ -26,6 +27,7 @@ import { dragSort } from '../../actions/dragSort.js'
 import { eventStore } from '../../stores.js'
 import PageContextMenu from '../PageContextMenu.svelte'
 import AddPageModal from '../Modals/AddPageModal.svelte'
+import { tick } from 'svelte'
 
 let showBacklinks = false
 
@@ -114,6 +116,39 @@ function onSort(draggedPage, targetPage) {
     fetchPlus.post('/pages/sort-order/update', pageIdsWithSortOrder)
 }
 
+// Runs only when the open page changes. Naming tabsElement here would also rerun it
+// on every scroll, as Svelte treats setting tabsElement.scrollLeft as a change to it
+$: scrollActiveTabIntoView(activePage)
+
+// Sets the row's own scroll position, as scrollIntoView would also scroll the page
+async function scrollActiveTabIntoView() {
+    await tick()
+    const row = tabsElement
+    const tab = row?.querySelector('a.active')
+    if (!tab) return
+    const left = tab.offsetLeft
+    const right = left + tab.offsetWidth
+    if (left < row.scrollLeft) {
+        row.scrollLeft = left
+    } else if (right > row.scrollLeft + row.clientWidth) {
+        row.scrollLeft = right - row.clientWidth
+    }
+}
+
+// A mouse wheel only scrolls vertically, so turn it into sideways scrolling
+// until the row reaches its end, then let the page scroll as usual
+function scrollTabsWithWheel(event) {
+    if (event.deltaX !== 0 || event.deltaY === 0) return
+    const row = event.currentTarget
+    // scrollLeft can be fractional under browser zoom, so allow a pixel either way
+    const maxScrollLeft = row.scrollWidth - row.clientWidth - 1
+    const atEnd =
+        event.deltaY < 0 ? row.scrollLeft <= 1 : row.scrollLeft >= maxScrollLeft
+    if (atEnd) return
+    event.preventDefault()
+    row.scrollLeft += event.deltaY
+}
+
 function selectPage(page) {
     activePage = page
     fetchPlus.put(`/pages/${pageId}`, {
@@ -163,21 +198,25 @@ function handleShowAddPageModal() {
             {/if}
         </div>
     {/if}
-    <div class="page-group-tabs">
-        {#each pages as page}
-            <a
-                href={`/page/${page.id}`}
-                on:click|preventDefault={() => selectPage(page)}
-                class:active={activePage && activePage.id === page.id}
-                use:dragSort={{ item: page, onSort }}
-                on:contextmenu={(e) => handleContextMenu(e, page)}
-                >{page.name}</a
-            >
-        {/each}
+    <div class="page-group-tab-bar">
+        <div
+            class="page-group-tabs"
+            bind:this={tabsElement}
+            on:wheel|nonpassive={scrollTabsWithWheel}
+        >
+            {#each pages as page}
+                <a
+                    href={`/page/${page.id}`}
+                    on:click|preventDefault={() => selectPage(page)}
+                    class:active={activePage && activePage.id === page.id}
+                    use:dragSort={{ item: page, onSort }}
+                    on:contextmenu={(e) => handleContextMenu(e, page)}
+                    >{page.name}</a
+                >
+            {/each}
+        </div>
         {#if pages.length > 0 && !viewOnly}
-            <button
-                on:click={handleShowAddPageModal}
-                style="margin-left: 0.5rem;">+</button
+            <button on:click={handleShowAddPageModal} title="Add page">+</button
             >
         {/if}
     </div>
@@ -225,25 +264,46 @@ function handleShowAddPageModal() {
 {/if}
 
 <style>
-.page-group-tabs {
+.page-group-tab-bar {
+    min-width: 0;
     display: flex;
+    align-items: flex-start;
+    gap: 0.3rem;
     margin-bottom: 1rem;
 }
 
-.page-group-tabs > a {
-    display: block;
+.page-group-tabs {
+    position: relative; /* so a tab's offsetLeft is measured from the row */
+    display: flex;
+    gap: 0.3rem;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    padding-bottom: 0.3rem;
+}
+
+.page-group-tabs > a,
+.page-group-tab-bar > button {
+    flex-shrink: 0;
+    font: inherit;
     text-decoration: none;
-    color: inherit;
-    padding: 0.3rem;
-    border: 1px solid #ccc;
+    color: var(--color-tb-link);
+    background: none;
+    white-space: nowrap;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--border-select);
+    border-radius: 4px;
     cursor: pointer;
 }
 
-.page-group-tabs > a:not(:last-of-type) {
-    border-right: 0;
+.page-group-tabs > a:hover,
+.page-group-tab-bar > button:hover {
+    background-color: var(--bg-tb-hover);
+    color: var(--color-tb-hover);
 }
 
 .page-group-tabs > a.active {
-    background-color: #fff6e5;
+    background-color: var(--color-pa-btn);
+    border-color: var(--color-pa-btn);
+    color: #fff;
 }
 </style>
