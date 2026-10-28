@@ -122,7 +122,7 @@ $: if (pageContentOverride) {
 $: fetchPage(pageId)
 
 import fetchPlus from '../../helpers/fetchPlus.js'
-import { cellText } from '../../helpers/cellText.js'
+import { cellText, cellTextLines } from '../../helpers/cellText.js'
 import { fetchTablePageContent, saveTablePageContent } from '../../helpers/tablePagePersistence.js'
 
 let editableTable = null
@@ -1173,17 +1173,17 @@ async function pasteConfiguration() {
     }
 }
 
-function getColumnSuggestions(columnName) {
+// The text a suggestion writes into a cell, which is all a picked suggestion
+// can write. A plain-text cell keeps its line breaks. A rich cell is read on
+// one line, as a line break written as text would show there as a space.
+function suggestionText(column, value) {
+    return column.type === 'Input (Plain Text)' ? cellTextLines(value) : cellText(value)
+}
+
+function getColumnSuggestions(column) {
     // The cell action updates the row before this handler runs. Read that
     // current value instead of a reactive cache still holding the last input.
-    return [...new Set(items
-        .map((item) => item[columnName])
-        .filter((value) => value)
-        .map((value) => {
-            const tempDiv = document.createElement('div')
-            tempDiv.innerHTML = value.trim()
-            return tempDiv.textContent || ''
-        }))].filter((value) => value !== '')
+    return [...new Set(items.map((item) => suggestionText(column, item[column.name])))].filter((value) => value !== '')
 }
 
 // Prefer prefix matches, then word-boundary hits, finally other substrings for autocomplete.
@@ -1217,10 +1217,11 @@ function handleInputInTD(e, itemIndex, columnName) {
     // itemIndex is global index
     const column = columns.find((col) => col.name === columnName)
     if (column && column.autocomplete === 'Yes') {
-        const value = e.target.textContent
-        const query = value.trim()
+        // Read the typed cell as the suggestions are read, so what was typed
+        // matches them however the editor stored it.
+        const query = suggestionText(column, e.target.innerHTML)
         const lowerQuery = query.toLowerCase()
-        const allSuggestions = getColumnSuggestions(columnName)
+        const allSuggestions = getColumnSuggestions(column)
         const filteredSuggestions = allSuggestions
             .filter((suggestion) => {
                 const lowerSuggestion = suggestion.toLowerCase()

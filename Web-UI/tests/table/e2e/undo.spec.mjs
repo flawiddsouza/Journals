@@ -337,6 +337,33 @@ test('autocomplete is reversible and preserves literal angle brackets', async ({
     await savedValues(page, ['alpha &lt;beta&gt;', 'alpha &lt;beta&gt;'])
 })
 
+test('autocomplete offers a value once, with its lines apart', async ({ page }) => {
+    const cells = await openTable(page, {
+        items: [
+            { value: 'Fish&nbsp;Chips' },
+            { value: 'Fish Chips' },
+            { value: '<div>Fish</div><div>Rice</div>' },
+            { value: '' },
+        ],
+    })
+    await cells.nth(3).focus()
+    await page.keyboard.type('fish')
+    await expect(page.locator('.suggestions li')).toHaveText(['Fish Chips', 'Fish Rice'])
+})
+
+test('autocomplete in a plain-text column keeps the line breaks of the value it writes', async ({
+    page,
+}) => {
+    const cells = await openTable(page, {
+        columns: [{ name: 'value', label: 'Value', type: 'Input (Plain Text)', autocomplete: 'Yes' }],
+        items: [{ value: 'line one\nline &lt;two&gt;' }, { value: '' }],
+    })
+    await cells.nth(1).focus()
+    await page.keyboard.type('line')
+    await page.locator('.suggestions li').first().click()
+    await savedValues(page, ['line one\nline &lt;two&gt;', 'line one\nline &lt;two&gt;'])
+})
+
 test('browser history input events use table history and cannot revive stale native edits', async ({
     page,
 }) => {
