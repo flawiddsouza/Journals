@@ -132,7 +132,12 @@ for (const width of [320, 360, 412, 768]) {
                 Math.max(copy.y + copy.height, paste.y + paste.height),
             )
 
-            await page.locator('.config-area-note summary').tap()
+            // Each script's example code opens below its editor, and none of
+            // them may push the page sideways.
+            const examples = await page.locator('.config-area-note summary').all()
+            expect(examples.length).toBeGreaterThan(0)
+            for (const example of examples) await example.tap()
+            await expect(page.locator('.config-area-note details[open]')).toHaveCount(examples.length)
             await expectNoPageOverflow(page)
 
             const row = page.locator('.config-table tbody tr').first()

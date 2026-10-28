@@ -514,10 +514,13 @@ test('the note keeps native undo and opening configuration alone preserves table
     await page.evaluate(() => window.tableHarness.configure())
     const note = page.locator('.config-area-font-size > [contenteditable]')
     await note.press('End')
-    await page.keyboard.type('text')
+    // One insertion is one native undo step. Chrome splits fast keystrokes into
+    // steps of its own choosing, so typing them would undo only some letters.
+    await page.keyboard.insertText('text')
     await page.keyboard.press('Control+z')
     await expect(note).toHaveText('note')
     await page.evaluate(() => window.tableHarness.exitConfiguration())
+    await expect(cells).toHaveText(['Anew', 'B', 'C'])
     await cells.first().press('Control+z')
     await expect(cells).toHaveText(['A', 'B', 'C'])
 })
