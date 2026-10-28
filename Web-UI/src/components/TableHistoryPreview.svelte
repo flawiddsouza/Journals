@@ -6,6 +6,7 @@ import { onDestroy } from 'svelte'
 import Table from './PageTypes/Table.svelte'
 import { diffTableContent, parseTableContent, rowsForDisplay } from '../helpers/tableHistoryDiff.js'
 import { createTableHistoryDiffLoader } from '../helpers/tableHistoryDiffLoader.js'
+import { cellTextLines } from '../helpers/cellText.js'
 
 export let pageContent = ''
 export let pageContentOlder = ''
@@ -72,7 +73,7 @@ $: display = rowsForDisplay(diff.rowsAligned, {
     gapsOpen,
     isChange: (row) =>
         row.type !== 'same' ||
-        gridColumnsChanged.some((column) => asText((column.side === 'newer' ? diff.cellsNewer.get(row.after) : diff.cellsOlder.get(row.before))?.[column.name]?.html)),
+        gridColumnsChanged.some((column) => cellTextLines((column.side === 'newer' ? diff.cellsNewer.get(row.after) : diff.cellsOlder.get(row.before))?.[column.name]?.html)),
 })
 
 $: added = diff.rows.filter((row) => row.type === 'add').length
@@ -102,13 +103,6 @@ $: columnLabel = (name) => {
     return column?.label || name
 }
 
-const parser = new DOMParser()
-// A <br> is a line break in the text, so an edit that only moves a line shows.
-const asText = (value) =>
-    value === undefined || value === null || value === ''
-        ? ''
-        : (parser.parseFromString(String(value).replace(/<br\s*\/?>/gi, '\n'), 'text/html').body.textContent ?? '').trim()
-
 // A plain-text column stores real line breaks, which the table shows as <br>
 // (getColumnValue in Table.svelte), so the history shows them the same way.
 const isPlainText = (column) => column?.type === 'Input (Plain Text)'
@@ -133,8 +127,8 @@ function cellOf(row, column) {
     if (column.side === 'newer') return { kind: 'plain', ...after }
     if (column.side === 'older') return { kind: 'plain', ...before }
     if (before.html === after.html && before.style === after.style) return { kind: 'plain', ...after }
-    const textBefore = asText(before.html)
-    const textAfter = asText(after.html)
+    const textBefore = cellTextLines(before.html)
+    const textAfter = cellTextLines(after.html)
     // Show the actual old and new appearance when styling or rich markup is
     // involved. Plain text retains the existing word-by-word highlights.
     if (before.style !== after.style || textBefore === textAfter || /<(?!br\b)[a-z]/i.test(before.html + after.html)) {

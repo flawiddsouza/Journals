@@ -5,6 +5,7 @@ import { createEventDispatcher, onMount } from 'svelte'
 import Modal from '../Modal.svelte'
 import { runPullScript } from '../../helpers/integrations.js'
 import { applyRowDiff, diffRows } from '../../helpers/rowDiff.js'
+import { cellTextLines } from '../../helpers/cellText.js'
 
 export let columns = []
 export let rows = []
@@ -63,12 +64,6 @@ $: shownColumns = (() => {
     return names
 })()
 $: unknownColumns = shownColumns.filter((name) => !columns.some((column) => column.name === name))
-
-const parser = new DOMParser()
-const asText = (value) =>
-    value === undefined || value === null || value === ''
-        ? ''
-        : (parser.parseFromString(String(value), 'text/html').body.textContent ?? '').trim()
 
 const cellValue = (row, name) => row?.[name] ?? ''
 const changedColumns = (change) =>
@@ -150,7 +145,7 @@ function apply() {
                                         <input type="checkbox" checked={taken.has(change)} on:click|stopPropagation on:change={() => toggle(change)} />
                                     </td>
                                     <td class="pull-row-number">{change.type === 'add' ? 'new' : change.index + 1}</td>
-                                    {#each shownColumns as name}<td><div class="pull-cell">{asText(row[name])}</div></td>{/each}
+                                    {#each shownColumns as name}<td><div class="pull-cell">{cellTextLines(row[name])}</div></td>{/each}
                                 </tr>
                             {/each}
                         </tbody>
@@ -176,8 +171,8 @@ function apply() {
                         {#each changedColumns(change) as name}
                             <div class="pull-change">
                                 <span class="pull-change-column">{name}</span>
-                                <del>{asText(change.before[name]) || '(empty)'}</del>
-                                <ins>{asText(change.after[name]) || '(empty)'}</ins>
+                                <del>{cellTextLines(change.before[name]) || '(empty)'}</del>
+                                <ins>{cellTextLines(change.after[name]) || '(empty)'}</ins>
                             </div>
                         {/each}
                     </li>
@@ -267,6 +262,7 @@ function apply() {
     -webkit-box-orient: vertical;
     overflow: hidden;
     min-width: 6em;
+    white-space: pre-wrap;
 }
 
 .pull-untaken {
@@ -294,6 +290,15 @@ function apply() {
 .pull-change-column {
     font-weight: bold;
     margin-right: 0.5em;
+}
+
+/* A value keeps the line breaks and spacing it stores, so a change to only
+   those still shows. */
+.pull-change del,
+.pull-change ins {
+    display: inline-block;
+    vertical-align: top;
+    white-space: pre-wrap;
 }
 
 .pull-change del {

@@ -122,6 +122,7 @@ $: if (pageContentOverride) {
 $: fetchPage(pageId)
 
 import fetchPlus from '../../helpers/fetchPlus.js'
+import { cellText } from '../../helpers/cellText.js'
 import { fetchTablePageContent, saveTablePageContent } from '../../helpers/tablePagePersistence.js'
 
 let editableTable = null
@@ -310,8 +311,7 @@ $: itemIndexes = new Map((items || []).map((item, index) => [item, index]))
 $: filteredItems = (items || []).filter((item) =>
     Object.entries(activeFilters).every(([colName, allowedSet]) => {
         if (allowedSet.size === 0) return true
-        const text = stripHtml(String(item[colName] ?? '')).trim()
-        return allowedSet.has(text)
+        return allowedSet.has(cellText(item[colName]))
     })
 )
 // Only treat filter as active when rows are actually being hidden (full Set = show all = not active)
@@ -1391,7 +1391,7 @@ function getUniqueColumnValues(columnName) {
     const seen = new Set()
     const out = []
     for (const item of (items || [])) {
-        const text = stripHtml(String(item[columnName] ?? '')).trim()
+        const text = cellText(item[columnName])
         if (!seen.has(text)) {
             seen.add(text)
             out.push(text)
@@ -2372,7 +2372,7 @@ for (const commit of answer.json().reverse()) {
                         checked={allowed.has(val)}
                         on:change={() => toggleFilterValue(colName, val)}
                     />
-                    <span>{val === '' ? '(Blank)' : val}</span>
+                    <span class="filter-item-text" title={val}>{val === '' ? '(Blank)' : val}</span>
                 </label>
             {/each}
         </div>
@@ -2802,6 +2802,12 @@ td.table-actions button {
     overflow: hidden;
     text-overflow: ellipsis;
     user-select: none;
+}
+
+.filter-item-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .filter-item:hover {
