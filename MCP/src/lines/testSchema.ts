@@ -2,7 +2,7 @@ import { Schema, type NodeSpec } from 'prosemirror-model'
 
 /**
  * Test only. The editors' schemas, rebuilt from the Tiptap extension lists at
- * FlatPageV2.svelte:171-208 and TaskList.svelte:22-45, so tests can check that
+ * FlatPageV2.svelte:171-221 and TaskList.svelte:22-45, so tests can check that
  * a document this server writes is one the app can load. A Flat Page v2 page
  * whose content fails to load stays on "Loading..." forever.
  *
@@ -35,7 +35,7 @@ export const flatPageV2Schema = new Schema({
     listItem: { content: 'paragraph block*' },
     pageLink: { inline: true, group: 'inline', atom: true, attrs: { pageId: { default: null }, pageName: { default: '' } } },
     externalLink: { inline: true, group: 'inline', atom: true, attrs: { href: { default: null }, label: { default: '' } } },
-    image: { inline: true, group: 'inline', atom: true, attrs: { src: { default: null }, alt: { default: null }, title: { default: null } } },
+    image: { inline: true, group: 'inline', atom: true, attrs: { src: { default: null }, alt: { default: null }, title: { default: null }, width: { default: null } } },
     table: { content: 'tableRow+', group: 'block' },
     tableRow: { content: '(tableCell | tableHeader)*' },
     tableHeader: cell,

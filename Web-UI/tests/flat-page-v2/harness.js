@@ -180,8 +180,23 @@ const tableDocument = {
     ],
 }
 
+const imageSource = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="teal"/></svg>')}`
+const imageDocument = {
+    type: 'doc',
+    content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Before' }] },
+        {
+            type: 'paragraph',
+            content: [{ type: 'image', attrs: { src: imageSource, width: params.get('width') ? Number(params.get('width')) : null } }],
+        },
+        { type: 'paragraph', content: [{ type: 'text', text: 'After' }] },
+    ],
+}
+
 const initialDocument =
-    contentType === 'split-checklist'
+    contentType === 'image'
+        ? imageDocument
+        : contentType === 'split-checklist'
         ? splitChecklistDocument
         : contentType === 'table'
           ? tableDocument
@@ -210,7 +225,9 @@ new FlatPageV2({
         pageId: viewOnly ? null : 1,
         viewOnly,
         pageContentOverride: viewOnly
-            ? contentType === 'checklist'
+            ? contentType === 'image'
+              ? imageDocument
+              : contentType === 'checklist'
                 ? checklistDocument
                 : contentType === 'table'
                   ? tableDocument

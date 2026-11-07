@@ -11,21 +11,38 @@ const pageContextAfter =
     '<p>Context after 1</p><p>Context after 2</p><p>Context after 3</p><p>Context after 4</p><p>Context after 5</p>'
 const flatPageContent = (version) =>
     `${pageContextBefore}<section class="snapshot-layout"><p>Hello ${version}</p></section>${pageContextAfter}`
-const pageContentFlatPage = {
-    3: flatPageContent('newest'),
-    2: flatPageContent('middle'),
-    1: flatPageContent('oldest'),
-}
+// ?resized: the newest version only changes how wide an image shows.
+const resized = new URLSearchParams(location.search).has('resized')
+const imageSource = 'data:image/gif;base64,R0lGODlhAQABAAAAACw='
+const flatPageImage = (width) =>
+    `<div>Words</div><div><img style="max-width: 100%" src="${imageSource}"${width ? ` width="${width}"` : ''}></div>`
+const pageContentFlatPage = resized
+    ? { 3: flatPageImage(300), 2: flatPageImage(null), 1: flatPageImage(null) }
+    : {
+          3: flatPageContent('newest'),
+          2: flatPageContent('middle'),
+          1: flatPageContent('oldest'),
+      }
 const tiptapContent = (text) =>
     JSON.stringify({
         type: 'doc',
         content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
     })
-const pageContentFlatPageV2 = {
-    3: tiptapContent('Snapshot newest'),
-    2: tiptapContent('Snapshot middle'),
-    1: tiptapContent('Snapshot oldest'),
-}
+const tiptapImage = (width) =>
+    JSON.stringify({
+        type: 'doc',
+        content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'Words' }] },
+            { type: 'paragraph', content: [{ type: 'image', attrs: { src: imageSource, width } }] },
+        ],
+    })
+const pageContentFlatPageV2 = resized
+    ? { 3: tiptapImage(300), 2: tiptapImage(null), 1: tiptapImage(null) }
+    : {
+          3: tiptapContent('Snapshot newest'),
+          2: tiptapContent('Snapshot middle'),
+          1: tiptapContent('Snapshot oldest'),
+      }
 // ?plain makes Note an "Input (Plain Text)" column, whose cells hold real line breaks.
 const plainText = new URLSearchParams(location.search).has('plain')
 const storageOnly = new URLSearchParams(location.search).has('storage-only')

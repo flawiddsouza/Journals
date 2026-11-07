@@ -104,7 +104,17 @@ function toInline(html: string): Inline[] | null {
     else if (name === 'img') {
       const src = attribute(attrs, 'src')
       if (!src) return null
-      tokens.push({ kind: 'image', src, alt: attribute(attrs, 'alt') || null, title: attribute(attrs, 'title'), marks: [...marks] })
+      // A width that is not a whole number of pixels has no spelling, and the
+      // line then fails its round trip and stays read-only.
+      const width = attribute(attrs, 'width')
+      tokens.push({
+        kind: 'image',
+        src,
+        alt: attribute(attrs, 'alt') || null,
+        title: attribute(attrs, 'title'),
+        width: width && /^[1-9]\d*$/.test(width) ? Number(width) : null,
+        marks: [...marks],
+      })
     } else if (name === 'a') {
       if (!closing) {
         const href = attribute(attrs, 'href')
@@ -167,7 +177,9 @@ function toHtml(tokens: Inline[]): string {
       } else {
         const alt = token.alt ? ` alt="${quote(token.alt)}"` : ''
         const title = token.title ? ` title="${quote(token.title)}"` : ''
-        html = `<img style="max-width: 100%" loading="lazy"${alt}${title} src="${quote(token.src)}">`
+        // Last, where the app's handle adds it to an image already on the page.
+        const width = token.width === null ? '' : ` width="${token.width}"`
+        html = `<img style="max-width: 100%" loading="lazy"${alt}${title} src="${quote(token.src)}"${width}>`
       }
       return [...token.marks].reverse().reduce((inner, mark) => `<${TAG_FOR[mark]}>${inner}</${TAG_FOR[mark]}>`, html)
     })

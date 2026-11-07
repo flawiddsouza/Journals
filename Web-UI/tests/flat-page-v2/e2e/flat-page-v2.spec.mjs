@@ -781,3 +781,119 @@ test('Ctrl+K asks for a link and wraps the selected text', async ({ page }) => {
     await expect(link).toHaveText('docs')
     await expect(editor).toContainText('read the')
 })
+
+// Along the image's slant: it is twice as wide as it is tall.
+async function dragImageHandle(page, distance) {
+    const box = await page.getByRole('button', { name: 'Resize image' }).boundingBox()
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width / 2 + distance, box.y + box.height / 2 + distance / 2, { steps: 4 })
+    await page.mouse.up()
+}
+
+const savedImageWidth = (page) =>
+    page.evaluate(() => {
+        const saved = window.flatPageV2Harness.getPageContentSaved()
+        return saved && JSON.parse(saved).content[1].content[0].attrs.width
+    })
+
+test('an image shows no resize controls until it is clicked, and they close on a press elsewhere and on Escape', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html?content=image')
+    const image = page.locator('.ProseMirror img:not(.ProseMirror-separator)')
+    const handle = page.getByRole('button', { name: 'Resize image' })
+    await expect(image).toBeVisible()
+    await expect(handle).toHaveCount(0)
+
+    await image.click()
+    await expect(handle).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(handle).toHaveCount(0)
+
+    await image.click()
+    await expect(handle).toBeVisible()
+    await page.getByText('After').click()
+    await expect(handle).toHaveCount(0)
+})
+
+test('dragging the handle resizes the image, keeps its shape, saves, and undo and redo take it back and forth', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html?content=image')
+    const image = page.locator('.ProseMirror img:not(.ProseMirror-separator)')
+    await image.click()
+    await dragImageHandle(page, 100)
+
+    await expect(image).toHaveAttribute('width', '300')
+    expect(await image.evaluate((img) => img.getBoundingClientRect().height)).toBe(150)
+    await expect.poll(() => savedImageWidth(page)).toBe(300)
+    await expect(page.getByRole('button', { name: 'Reset size' })).toBeVisible()
+
+    await page.keyboard.press('Control+z')
+    await expect(image).not.toHaveAttribute('width')
+    await expect.poll(() => savedImageWidth(page)).toBe(null)
+    await page.keyboard.press('Control+y')
+    await expect(image).toHaveAttribute('width', '300')
+})
+
+test('the image follows a drag without its document changing, and Escape puts it back', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html?content=image')
+    const image = page.locator('.ProseMirror img:not(.ProseMirror-separator)')
+    await image.click()
+
+    const box = await page.getByRole('button', { name: 'Resize image' }).boundingBox()
+    await page.mouse.move(box.x + 2, box.y + 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + 102, box.y + 52, { steps: 3 })
+    await expect.poll(() => image.evaluate((img) => img.getBoundingClientRect().width)).toBe(300)
+    await expect(image).not.toHaveAttribute('width')
+
+    await page.keyboard.press('Escape')
+    await page.mouse.up()
+    await expect.poll(() => image.evaluate((img) => img.getBoundingClientRect().width)).toBe(200)
+    await expect(image).not.toHaveAttribute('width')
+})
+
+test('the handle stays under the pointer along the image slant, and a drag straight down resizes too', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html?content=image')
+    const image = page.locator('.ProseMirror img:not(.ProseMirror-separator)')
+    await image.click()
+
+    const handle = page.getByRole('button', { name: 'Resize image' })
+    const start = await handle.boundingBox()
+    const x = start.x + start.width / 2
+    const y = start.y + start.height / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x + 100, y + 50, { steps: 4 })
+    await expect.poll(async () => {
+        const box = await handle.boundingBox()
+        return Math.hypot(box.x + box.width / 2 - (x + 100), box.y + box.height / 2 - (y + 50))
+    }).toBeLessThan(2)
+
+    // The nearest the corner of a 2:1 image can get to a point straight below it.
+    await page.mouse.move(x, y + 100, { steps: 4 })
+    await expect.poll(() => image.evaluate((img) => img.getBoundingClientRect().width)).toBe(240)
+    await page.mouse.up()
+    await expect(image).toHaveAttribute('width', '240')
+})
+
+test('Reset size and a double-click on the handle give an image back its own size', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html?content=image&width=300')
+    const image = page.locator('.ProseMirror img:not(.ProseMirror-separator)')
+    await image.click()
+    await page.getByRole('button', { name: 'Reset size' }).click()
+    await expect(image).not.toHaveAttribute('width')
+    await expect.poll(() => savedImageWidth(page)).toBe(null)
+    await expect(page.getByRole('button', { name: 'Reset size' })).toHaveCount(0)
+
+    await dragImageHandle(page, 50)
+    await expect(image).toHaveAttribute('width', '250')
+    await page.getByRole('button', { name: 'Resize image' }).dblclick()
+    await expect(image).not.toHaveAttribute('width')
+})
+
+test('a view-only page shows an image at its saved width, with no resize controls', async ({ page }) => {
+    await page.goto('/tests/flat-page-v2/harness.html?viewOnly=1&content=image&width=300')
+    const image = page.locator('.page-container img')
+    await expect(image).toHaveAttribute('width', '300')
+    await image.click()
+    await expect(page.getByRole('button', { name: 'Resize image' })).toHaveCount(0)
+})

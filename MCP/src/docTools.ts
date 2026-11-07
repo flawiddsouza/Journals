@@ -18,7 +18,7 @@ const LINE_FORM = [
   '- FlatPage: every line is a line of text. Inline markup only.',
   '- FlatPageV2: a line is a paragraph, and a blank line is an empty paragraph, so do not add blank lines between paragraphs unless the page should show a gap. Also "# " to "###### " headings, "- " bullets, "1. " numbered items, "- [ ] " and "- [x] " tasks, and code blocks between ``` lines. Indent a list line by two spaces per level to nest it.',
   '- TaskList: every line is a task, "- [ ] " or "- [x] ", nested by two spaces per level. Only bold, italic, strike and code work in a task; links and images do not exist there.',
-  'Inline markup: **bold**, *italic*, ~~strike~~, `code`, [label](https://address), ![alt](https://image-address), [[Page name|id]] for a link to another page with its id from list_pages, and <br> for a line break inside one block.',
+  'Inline markup: **bold**, *italic*, ~~strike~~, `code`, [label](https://address), ![alt](https://image-address), ![alt](https://image-address){width=300} for an image shown 300 pixels wide, [[Page name|id]] for a link to another page with its id from list_pages, and <br> for a line break inside one block.',
   'Put a backslash before a character to keep it literal: \\* \\` \\[ \\# \\-. Lines come back escaped that way where needed, so text copied from get_page can be sent back unchanged.',
 ].join('\n')
 

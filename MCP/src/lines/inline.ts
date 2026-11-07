@@ -17,10 +17,13 @@ export type Inline =
   | { kind: 'text'; text: string; marks: Mark[] }
   | { kind: 'pageLink'; pageId: number; pageName: string; marks: Mark[] }
   | { kind: 'link'; href: string; label: string; marks: Mark[] }
-  | { kind: 'image'; src: string; alt: string | null; title: string | null; marks: Mark[] }
+  | { kind: 'image'; src: string; alt: string | null; title: string | null; width: number | null; marks: Mark[] }
   | { kind: 'break'; marks: Mark[] }
 
 const DELIMITER: Record<Mark, string> = { bold: '**', italic: '*', strike: '~~', code: '`' }
+
+/** What follows an image's closing bracket to set how wide it shows, in pixels. */
+const WIDTH = /^\{width=([1-9]\d*)\}/
 
 const sortMarks = (marks: Iterable<Mark>): Mark[] => {
   const set = new Set(marks)
@@ -44,17 +47,21 @@ export function renderInline(tokens: Inline[]): string {
     open = marks
   }
 
-  for (const token of tokens) {
+  for (const [index, token] of tokens.entries()) {
     // Code spans are raw, so nothing else can be open across one.
     const code = token.kind === 'text' && token.marks.includes('code')
     moveTo(code ? [] : sortMarks(token.marks))
-    if (token.kind === 'text') out += code ? `\`${token.text}\`` : escapeText(token.text)
-    else if (token.kind === 'break') out += '<br>'
+    if (token.kind === 'text') {
+      // Text after an image that reads as the image's width stays text.
+      const readsAsWidth = tokens[index - 1]?.kind === 'image' && WIDTH.test(token.text)
+      out += code ? `\`${token.text}\`` : (readsAsWidth ? '\\' : '') + escapeText(token.text)
+    } else if (token.kind === 'break') out += '<br>'
     else if (token.kind === 'pageLink') out += `[[${escapeWithin(token.pageName, /[|\]]/g)}|${token.pageId}]]`
     else if (token.kind === 'link') out += `[${escapeWithin(token.label, /\]/g)}](${token.href})`
     else {
       const title = token.title === null ? '' : ` "${token.title}"`
-      out += `![${escapeWithin(token.alt ?? '', /\]/g)}](${token.src}${title})`
+      const width = token.width === null ? '' : `{width=${token.width}}`
+      out += `![${escapeWithin(token.alt ?? '', /\]/g)}](${token.src}${title})${width}`
     }
   }
   moveTo([])
@@ -195,7 +202,11 @@ function readLink(source: string, at: number): { token: Inline; length: number }
     const parts = target.match(/^(\S+)(?: "(.*)")?$/)
     if (!parts) return null
     if (!IMAGE_TARGET.test(parts[1]!)) throw new CodecError(`Image addresses must start with http:// or https://. Got ${parts[1]}. To write it as text instead, escape the bracket: !\\[`)
-    return { token: { kind: 'image', src: parts[1]!, alt: label.text || null, title: parts[2] ?? null, marks: [] }, length }
+    const width = source.slice(close + 1).match(WIDTH)
+    return {
+      token: { kind: 'image', src: parts[1]!, alt: label.text || null, title: parts[2] ?? null, width: width ? Number(width[1]) : null, marks: [] },
+      length: length + (width?.[0].length ?? 0),
+    }
   }
   if (!target || /\s/.test(target)) return null
   if (!LINK_TARGET.test(target)) throw new CodecError(`Link addresses must start with http://, https:// or mailto:. Got ${target}. To write it as text instead, escape the bracket: \\[`)

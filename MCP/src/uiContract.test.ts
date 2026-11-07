@@ -76,6 +76,13 @@ describe('constants copied from the app', () => {
     expect(source).toContain('JSON.stringify({ files: { ...files, modules }, kv })')
   })
 
+  test('an image width is the attribute the line form reads and writes (lines/flat.ts, lines/prose.ts)', () => {
+    // Flat Page: added last, as a pixel count, which is where toHtml writes it.
+    expect(ui('components/PageTypes/FlatPage.svelte')).toContain("imageResized.setAttribute('width', width)")
+    // Flat Page v2: a node attribute, a number or null.
+    expect(ui('components/PageTypes/FlatPageV2.svelte')).toContain("parseHTML: (element) => Number(element.getAttribute('width')) || null")
+  })
+
   test('the editors use the extensions testSchema.ts was written from', () => {
     const extensions = (file: string) =>
       [...ui(file).matchAll(/from '@tiptap\/(starter-kit|extension-[a-z-]+)'/g)].map((m) => m[1]).sort()

@@ -32,6 +32,12 @@ const pageTypeHelp = {
                         description:
                             'Opens the file insertion dialog. Pasted images upload automatically.',
                     },
+                    {
+                        name: 'Resize image',
+                        shortcut: 'Click image, drag corner',
+                        description:
+                            'Click an image to show its handle, then drag the handle. The width is saved with the page. Reset size, or a double-click on the handle, gives the image back its own size.',
+                    },
                 ],
             },
             {
@@ -172,6 +178,12 @@ const pageTypeHelp = {
                         shortcut: 'Ctrl+I',
                         description:
                             'Opens the file insertion dialog. Pasted images upload automatically.',
+                    },
+                    {
+                        name: 'Resize image',
+                        shortcut: 'Click image, drag corner',
+                        description:
+                            'Click an image to show its handle, then drag the handle. The width is saved with the page. Reset size, or a double-click on the handle, gives the image back its own size.',
                     },
                     {
                         name: 'Date',

@@ -5,7 +5,7 @@ import { CodecError, MARKS, type Inline, type Mark, inlineText, parseInline, ren
 /**
  * Flat Page v2 and Task List pages: ProseMirror document JSON as lines.
  *
- * The schemas are FlatPageV2.svelte:171-208 and TaskList.svelte:22-45. A Flat
+ * The schemas are FlatPageV2.svelte:171-221 and TaskList.svelte:22-45. A Flat
  * Page v2 document is `block+`. A Task List document is exactly one taskList.
  *
  * Whether a unit can be edited is not decided by a list of supported nodes. It
@@ -55,6 +55,7 @@ function toInline(content: PMNode[] | undefined): Inline[] {
         src: String(attrs.src ?? ''),
         alt: (attrs.alt as string | null) ?? null,
         title: (attrs.title as string | null) ?? null,
+        width: (attrs.width as number | null) ?? null,
         marks,
       }
     }
@@ -120,7 +121,7 @@ const textNodes = (source: string, mode: ProseMode): PMNode[] =>
     if (token.kind === 'break') return { type: 'hardBreak', ...marks }
     if (token.kind === 'pageLink') return { type: 'pageLink', attrs: { pageId: token.pageId, pageName: token.pageName }, ...marks }
     if (token.kind === 'link') return { type: 'externalLink', attrs: { href: token.href, label: token.label }, ...marks }
-    return { type: 'image', attrs: { src: token.src, alt: token.alt, title: token.title }, ...marks }
+    return { type: 'image', attrs: { src: token.src, alt: token.alt, title: token.title, width: token.width }, ...marks }
   })
 
 const paragraph = (source: string, mode: ProseMode): PMNode => {
@@ -239,7 +240,7 @@ function normalise(node: PMNode): PMNode {
     codeBlock: { language: null },
     orderedList: { start: 1, type: null },
     taskItem: { checked: false },
-    image: { src: null, alt: null, title: null },
+    image: { src: null, alt: null, title: null, width: null },
     pageLink: { pageId: null, pageName: '' },
     externalLink: { href: null, label: '' },
   }

@@ -125,7 +125,9 @@ contracts are in `get_table_config` for that reason.
 
 `get_page` and `edit_page` share one line form across the three document
 types (`src/lines/`). A line is a paragraph, a list item or a task. Inline
-markup is Markdown's, plus `[[Page name|id]]` for page links.
+markup is Markdown's, plus `[[Page name|id]]` for page links and
+`![alt](address){width=300}` for an image shown at a width in pixels, which is
+what dragging an image's handle in the app sets.
 
 An edit re-parses only the blocks it touches. Everything else is written back
 exactly as it was stored, so table column widths, alignment and pasted

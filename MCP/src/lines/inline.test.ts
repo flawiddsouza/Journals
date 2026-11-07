@@ -28,6 +28,14 @@ describe('parseInline', () => {
     expect(parse('`**x** [a](b)`')).toEqual([text('**x** [a](b)', 'code')])
   })
 
+  test('an image width is spelled after its brackets, and only a whole number counts', () => {
+    expect(parse('![](https://a.b/c.png){width=300}')).toEqual([{ kind: 'image', src: 'https://a.b/c.png', alt: null, title: null, width: 300, marks: [] }])
+    expect(parse('![](https://a.b/c.png){width=50%}')).toEqual([
+      { kind: 'image', src: 'https://a.b/c.png', alt: null, title: null, width: null, marks: [] },
+      text('{width=50%}'),
+    ])
+  })
+
   test('links, page links, images and breaks', () => {
     expect(parse('see [[Recipes|42]] or [site](https://a.b/c)<br>![cat](https://a.b/c.png "Cat")')).toEqual([
       text('see '),
@@ -35,7 +43,7 @@ describe('parseInline', () => {
       text(' or '),
       { kind: 'link', href: 'https://a.b/c', label: 'site', marks: [] },
       { kind: 'break', marks: [] },
-      { kind: 'image', src: 'https://a.b/c.png', alt: 'cat', title: 'Cat', marks: [] },
+      { kind: 'image', src: 'https://a.b/c.png', alt: 'cat', title: 'Cat', width: null, marks: [] },
     ])
   })
 
@@ -70,7 +78,10 @@ describe('round trip', () => {
     [text('x', 'code'), text(' then '), text('y', 'bold')],
     [{ kind: 'pageLink', pageId: 7, pageName: 'Pipes | and ] brackets', marks: [] }],
     [{ kind: 'link', href: 'https://a.b/?q=1&r=2', label: 'a ] b', marks: ['bold'] }],
-    [{ kind: 'image', src: 'https://a.b/c.png', alt: null, title: null, marks: [] }],
+    [{ kind: 'image', src: 'https://a.b/c.png', alt: null, title: null, width: null, marks: [] }],
+    [{ kind: 'image', src: 'https://a.b/c.png', alt: 'cat', title: 'Cat', width: 300, marks: [] }],
+    // Text after an image that merely looks like its width.
+    [{ kind: 'image', src: 'https://a.b/c.png', alt: null, title: null, width: null, marks: [] }, text('{width=300} wide')],
     [text('line one'), { kind: 'break', marks: [] }, text('line two')],
   ]
   for (const tokens of samples) {

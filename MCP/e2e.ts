@@ -470,6 +470,16 @@ async function checks(base: string, api: string) {
     )
     ok('and the API now counts the file as used', (await call(T, 'list_page_files', { page: target })).data?.files?.[0]?.usedOnPage === true)
 
+    const placedPage = await call(T, 'get_page', { page: target })
+    const resized = await call(T, 'edit_page', { page: target, revision: placedPage.data?.revision, start: 2, end: 2, text: `${uploaded.markup}{width=240}` })
+    ok(
+      "an image written with a width goes onto the page as the tag the app's handle writes, and reads back the same",
+      !resized.err &&
+        (await contentOf(target)) === `<div>a photo</div><div><img style="max-width: 100%" loading="lazy" src="${uploaded.url}" width="240"></div>` &&
+        (await call(T, 'get_page', { page: target })).text.includes(`${uploaded.markup}{width=240}`),
+      await contentOf(target),
+    )
+
     const doc = await call(T, 'create_file_upload', { page: target, filename: 'Q1 report.pdf' })
     const docPut = (await (await fetch(doc.data?.uploadUrl, { method: 'PUT', body: bytes })).json()) as any
     ok('anything that is not an image comes back as a link', docPut.markup === `[Q1 report.pdf](${docPut.url})` && docPut.image === false, docPut)

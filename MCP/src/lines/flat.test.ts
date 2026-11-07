@@ -87,6 +87,14 @@ describe('editing', () => {
     )
   })
 
+  test('an image keeps the width it is written with', () => {
+    const html = '<div><img style="max-width: 100%" loading="lazy" src="https://a.example/p.png" width="300"></div>'
+    expect(edit(null, { after: 0, lines: ['![](https://a.example/p.png){width=300}'] }).content).toBe(html)
+    expect(linesOf(flatCodec.read(html))).toEqual(['![](https://a.example/p.png){width=300}'])
+    // The form the browser writes when the app's handle resizes an image.
+    expect(flatCodec.read(html.replace('100%"', '100%;"'))[0]!.readOnly).toBeUndefined()
+  })
+
   test('text is escaped, because the app renders this content as HTML', () => {
     const result = edit(null, { after: 0, lines: ['<script>alert(1)</script> & <img src=x onerror=alert(1)>', '[x](https://a.example/"onmouseover="alert(1))'] })
     expect(result.content).toBe(
@@ -128,6 +136,7 @@ test('a line is editable only when sending it back unchanged would change nothin
     `<div>${LINK}</div>`,
     '<div><a href="https://a.example" target="_blank" contenteditable="false">site</a></div>',
     '<div><img style="max-width: 100%" loading="lazy" src="https://a.example/i.png"></div>',
+    '<div><img style="max-width: 100%" loading="lazy" src="https://a.example/i.png" width="300"></div>',
     '<div><br></div>',
   ]) {
     expect(echo(html)).toBe(html)
@@ -138,6 +147,7 @@ test('a line is editable only when sending it back unchanged would change nothin
   for (const html of [
     '<div><a href="https://a.example/(x)" target="_blank" contenteditable="false">paren in address</a></div>',
     '<div><img id="i1" width="40" src="https://a.example/i.png"></div>',
+    '<div><img style="max-width: 100%" loading="lazy" src="https://a.example/i.png" width="50%"></div>',
     '<div><code><b>bold inside code</b></code></div>',
     '<div><a href="javascript:alert(1)">bad address</a></div>',
     '<div><strong>pasted strong</strong></div>',

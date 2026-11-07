@@ -320,6 +320,26 @@ function onInput() {
     savePageContent(event)
 }
 
+// Through execCommand rather than on the element, so that it saves like any
+// other edit and Ctrl+Z takes it back. That replaces the element.
+function saveImageWidth(image, width) {
+    const imageIndex = [...pageContainer.querySelectorAll('img')].indexOf(image)
+    const imageResized = image.cloneNode()
+    if (width === null) imageResized.removeAttribute('width')
+    else imageResized.setAttribute('width', width)
+
+    pageContainer.focus({ preventScroll: true })
+    const range = document.createRange()
+    range.selectNode(image)
+    const selection = window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+    document.execCommand('insertHTML', false, imageResized.outerHTML)
+
+    return pageContainer.querySelectorAll('img')[imageIndex]
+}
+
+import ImageResizer from '../ImageResizer.svelte'
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
 </script>
 
@@ -338,6 +358,7 @@ import InsertFileModal from '../Modals/InsertFileModal.svelte'
             on:paste={handlePaste}
             {style}
         ></div>
+        <ImageResizer container={pageContainer} saveWidth={saveImageWidth} />
     {/if}
 {:else}
     <div class="page-container view-only" bind:this={pageContainer} {style}>

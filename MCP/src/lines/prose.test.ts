@@ -65,6 +65,18 @@ describe('reading', () => {
     expect(v2.write(v2.read(PAGE))).toBe(PAGE)
   })
 
+  test('an image keeps its width, and stays editable, through a read and a write', () => {
+    const image = (width: unknown) => ({ type: 'image', attrs: { src: 'https://a.example/i.png', alt: null, title: null, width } })
+    const content = doc(p(image(300)))
+    expect(linesOf(v2.read(content))).toEqual(['![](https://a.example/i.png){width=300}'])
+    expect(v2.read(content)[0]!.readOnly).toBeUndefined()
+    expect(v2.write(v2.parse(['![](https://a.example/i.png){width=300}']))).toBe(content)
+    assertLoads(flatPageV2Schema, content)
+    // A document saved before images had a width, and a width with no spelling.
+    expect(v2.read(doc(p({ type: 'image', attrs: { src: 'https://a.example/i.png', alt: null, title: null } })))[0]!.readOnly).toBeUndefined()
+    expect(v2.read(doc(p(image('50%'))))[0]!.readOnly).toBe('formatting the line form cannot express')
+  })
+
   test('a never-saved page is one empty line, and a Task List one empty task', () => {
     expect(linesOf(v2.read(null))).toEqual([''])
     expect(linesOf(tasks.read(null))).toEqual(['- [ ] '])

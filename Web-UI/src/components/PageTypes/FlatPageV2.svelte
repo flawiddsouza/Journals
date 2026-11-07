@@ -189,7 +189,20 @@ const extensions = [
     }),
     PageLink,
     ExternalLink,
-    Image.configure({ inline: true, HTMLAttributes: { style: 'max-width: 100%' } }).extend({ atom: true, selectable: false }),
+    Image.configure({ inline: true, HTMLAttributes: { style: 'max-width: 100%' } }).extend({
+        atom: true,
+        selectable: false,
+        addAttributes() {
+            return {
+                ...this.parent?.(),
+                width: {
+                    default: null,
+                    // A number or nothing: a page pasted from the web may say "50%".
+                    parseHTML: (element) => Number(element.getAttribute('width')) || null,
+                },
+            }
+        },
+    }),
     TaskList.configure({ HTMLAttributes: { class: 'task-list-items' } }),
     TaskItem.configure({
         nested: true,
@@ -515,6 +528,18 @@ function joinPreviousAdjacentTaskList() {
     }
 
     return false
+}
+
+function saveImageWidth(image, width) {
+    const { state, view } = editor
+    const position = view.posAtDOM(image, 0)
+    const node = state.doc.nodeAt(position)
+
+    if (node?.type.name === 'image') {
+        view.dispatch(state.tr.setNodeMarkup(position, null, { ...node.attrs, width }))
+    }
+
+    return view.nodeDOM(position)
 }
 
 function pageContainerMounted(element) {
@@ -919,6 +944,7 @@ onDestroy(() => {
     }
 })
 
+import ImageResizer from '../ImageResizer.svelte'
 import InsertFileModal from '../Modals/InsertFileModal.svelte'
 import { DOMSerializer, Fragment, Node, Slice } from '@tiptap/pm/model'
 import { TextSelection } from '@tiptap/pm/state'
@@ -1082,6 +1108,7 @@ import { canJoin } from '@tiptap/pm/transform'
                 {/if}
             </div>
         </div>
+        <ImageResizer container={editorDom} saveWidth={saveImageWidth} />
     {/if}
 {:else}
     <div class="page-container view-only" bind:this={pageContainer} {style}>

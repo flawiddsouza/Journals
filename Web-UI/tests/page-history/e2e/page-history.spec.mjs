@@ -298,3 +298,14 @@ test('Table history keeps the line breaks of a plain-text column', async ({
         preview.locator('.table-history-plain-text').first(),
     ).toHaveText('one\ntwo\nthree', { useInnerText: true })
 })
+
+for (const type of ['FlatPage', 'FlatPageV2']) {
+    test(`${type} history marks a version that only resized an image`, async ({ page }) => {
+        await openHistory(page, `?resized&type=${type}`)
+        await page.getByRole('button', { name: 'View' }).nth(1).click()
+
+        const preview = page.locator('.flat-page-history-preview')
+        await expect(preview.locator('img[width="300"]').last()).toBeVisible()
+        await expect(preview.locator('.flat-page-history-markup-changed')).toHaveCount(1)
+    })
+}
