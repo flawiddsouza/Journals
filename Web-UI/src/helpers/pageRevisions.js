@@ -14,6 +14,11 @@ const revisions = new Map()
 // would carry the revision the first is about to replace.
 const saves = new Map()
 const conflicted = new Set()
+// Counts each load and save of a page as it starts and as it answers, so a
+// check for changes made elsewhere can tell that one of this tab's own crossed it.
+const touches = new Map()
+const touch = (pageId) => touches.set(pageId, (touches.get(pageId) || 0) + 1)
+const loadWaiters = new Map()
 
 const reload = () => globalThis.location.reload()
 
@@ -53,34 +58,51 @@ export function withPageRevision(method, url, data, send) {
 
     if (loading) {
         const pageId = loading[1]
+        touch(pageId)
         // A save still on its way would make this read, and its revision, old
         // the moment it arrives.
         const settled = () => {}
+        const answered = () => {
+            touch(pageId)
+            const waiters = loadWaiters.get(pageId) || []
+            loadWaiters.delete(pageId)
+            waiters.forEach((resolve) => resolve())
+        }
         return Promise.resolve(saves.get(pageId))
             .then(settled, settled)
             .then(() => send(data))
-            .then((response) => {
-                if (response && response.revision) {
-                    revisions.set(pageId, response.revision)
-                    if (conflicted.delete(pageId) && !conflicted.size) clearBanner()
-                }
-                return response
-            })
+            .then(
+                (response) => {
+                    if (response && response.revision) {
+                        revisions.set(pageId, response.revision)
+                        if (conflicted.delete(pageId) && !conflicted.size) clearBanner()
+                    }
+                    answered()
+                    return response
+                },
+                (failure) => {
+                    answered()
+                    return Promise.reject(failure)
+                },
+            )
     }
 
     if (!saving) return send(data)
 
     const pageId = saving[1]
+    touch(pageId)
     const save = () => {
         if (conflicted.has(pageId)) return Promise.reject({ status: 409, conflict: true })
         const baseRevision = revisions.get(pageId)
         return send(baseRevision ? { ...data, baseRevision } : data).then(
             (response) => {
+                touch(pageId)
                 if (response && response.revision)
                     revisions.set(pageId, response.revision)
                 return response
             },
             (failure) => {
+                touch(pageId)
                 if (failure && failure.status === 409) {
                     tellAboutConflict(pageId)
                     return Promise.reject({ status: 409, conflict: true })
@@ -99,9 +121,36 @@ export function withPageRevision(method, url, data, send) {
     return request
 }
 
+/**
+ * Whether a page this tab loaded was saved somewhere else since this tab last
+ * loaded or saved it. `fetchRevision()` resolves to `{ revision }`, the page's
+ * revision now. Answers false whenever it cannot tell: the page was never
+ * loaded here, a save from this tab is on its way or crossed the check, or a
+ * refused save has already told the person and is waiting on them.
+ */
+export async function changedElsewhere(pageId, fetchRevision) {
+    const id = String(pageId)
+    const known = revisions.get(id)
+    if (!known || saves.has(id) || conflicted.has(id)) return false
+    const touched = touches.get(id)
+    const response = await fetchRevision()
+    if (touches.get(id) !== touched || conflicted.has(id)) return false
+    return Boolean(response && response.revision) && response.revision !== known
+}
+
+/** Resolves once the next load of the page has answered, either way. */
+export function whenPageLoaded(pageId) {
+    const id = String(pageId)
+    return new Promise((resolve) => {
+        loadWaiters.set(id, [...(loadWaiters.get(id) || []), resolve])
+    })
+}
+
 /** For tests. */
 export function resetPageRevisions() {
     revisions.clear()
     saves.clear()
     conflicted.clear()
+    touches.clear()
+    loadWaiters.clear()
 }

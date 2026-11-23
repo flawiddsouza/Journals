@@ -800,6 +800,22 @@ get "/pages/content/:page_id" do |env|
   {content: page[:content], revision: page_revision(page[:content])}.to_json
 end
 
+# An open page asks this every few seconds to learn whether it was saved
+# somewhere else, without fetching the content itself.
+get "/pages/revision/:page_id" do |env|
+  page_id = env.params.url["page_id"]
+
+  page = db.query_one?("SELECT content from pages WHERE id = ? AND user_id = ? AND deleted_at IS NULL", page_id, env.auth_id, as: {content: Nil | String})
+
+  unless page
+    # Kemal answers any 404 with the `error 404` text, so no JSON goes here.
+    env.response.status_code = 404
+    next
+  end
+  env.response.content_type = "application/json"
+  {revision: page_revision(page[:content])}.to_json
+end
+
 get "/user-settings/:setting_key" do |env|
   setting_key = env.params.url["setting_key"]
   unless valid_user_setting_key?(setting_key)

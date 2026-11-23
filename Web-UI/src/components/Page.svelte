@@ -14,7 +14,10 @@ import MiniApp from './PageTypes/MiniApp.svelte'
 import VersatileCalculator from './PageTypes/VersatileCalculator.svelte'
 import TaskList from './PageTypes/TaskList.svelte'
 import { format } from 'date-fns'
+import { onDestroy } from 'svelte'
 import defaultKeydownHandlerForContentEditableArea from '../helpers/defaultKeydownHandlerForContentEditableArea.js'
+import { keepScrollPlace, watchForOutsideChanges } from '../helpers/outsideChanges.js'
+import { whenPageLoaded } from '../helpers/pageRevisions.js'
 
 export let notebooks = []
 export let activePage = null
@@ -38,6 +41,36 @@ $: if (viewOnly !== null) {
     }
 }
 
+// A page saved somewhere else is loaded again in place. A page group's and
+// Favorites' own content is only which page is open in them, and the page
+// inside is watched by its own Page.
+const PAGE_TYPES_HOLDING_PAGES = ['PageGroup', 'Favorites']
+let pageElement = null
+let entriesElement = null
+let contentKey = 0
+let watchedPageId = null
+let stopWatching = null
+
+$: watchPage(
+    activePage && activePage.locked === false && !PAGE_TYPES_HOLDING_PAGES.includes(activePage.type)
+        ? activePage.id
+        : null,
+)
+
+function watchPage(pageId) {
+    if (pageId === watchedPageId) return
+    stopWatching?.()
+    stopWatching = null
+    watchedPageId = pageId
+    if (pageId === null || pageId === undefined) return
+    stopWatching = watchForOutsideChanges(pageId, () => {
+        keepScrollPlace(pageElement, entriesElement, whenPageLoaded(pageId))
+        contentKey++
+    })
+}
+
+onDestroy(() => stopWatching?.())
+
 function makeContentEditableSingleLine(e) {
     if (e.key.toLowerCase() === 'enter') {
         e.preventDefault()
@@ -48,6 +81,7 @@ function makeContentEditableSingleLine(e) {
 </script>
 
 <main
+    bind:this={pageElement}
     class="journal-page {className} {`PageType-${activePage.type}`}"
     style="display: grid; grid-template-rows: {activePage.hide_title ? '1fr' : 'auto 1fr'}; overflow: auto;"
 >
@@ -78,120 +112,126 @@ function makeContentEditableSingleLine(e) {
             >
         </div>
         {/if}
-        <div class="journal-page-entries" style={activePage.hide_title ? 'margin-top: 0' : ''}>
-            {#if activePage.type === 'Table'}
-                <Table
-                    bind:pageId={activePage.id}
-                    style="font-size: {activePage.font_size ||
-                        '14'}{activePage.font_size_unit ||
-                        'px'}; font-family: {activePage.font || 'Ubuntu'}"
-                    bind:viewOnly={viewOnlyComputed}
-                ></Table>
-            {/if}
-            {#if activePage.type === 'FlatPage'}
-                <FlatPage
-                    bind:pageId={activePage.id}
-                    style="font-size: {activePage.font_size ||
-                        '14'}{activePage.font_size_unit ||
-                        'px'}; font-family: {activePage.font || 'Ubuntu'}"
-                    bind:viewOnly={viewOnlyComputed}
-                ></FlatPage>
-            {/if}
-            {#if activePage.type === 'FlatPageV2'}
-                <FlatPageV2
-                    bind:pageId={activePage.id}
-                    style="font-size: {activePage.font_size ||
-                        '14'}{activePage.font_size_unit ||
-                        'px'}; font-family: {activePage.font || 'Ubuntu'}"
-                    bind:viewOnly={viewOnlyComputed}
-                ></FlatPageV2>
-            {/if}
-            {#if activePage.type === 'RichText'}
-                <RichText
-                    bind:pageId={activePage.id}
-                    style="font-size: {activePage.font_size ||
-                        '14'}{activePage.font_size_unit ||
-                        'px'}; font-family: {activePage.font || 'Ubuntu'}"
-                    bind:viewOnly={viewOnlyComputed}
-                ></RichText>
-            {/if}
-            {#if activePage.type === 'Spreadsheet'}
-                {#key viewOnlyComputed}
-                    <Spreadsheet
+        <div
+            bind:this={entriesElement}
+            class="journal-page-entries"
+            style={activePage.hide_title ? 'margin-top: 0' : ''}
+        >
+            {#key contentKey}
+                {#if activePage.type === 'Table'}
+                    <Table
+                        bind:pageId={activePage.id}
+                        style="font-size: {activePage.font_size ||
+                            '14'}{activePage.font_size_unit ||
+                            'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                        bind:viewOnly={viewOnlyComputed}
+                    ></Table>
+                {/if}
+                {#if activePage.type === 'FlatPage'}
+                    <FlatPage
+                        bind:pageId={activePage.id}
+                        style="font-size: {activePage.font_size ||
+                            '14'}{activePage.font_size_unit ||
+                            'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                        bind:viewOnly={viewOnlyComputed}
+                    ></FlatPage>
+                {/if}
+                {#if activePage.type === 'FlatPageV2'}
+                    <FlatPageV2
+                        bind:pageId={activePage.id}
+                        style="font-size: {activePage.font_size ||
+                            '14'}{activePage.font_size_unit ||
+                            'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                        bind:viewOnly={viewOnlyComputed}
+                    ></FlatPageV2>
+                {/if}
+                {#if activePage.type === 'RichText'}
+                    <RichText
+                        bind:pageId={activePage.id}
+                        style="font-size: {activePage.font_size ||
+                            '14'}{activePage.font_size_unit ||
+                            'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                        bind:viewOnly={viewOnlyComputed}
+                    ></RichText>
+                {/if}
+                {#if activePage.type === 'Spreadsheet'}
+                    {#key viewOnlyComputed}
+                        <Spreadsheet
+                            bind:pageId={activePage.id}
+                            bind:viewOnly={viewOnlyComputed}
+                        ></Spreadsheet>
+                    {/key}
+                {/if}
+                {#if activePage.type === 'SpreadsheetV2'}
+                    {#key `${activePage.id}:${viewOnlyComputed}`}
+                        <SpreadsheetV2
+                            bind:pageId={activePage.id}
+                            bind:viewOnly={viewOnlyComputed}
+                        ></SpreadsheetV2>
+                    {/key}
+                {/if}
+                {#if activePage.type === 'DrawIO'}
+                    <DrawIO
                         bind:pageId={activePage.id}
                         bind:viewOnly={viewOnlyComputed}
-                    ></Spreadsheet>
-                {/key}
-            {/if}
-            {#if activePage.type === 'SpreadsheetV2'}
-                {#key `${activePage.id}:${viewOnlyComputed}`}
-                    <SpreadsheetV2
+                    ></DrawIO>
+                {/if}
+                {#if activePage.type === 'Excalidraw'}
+                    {#key activePage.id}
+                        <Excalidraw
+                            bind:pageId={activePage.id}
+                            bind:viewOnly={viewOnlyComputed}
+                        ></Excalidraw>
+                    {/key}
+                {/if}
+                {#if activePage.type === 'PageGroup'}
+                    <PageGroup
+                        {notebooks}
+                        bind:pageGroupPage={activePage}
                         bind:pageId={activePage.id}
                         bind:viewOnly={viewOnlyComputed}
-                    ></SpreadsheetV2>
-                {/key}
-            {/if}
-            {#if activePage.type === 'DrawIO'}
-                <DrawIO
-                    bind:pageId={activePage.id}
-                    bind:viewOnly={viewOnlyComputed}
-                ></DrawIO>
-            {/if}
-            {#if activePage.type === 'Excalidraw'}
-                {#key activePage.id}
-                    <Excalidraw
+                        activePageId={activePage.activePageId}
+                    ></PageGroup>
+                {/if}
+                {#if activePage.type === 'Favorites'}
+                    <Favorites
+                        {notebooks}
                         bind:pageId={activePage.id}
                         bind:viewOnly={viewOnlyComputed}
-                    ></Excalidraw>
-                {/key}
-            {/if}
-            {#if activePage.type === 'PageGroup'}
-                <PageGroup
-                    {notebooks}
-                    bind:pageGroupPage={activePage}
-                    bind:pageId={activePage.id}
-                    bind:viewOnly={viewOnlyComputed}
-                    activePageId={activePage.activePageId}
-                ></PageGroup>
-            {/if}
-            {#if activePage.type === 'Favorites'}
-                <Favorites
-                    {notebooks}
-                    bind:pageId={activePage.id}
-                    bind:viewOnly={viewOnlyComputed}
-                    activePageId={activePage.activePageId}
-                ></Favorites>
-            {/if}
-            {#if activePage.type === 'Kanban'}
-                <Kanban
-                    bind:pageId={activePage.id}
-                    bind:viewOnly={viewOnlyComputed}
-                ></Kanban>
-            {/if}
-            {#if activePage.type === 'MiniApp'}
-                <MiniApp
-                    bind:pageId={activePage.id}
-                    bind:viewOnly={viewOnlyComputed}
-                ></MiniApp>
-            {/if}
-            {#if activePage.type === 'VersatileCalculator'}
-                <VersatileCalculator
-                    bind:pageId={activePage.id}
-                    style="font-size: {activePage.font_size ||
-                        '14'}{activePage.font_size_unit ||
-                        'px'}; font-family: {activePage.font || 'Ubuntu'}"
-                    bind:viewOnly={viewOnlyComputed}
-                ></VersatileCalculator>
-            {/if}
-            {#if activePage.type === 'TaskList'}
-                <TaskList
-                    bind:pageId={activePage.id}
-                    style="font-size: {activePage.font_size ||
-                        '14'}{activePage.font_size_unit ||
-                        'px'}; font-family: {activePage.font || 'Ubuntu'}"
-                    bind:viewOnly={viewOnlyComputed}
-                ></TaskList>
-            {/if}
+                        activePageId={activePage.activePageId}
+                    ></Favorites>
+                {/if}
+                {#if activePage.type === 'Kanban'}
+                    <Kanban
+                        bind:pageId={activePage.id}
+                        bind:viewOnly={viewOnlyComputed}
+                    ></Kanban>
+                {/if}
+                {#if activePage.type === 'MiniApp'}
+                    <MiniApp
+                        bind:pageId={activePage.id}
+                        bind:viewOnly={viewOnlyComputed}
+                    ></MiniApp>
+                {/if}
+                {#if activePage.type === 'VersatileCalculator'}
+                    <VersatileCalculator
+                        bind:pageId={activePage.id}
+                        style="font-size: {activePage.font_size ||
+                            '14'}{activePage.font_size_unit ||
+                            'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                        bind:viewOnly={viewOnlyComputed}
+                    ></VersatileCalculator>
+                {/if}
+                {#if activePage.type === 'TaskList'}
+                    <TaskList
+                        bind:pageId={activePage.id}
+                        style="font-size: {activePage.font_size ||
+                            '14'}{activePage.font_size_unit ||
+                            'px'}; font-family: {activePage.font || 'Ubuntu'}"
+                        bind:viewOnly={viewOnlyComputed}
+                    ></TaskList>
+                {/if}
+            {/key}
         </div>
     {/if}
     {#if activePage.locked === true}

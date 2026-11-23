@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearBanner, showAlert, showBanner, showConfirm } from './dialogs.js'
-import { resetPageRevisions, tellSaveFailed, withPageRevision } from './pageRevisions.js'
+import { changedElsewhere, resetPageRevisions, tellSaveFailed, whenPageLoaded, withPageRevision } from './pageRevisions.js'
 
 vi.mock('./dialogs.js', () => ({
     showAlert: vi.fn(),
@@ -128,6 +128,67 @@ describe('page revisions', () => {
         saving.resolve({ success: true, revision: 'rev2' })
         await Promise.all([save, loading])
         expect(sendLoad).toHaveBeenCalledTimes(1)
+    })
+
+    it('a page saved somewhere else is told apart from one that was not', async () => {
+        await load(7, 'rev1')
+        expect(await changedElsewhere(7, () => Promise.resolve({ revision: 'rev1' }))).toBe(false)
+        expect(await changedElsewhere(7, () => Promise.resolve({ revision: 'rev2' }))).toBe(true)
+        // Its own save moves the revision this tab knows.
+        await withPageRevision('put', '/pages/7', { pageContent: 'a' }, () => Promise.resolve({ success: true, revision: 'rev3' }))
+        expect(await changedElsewhere(7, () => Promise.resolve({ revision: 'rev3' }))).toBe(false)
+    })
+
+    it('a page never loaded here, or one whose refused save is waiting on the person, is not reported', async () => {
+        const fetchRevision = vi.fn().mockResolvedValue({ revision: 'rev2' })
+        expect(await changedElsewhere(9, fetchRevision)).toBe(false)
+        await load(7, 'rev1')
+        await expect(withPageRevision('put', '/pages/7', { pageContent: 'a' }, () => Promise.reject({ status: 409 }))).rejects.toEqual(conflict)
+        expect(await changedElsewhere(7, fetchRevision)).toBe(false)
+        expect(fetchRevision).not.toHaveBeenCalled()
+    })
+
+    it('a save of this tab still on its way is not mistaken for one made elsewhere', async () => {
+        await load(7, 'rev1')
+        const saving = deferred()
+        const save = withPageRevision('put', '/pages/7', { pageContent: 'a' }, () => saving.promise)
+        const fetchRevision = vi.fn().mockResolvedValue({ revision: 'rev2' })
+        expect(await changedElsewhere(7, fetchRevision)).toBe(false)
+        expect(fetchRevision).not.toHaveBeenCalled()
+        saving.resolve({ success: true, revision: 'rev2' })
+        await save
+    })
+
+    it('a save of this tab that crosses the check is not mistaken for one made elsewhere', async () => {
+        await load(7, 'rev1')
+        const answer = deferred()
+        const checking = changedElsewhere(7, () => answer.promise)
+        // The check reached the API after this save had already landed there.
+        await withPageRevision('put', '/pages/7', { pageContent: 'a' }, () => Promise.resolve({ success: true, revision: 'rev2' }))
+        answer.resolve({ revision: 'rev2' })
+        expect(await checking).toBe(false)
+    })
+
+    it('a save that crosses the check and lands back on the known content is not reported either', async () => {
+        await load(7, 'rev1')
+        const answer = deferred()
+        const checking = changedElsewhere(7, () => answer.promise)
+        await withPageRevision('put', '/pages/7', { pageContent: 'b' }, () => Promise.resolve({ success: true, revision: 'rev2' }))
+        await withPageRevision('put', '/pages/7', { pageContent: 'a' }, () => Promise.resolve({ success: true, revision: 'rev1' }))
+        // The check was answered between the two saves.
+        answer.resolve({ revision: 'rev2' })
+        expect(await checking).toBe(false)
+    })
+
+    it('tells a waiter when the next load of a page answers, also when it fails', async () => {
+        const loaded = vi.fn()
+        whenPageLoaded(7).then(loaded)
+        await load(8, 'rev1')
+        await settled()
+        expect(loaded).not.toHaveBeenCalled()
+        await expect(withPageRevision('get', '/pages/content/7', undefined, () => Promise.reject({ status: 500 }))).rejects.toEqual({ status: 500 })
+        await settled()
+        expect(loaded).toHaveBeenCalledTimes(1)
     })
 
     it('other requests pass straight through, untouched', async () => {
